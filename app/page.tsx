@@ -1,4 +1,4 @@
-import WeatherApp from "../weather-app"
+import WeatherApp from "@/components/WeatherApp";
 
 export default function Page() {
   return <WeatherApp />
