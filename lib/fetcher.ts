@@ -1,4 +1,4 @@
-import type { DayForecast, WeatherData } from "./types.ts"
+import type { DayData, Ranges, WeatherData, WeekData } from "./types.ts"
 
 const mockWeatherData: WeatherData = {
     inTemp: null,
@@ -19,13 +19,13 @@ const mockWeatherData: WeatherData = {
     eventrain: 0.0,
 }
 
-const weeklyForecast: DayForecast[] = [
+const weeklyForecast = [
     {
         day: "TUE",
         icon: "partly-cloudy",
         precipChance: 56,
-        lowTemp: 78,
-        highTemp: 86,
+        min_outTemp: 78,
+        max_outTemp: 86,
         date: "Tuesday, August 30, 2005",
         description:
             "Light rain throughout the day, with high temperatures rising to 86°F.",
@@ -120,8 +120,8 @@ const weeklyForecast: DayForecast[] = [
         day: "WED",
         icon: "partly-cloudy",
         precipChance: 60,
-        lowTemp: 74,
-        highTemp: 90,
+        min_outTemp: 74,
+        max_outTemp: 90,
         date: "Wednesday, August 31, 2005",
         description:
             "Partly cloudy with occasional showers, temperatures reaching 90°F.",
@@ -216,8 +216,8 @@ const weeklyForecast: DayForecast[] = [
         day: "THU",
         icon: "rainy",
         precipChance: 88,
-        lowTemp: 77,
-        highTemp: 88,
+        min_outTemp: 77,
+        max_outTemp: 88,
         date: "Thursday, September 1, 2005",
         description:
             "Heavy rain expected throughout the day with strong winds.",
@@ -312,8 +312,8 @@ const weeklyForecast: DayForecast[] = [
         day: "FRI",
         icon: "partly-cloudy",
         precipChance: 41,
-        lowTemp: 76,
-        highTemp: 90,
+        min_outTemp: 76,
+        max_outTemp: 90,
         date: "Friday, September 2, 2005",
         description: "Partly cloudy with scattered showers.",
         hourlyData: [],
@@ -322,8 +322,8 @@ const weeklyForecast: DayForecast[] = [
         day: "SAT",
         icon: "sunny",
         precipChance: 26,
-        lowTemp: 77,
-        highTemp: 88,
+        min_outTemp: 77,
+        max_outTemp: 88,
         date: "Saturday, September 3, 2005",
         description: "Mostly sunny with light clouds.",
         hourlyData: [],
@@ -332,8 +332,8 @@ const weeklyForecast: DayForecast[] = [
         day: "SUN",
         icon: "rainy",
         precipChance: 44,
-        lowTemp: 76,
-        highTemp: 88,
+        min_outTemp: 76,
+        max_outTemp: 88,
         date: "Sunday, September 4, 2005",
         description: "Light rain in the afternoon.",
         hourlyData: [],
@@ -342,8 +342,8 @@ const weeklyForecast: DayForecast[] = [
         day: "MON",
         icon: "rainy",
         precipChance: 52,
-        lowTemp: 74,
-        highTemp: 87,
+        min_outTemp: 74,
+        max_outTemp: 87,
         date: "Monday, September 5, 2005",
         description: "Rainy day with moderate temperatures.",
         hourlyData: [],
@@ -352,18 +352,50 @@ const weeklyForecast: DayForecast[] = [
         day: "TUE",
         icon: "partly-cloudy",
         precipChance: 38,
-        lowTemp: 74,
-        highTemp: 86,
+        min_outTemp: 74,
+        max_outTemp: 86,
         date: "Tuesday, September 6, 2005",
         description: "Partly cloudy with occasional sun breaks.",
         hourlyData: [],
     },
 ]
 
+function getAbbreviatedDay(dateString: string): string {
+    const date = new Date(dateString);
+    const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+    return days[date.getDay()];
+}
+
+
 export async function fetchCurrentWeatherData() {
     return mockWeatherData
 }
 
-export async function fetchLastWeekData() {
-    return weeklyForecast
+export async function fetchLastWeekData(): Promise<WeekData> {
+    const response = await fetch("http://localhost:8080/daily?q=min_outTemp&q=max_outTemp&q=min_outHumi&q=max_outHumi&q=max_gustspeed&q=avg_avgwind&q=max_gustspeed&q=avg_rainofhourly")
+    const body = await response.json()
+    const data: DayData[] = body.data.map((item: any) => ({
+        day: getAbbreviatedDay(item.date),
+        date: item.date,
+        icon: "partly-cloudy",
+        precipChance: 50,
+        min_outTemp: item.min_outTemp,
+        max_outTemp: item.max_outTemp,
+        min_outHumi: item.min_outHumi,
+        max_outHumi: item.max_outHumi,
+        max_gustspeed: item.max_gustspeed,
+        avg_avgwind: item.avg_avgwind,
+        avg_rainofhourly: item.avg_rainofhourly,
+        description: "Description",
+        hourlyData: [],
+    }))
+    const ranges: Ranges = {
+        min_outTemp: Math.min(...data.map(d => d.min_outTemp)),
+        max_outTemp: Math.max(...data.map(d => d.max_outTemp)),
+        min_outHumi: Math.min(...data.map(d => d.min_outHumi)),
+        max_outHumi: Math.max(...data.map(d => d.max_outHumi)),
+        max_gustspeed: Math.max(...data.map(d => d.max_gustspeed)),
+    };
+
+    return { data, ranges }
 }

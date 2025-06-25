@@ -36,13 +36,13 @@ const WeatherIcon = ({ type, size = 24 }: { type: string; size?: number }) => {
 const TemperatureBar = ({
     low,
     high,
-    minTemp = 70,
-    maxTemp = 95,
+    minTemp,
+    maxTemp,
 }: {
     low: number
     high: number
-    minTemp?: number
-    maxTemp?: number
+    minTemp: number
+    maxTemp: number
 }) => {
     const range = maxTemp - minTemp
     const lowPercent = ((low - minTemp) / range) * 100
@@ -50,23 +50,29 @@ const TemperatureBar = ({
     const barWidth = highPercent - lowPercent
 
     return (
-        <div className="flex items-center space-x-2 flex-1">
-            <span className="text-sm font-medium text-gray-700 w-8 text-right">
-                {low}°
-            </span>
-            <div className="relative flex-1 h-1 bg-gray-200 rounded-full">
+
+            <div className="relative flex-1 h-5 inline-flex ml-12 mr-6">
+                <span className="text-sm font-medium text-gray-700 absolute pr-1"
+                    style={{
+                        right: `${100 - lowPercent}%`,
+                    }}>
+                    {Math.round(low)}°
+                </span>
                 <div
-                    className="absolute h-full bg-gradient-to-r from-blue-400 to-orange-400 rounded-full"
+                    className="absolute h-full range-bar rounded-full"
                     style={{
                         left: `${lowPercent}%`,
                         width: `${barWidth}%`,
                     }}
                 />
+                <span className="text-sm font-medium text-gray-900 absolute pl-1"
+                                  style={{
+                                    left: `${highPercent}%`,
+                                }}>
+                    {Math.round(high)}°
+                </span>
             </div>
-            <span className="text-sm font-medium text-gray-900 w-8">
-                {high}°
-            </span>
-        </div>
+
     )
 }
 
@@ -240,36 +246,38 @@ export default function WeatherApp() {
                 <div className="bg-white rounded-lg shadow-sm overflow-hidden">
                     {!isLoadingLastWeekData &&
                         lastWeekData &&
-                        lastWeekData.map((day, index) => (
+                        lastWeekData.data.map((day, index) => (
                             <div key={index}>
                                 <button
                                     type="button"
                                     onClick={() => handleDayClick(index)}
                                     className="w-full flex items-center px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors"
                                 >
-                                    <div className="w-12 text-sm font-semibold text-gray-900">
-                                        {day.day}
-                                    </div>
 
-                                    <div className="flex items-center space-x-3 w-20">
-                                        <div className="flex items-center space-x-1">
+
+                                    <div className="flex flex-col items-left w-14">
+                                        <div className="text-lg font-semibold text-gray-900 text-left">
+                                            {day.day}
+                                        </div>
+                                        <div className="flex items-left space-x-1">
                                             <Droplets
-                                                size={12}
+                                                size={14}
                                                 className="text-blue-400"
                                             />
-                                            <span className="text-sm text-blue-500 font-medium">
+                                            <span className="text-xs text-blue-500 font-medium">
                                                 {day.precipChance}%
                                             </span>
                                         </div>
-                                        <WeatherIcon
-                                            type={day.icon}
-                                            size={20}
-                                        />
                                     </div>
-
+                                    <WeatherIcon
+                                            type={day.icon}
+                                            size={30}
+                                        />
                                     <TemperatureBar
-                                        low={day.lowTemp}
-                                        high={day.highTemp}
+                                        low={day.min_outTemp}
+                                        high={day.max_outTemp}
+                                        minTemp={lastWeekData.ranges.min_outTemp}
+                                        maxTemp={lastWeekData.ranges.max_outTemp}
                                     />
                                 </button>
 
@@ -290,8 +298,8 @@ export default function WeatherApp() {
                                                         {day.date}
                                                     </div>
                                                     <div className="text-xs text-gray-600 italic">
-                                                        High: {day.highTemp}°
-                                                        Low: {day.lowTemp}°.{" "}
+                                                        High: {day.max_outTemp}°
+                                                        Low: {day.min_outTemp}°.{" "}
                                                         {day.description}
                                                     </div>
                                                 </div>

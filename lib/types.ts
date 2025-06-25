@@ -17,15 +17,33 @@ export interface WeatherData {
     eventrain: number
 }
 
-export interface DayForecast {
+export interface DayData {
+    date: string
     day: string
     icon: string
     precipChance: number
-    lowTemp: number
-    highTemp: number
-    date: string
+    min_outTemp: number
+    max_outTemp: number
+    min_outHumi: number
+    max_outHumi: number
+    max_gustspeed: number
+    avg_avgwind: number
+    avg_rainofhourly: number
     description: string
     hourlyData: HourlyData[]
+}
+
+export interface Ranges {
+    min_outTemp: number
+    max_outTemp: number
+    min_outHumi: number
+    max_outHumi: number
+    max_gustspeed: number
+}
+
+export interface WeekData {
+    data: DayData[]
+    ranges: Ranges
 }
 
 export interface HourlyData {
