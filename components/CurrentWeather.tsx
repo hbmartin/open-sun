@@ -3,11 +3,10 @@ import { fetchCurrentWeatherData } from "@/lib/fetcher"
 import { useQuery } from "@tanstack/react-query"
 
 export default function CurrentWeather(): React.JSX.Element {
-  const { data: currentWeatherData, isPending: isLoadingCurrentWeatherData } =
-    useQuery({
-      queryKey: ["currentWeatherData"],
-      queryFn: fetchCurrentWeatherData,
-    })
+  const { data: currentWeatherData } = useQuery({
+    queryKey: ["currentWeatherData"],
+    queryFn: fetchCurrentWeatherData,
+  })
   return (
     <div className="px-4 py-2 bg-white mx-4 rounded-lg shadow-sm mb-4">
       <div className="grid grid-cols-4 gap-2">
