@@ -20,8 +20,6 @@ export interface WeatherData {
 export interface DayData {
   date: string
   day: string
-  icon: string
-  precipChance: number
   min_outTemp: number
   max_outTemp: number
   min_outHumi: number
@@ -29,8 +27,12 @@ export interface DayData {
   max_gustspeed: number
   avg_avgwind: number
   avg_rainofhourly: number
-  description: string
-  hourlyData: HourlyData[]
+}
+
+export interface HourData extends Omit<DayData, "day"> {
+  hour: string
+  avg_outTemp: number
+  avg_outHumi: number
 }
 
 export interface Ranges {
@@ -41,15 +43,12 @@ export interface Ranges {
   max_gustspeed: number
 }
 
-export interface WeekData {
+export interface WeeklyData {
   data: DayData[]
   ranges: Ranges
 }
 
-export interface HourlyData {
-  hour: number
-  temp: number
-  condition: string
-  precipChance: number
-  precipIntensity: number // 0-1 scale for color intensity
+export interface DailyData {
+  data: HourData[]
+  ranges: Ranges
 }

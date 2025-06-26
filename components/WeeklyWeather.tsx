@@ -2,10 +2,10 @@ import { useQuery } from "@tanstack/react-query"
 import { Droplets } from "lucide-react"
 import type React from "react"
 import { useState } from "react"
-import HourlyRow from "@/components/HourlyRow"
 import RangedBar from "@/components/RangedBar"
 import WeatherIcon from "@/components/WeatherIcon"
 import { fetchLastWeekData } from "@/lib/fetcher"
+import HourlyContainer from "@/components/HourlyContainer"
 
 export default function WeeklyWeather(): React.JSX.Element {
   const [expandedDayIndex, setExpandedDayIndex] = useState<number | undefined>()
@@ -57,39 +57,11 @@ export default function WeeklyWeather(): React.JSX.Element {
               <div
                 className={`overflow-hidden transition-all duration-500 ease-in-out ${
                   expandedDayIndex === index
-                    ? "max-h-[800px] opacity-100"
+                    ? "opacity-100"
                     : "max-h-0 opacity-0"
                 }`}
               >
-                {expandedDayIndex === index && day.hourlyData.length > 0 && (
-                  <div className="bg-gray-50 border-t border-gray-200">
-                    {/* Day Header */}
-                    <div className="px-4 py-3 border-b border-gray-200">
-                      <div className="text-sm font-semibold text-gray-900 mb-1">
-                        {day.date}
-                      </div>
-                      <div className="text-xs text-gray-600 italic">
-                        High: {day.max_outTemp}° Low: {day.min_outTemp}°.{" "}
-                        {day.description}
-                      </div>
-                    </div>
-
-                    {/* Hourly Data */}
-                    <div className="bg-white">
-                      {day.hourlyData.map((hour, hourIndex) => (
-                        <HourlyRow
-                        key={`${hour.hour} ${day.date}`}
-                          hour={hour}
-                        />
-                      ))}
-                    </div>
-
-                    {/* Sunrise/Sunset */}
-                    <div className="px-4 py-3 text-center text-sm text-gray-600 border-t border-gray-200">
-                      Sunrise 6:37 AM; Sunset 7:27 PM
-                    </div>
-                  </div>
-                )}
+                {expandedDayIndex === index && <HourlyContainer date={day.date} />}
               </div>
             </div>
           ))}
