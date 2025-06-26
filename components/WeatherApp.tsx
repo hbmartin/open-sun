@@ -13,8 +13,11 @@ import {
     Wind,
 } from "lucide-react"
 import React, { useState } from "react"
-import { fetchCurrentWeatherData, fetchLastWeekData } from "@/lib/fetcher"
+import { fetchLastWeekData } from "@/lib/fetcher"
 import type { HourlyData } from "@/lib/types"
+import RangedBar from "@/components/RangedBar"
+import SunInfo from "@/components/SunInfo"
+import CurrentWeather from "./CurrentWeather"
 
 const WeatherIcon = ({ type, size = 24 }: { type: string; size?: number }) => {
     const iconProps = { size, className: "text-orange-500" }
@@ -31,49 +34,6 @@ const WeatherIcon = ({ type, size = 24 }: { type: string; size?: number }) => {
         default:
             return <Sun {...iconProps} />
     }
-}
-
-const TemperatureBar = ({
-    low,
-    high,
-    minTemp,
-    maxTemp,
-}: {
-    low: number
-    high: number
-    minTemp: number
-    maxTemp: number
-}) => {
-    const range = maxTemp - minTemp
-    const lowPercent = ((low - minTemp) / range) * 100
-    const highPercent = ((high - minTemp) / range) * 100
-    const barWidth = highPercent - lowPercent
-
-    return (
-
-            <div className="relative flex-1 h-5 inline-flex ml-12 mr-6">
-                <span className="text-sm font-medium text-gray-700 absolute pr-1"
-                    style={{
-                        right: `${100 - lowPercent}%`,
-                    }}>
-                    {Math.round(low)}°
-                </span>
-                <div
-                    className="absolute h-full range-bar rounded-full"
-                    style={{
-                        left: `${lowPercent}%`,
-                        width: `${barWidth}%`,
-                    }}
-                />
-                <span className="text-sm font-medium text-gray-900 absolute pl-1"
-                                  style={{
-                                    left: `${highPercent}%`,
-                                }}>
-                    {Math.round(high)}°
-                </span>
-            </div>
-
-    )
 }
 
 const HourlyRow = ({
@@ -156,11 +116,6 @@ export default function WeatherApp() {
         setExpandedDayIndex(expandedDayIndex === index ? null : index)
     }
 
-    const { data: currentWeatherData, isPending: isLoadingCurrentWeatherData } =
-        useQuery({
-            queryKey: ["currentWeatherData"],
-            queryFn: fetchCurrentWeatherData,
-        })
     const { data: lastWeekData, isPending: isLoadingLastWeekData } = useQuery({
         queryKey: ["lastWeekData"],
         queryFn: fetchLastWeekData,
@@ -168,19 +123,8 @@ export default function WeatherApp() {
 
     return (
         <div className="min-h-screen bg-gray-50 max-w-sm mx-auto relative">
-            {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3">
-                <div className="flex items-center space-x-3">
-                    <div>
-                        <h1 className="text-lg font-semibold text-gray-900">
-                            Lassen, LA
-                        </h1>
-                    </div>
-                </div>
-            </div>
-
             {/* Navigation Tabs */}
-            <div className="px-4 mb-4">
+            <div className="px-4 pt-2 mb-2">
                 <div className="flex space-x-6 border-b border-gray-200">
                     {tabs.map((tab) => (
                         <button
@@ -199,55 +143,20 @@ export default function WeatherApp() {
                 </div>
             </div>
 
-            {/* Sunrise Info */}
-            <div className="px-4 py-3 text-center">
-                <div className="flex items-center justify-center space-x-2">
-                    <Sun size={16} className="text-orange-500" />
-                    <span className="text-gray-700">
-                        Sunrise 8½ hours (6:41 AM)
-                    </span>
-                </div>
-            </div>
-
-            {/* Current Weather Stats */}
-            <div className="px-4 py-2 bg-white mx-4 rounded-lg shadow-sm mb-4">
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="text-center">
-                        <div className="text-2xl font-bold text-gray-900">
-                            {isLoadingCurrentWeatherData
-                                ? "..."
-                                : currentWeatherData?.outTemp}
-                            °
-                        </div>
-                        <div className="text-sm text-gray-500">Temperature</div>
-                    </div>
-                    <div className="text-center">
-                        <div className="text-2xl font-bold text-blue-500">
-                            {isLoadingCurrentWeatherData
-                                ? "..."
-                                : currentWeatherData?.outHumi}
-                            %
-                        </div>
-                        <div className="text-sm text-gray-500">Humidity</div>
-                    </div>
-                </div>
-            </div>
+            <CurrentWeather />
+            <SunInfo />
 
             {/* Weekly Forecast */}
             <div className="px-4">
                 <h2 className="text-xl font-bold text-gray-900 mb-2">
-                    Next 7 Days
+                    Last Week
                 </h2>
-                <p className="text-gray-600 text-sm mb-4 italic">
-                    Light rain throughout the week, with high temperatures
-                    rising to 90°F tomorrow.
-                </p>
 
                 <div className="bg-white rounded-lg shadow-sm overflow-hidden">
                     {!isLoadingLastWeekData &&
                         lastWeekData &&
                         lastWeekData.data.map((day, index) => (
-                            <div key={index}>
+                            <div key={day.date}>
                                 <button
                                     type="button"
                                     onClick={() => handleDayClick(index)}
@@ -256,8 +165,8 @@ export default function WeatherApp() {
 
 
                                     <div className="flex flex-col items-left w-14">
-                                        <div className="text-lg font-semibold text-gray-900 text-left">
-                                            {day.day}
+                                        <div className="text-base font-semibold text-gray-900 text-left">
+                                            {index === 0 ? "TDY" : day.day}
                                         </div>
                                         <div className="flex items-left space-x-1">
                                             <Droplets
@@ -265,7 +174,7 @@ export default function WeatherApp() {
                                                 className="text-blue-400"
                                             />
                                             <span className="text-xs text-blue-500 font-medium">
-                                                {day.precipChance}%
+                                                {day.avg_rainofhourly}&quot;
                                             </span>
                                         </div>
                                     </div>
@@ -273,7 +182,7 @@ export default function WeatherApp() {
                                             type={day.icon}
                                             size={30}
                                         />
-                                    <TemperatureBar
+                                    <RangedBar
                                         low={day.min_outTemp}
                                         high={day.max_outTemp}
                                         minTemp={lastWeekData.ranges.min_outTemp}
