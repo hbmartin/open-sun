@@ -1,13 +1,14 @@
-import { fetchLastWeekData } from "@/lib/fetcher"
 import { useQuery } from "@tanstack/react-query"
 import { Droplets } from "lucide-react"
-import React, { useState } from "react"
+import type React from "react"
+import { useState } from "react"
+import HourlyRow from "@/components/HourlyRow"
 import RangedBar from "@/components/RangedBar"
 import WeatherIcon from "@/components/WeatherIcon"
-import HourlyRow from "@/components/HourlyRow"
+import { fetchLastWeekData } from "@/lib/fetcher"
 
 export default function WeeklyWeather(): React.JSX.Element {
-  const [expandedDayIndex, setExpandedDayIndex] = useState<number | null>(null)
+  const [expandedDayIndex, setExpandedDayIndex] = useState<number | undefined>()
 
   const { data: lastWeekData, isPending: isLoadingLastWeekData } = useQuery({
     queryKey: ["lastWeekData"],
@@ -15,7 +16,7 @@ export default function WeeklyWeather(): React.JSX.Element {
   })
 
   const handleDayClick = (index: number) => {
-    setExpandedDayIndex(expandedDayIndex === index ? null : index)
+    setExpandedDayIndex(expandedDayIndex === index ? undefined : index)
   }
 
   return (
@@ -32,11 +33,11 @@ export default function WeeklyWeather(): React.JSX.Element {
                 onClick={() => handleDayClick(index)}
                 className="w-full flex items-center px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors"
               >
-                <div className="flex flex-col items-left w-14">
+                <div className="flex flex-col w-14">
                   <div className="text-base font-semibold text-gray-900 text-left">
                     {index === 0 ? "TDY" : day.day}
                   </div>
-                  <div className="flex items-left space-x-1">
+                  <div className="flex space-x-1">
                     <Droplets size={14} className="text-blue-400" />
                     <span className="text-xs text-blue-500 font-medium">
                       {day.avg_rainofhourly}&quot;
@@ -76,7 +77,10 @@ export default function WeeklyWeather(): React.JSX.Element {
                     {/* Hourly Data */}
                     <div className="bg-white">
                       {day.hourlyData.map((hour, hourIndex) => (
-                        <HourlyRow key={hourIndex} hour={hour} />
+                        <HourlyRow
+                        key={`${hour.hour} ${day.date}`}
+                          hour={hour}
+                        />
                       ))}
                     </div>
 

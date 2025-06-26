@@ -1,5 +1,5 @@
-import React, { useMemo } from "react"
 import { Rss, Sunrise, Sunset } from "lucide-react"
+import React, { useMemo } from "react"
 
 interface TimesData {
   dawn: Date
@@ -14,14 +14,14 @@ export default function SunInfo(): React.JSX.Element {
     const period = now.getHours() >= 12 ? "PM" : "AM"
     return `${hours}:${minutes} ${period}`
   }, [])
-  const [timesData, setTimesData] = React.useState<TimesData | null>(null)
+  const [timesData, setTimesData] = React.useState<TimesData | undefined>()
   React.useEffect(() => {
     import("suncalc-ts")
       .then((SunCalc) => {
         const times = SunCalc.getTimes(
           new Date(),
-          34.276833976513366,
-          -117.16925235464018,
+          34.276_833_976_513_366,
+          -117.169_252_354_640_18,
         )
         setTimesData(times)
       })

@@ -12,10 +12,9 @@
   "linter": {
     "enabled": true,
     "domains": {
-      "project": "all"
-    },
-    "rules": {
-      "recommended": true
+      "project": "all",
+      "next": "all",
+      "react": "all"
     }
   },
   "javascript": {

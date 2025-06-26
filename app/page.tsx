@@ -6,9 +6,9 @@ import WeatherApp from "@/components/WeatherApp"
 const queryClient = new QueryClient()
 
 export default function Page() {
-    return (
-        <QueryClientProvider client={queryClient}>
-            <WeatherApp />
-        </QueryClientProvider>
-    )
+  return (
+    <QueryClientProvider client={queryClient}>
+      <WeatherApp />
+    </QueryClientProvider>
+  )
 }

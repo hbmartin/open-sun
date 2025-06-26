@@ -1,22 +1,23 @@
 "use client"
 
-import {
-  Clock,
-  Eye,
-  Library,
-  Wind,
-} from "lucide-react"
-import React, { useState } from "react"
-import SunInfo from "@/components/SunInfo"
+import { Clock, Eye, Library, Wind } from "lucide-react"
+import type React from "react"
+import { useState } from "react"
 import CurrentWeather from "@/components/CurrentWeather"
+import SunInfo from "@/components/SunInfo"
 import WeeklyWeather from "@/components/WeeklyWeather"
+
+const tabs = ["TEMP (°F)", "FEELS-LIKE (°F)", "HUMID (%)", "WIND (MPH)", "UV"]
+const navItems = ["History", "Forecast", "Notifications"]
+const iconMap: Record<string, React.ElementType> = {
+  Forecast: Eye,
+  History: Library,
+  Notifications: Clock,
+}
 
 export default function WeatherApp() {
   const [activeTab, setActiveTab] = useState("TEMP")
   const [activeNavItem, setActiveNavItem] = useState("History")
-
-  const tabs = ["TEMP (°F)", "FEELS-LIKE (°F)", "HUMID (%)", "WIND (MPH)", "UV"]
-  const navItems = ["History", "Forecast", "Notifications"]
 
   return (
     <div className="min-h-screen bg-gray-50 max-w-sm mx-auto relative">
@@ -43,17 +44,10 @@ export default function WeatherApp() {
       <SunInfo />
       <WeeklyWeather />
 
-      <div className="fixed bottom-0 left-1/2 transform -translate-x-1/2 w-full max-w-sm bg-white border-t border-gray-200">
+      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-sm bg-white border-t border-gray-200">
         <div className="flex justify-around py-2">
           {navItems.map((item) => {
-            const IconComponent =
-              item === "Forecast"
-                ? Eye
-                : item === "History"
-                  ? Library
-                  : item === "Notifications"
-                    ? Clock
-                    : Wind
+            const IconComponent = iconMap[item] ?? Wind
 
             return (
               <button
@@ -75,7 +69,7 @@ export default function WeatherApp() {
       </div>
 
       {/* Bottom padding to account for fixed navigation */}
-      <div className="h-16"></div>
+      <div className="h-16" />
     </div>
   )
 }

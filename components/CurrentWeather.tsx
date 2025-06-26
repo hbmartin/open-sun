@@ -1,6 +1,6 @@
-import React from "react"
-import { fetchCurrentWeatherData } from "@/lib/fetcher"
 import { useQuery } from "@tanstack/react-query"
+import type React from "react"
+import { fetchCurrentWeatherData } from "@/lib/fetcher"
 
 export default function CurrentWeather(): React.JSX.Element {
   const { data: currentWeatherData } = useQuery({
