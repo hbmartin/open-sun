@@ -1,7 +1,6 @@
 import { describe, expect, it } from "@jest/globals"
 import {
-  calculateDayDataRanges,
-  calculateHourDataRanges,
+  calculateRanges,
   mapDailyApiResponse,
   mapHourlyApiResponse,
 } from "./mappers.ts"
@@ -108,8 +107,10 @@ describe("calculateDayDataRanges", () => {
         day: "MON",
         date: "2024-01-15",
         min_outTemp: 10,
+        avg_outTemp: 17,
         max_outTemp: 25,
         min_outHumi: 30,
+        avg_outHumi: 40,
         max_outHumi: 70,
         max_gustspeed: 15,
         avg_avgwind: 8,
@@ -119,8 +120,10 @@ describe("calculateDayDataRanges", () => {
         day: "TUE",
         date: "2024-01-16",
         min_outTemp: 12,
+        avg_outTemp: 19,
         max_outTemp: 28,
         min_outHumi: 25,
+        avg_outHumi: 35,
         max_outHumi: 80,
         max_gustspeed: 20,
         avg_avgwind: 10,
@@ -130,8 +133,10 @@ describe("calculateDayDataRanges", () => {
         day: "WED",
         date: "2024-01-17",
         min_outTemp: 8,
+        avg_outTemp: 15,
         max_outTemp: 22,
         min_outHumi: 35,
+        avg_outHumi: 45,
         max_outHumi: 75,
         max_gustspeed: 12,
         avg_avgwind: 6,
@@ -139,7 +144,7 @@ describe("calculateDayDataRanges", () => {
       },
     ]
 
-    const result = calculateDayDataRanges(dayData)
+    const result = calculateRanges(dayData)
 
     expect(result).toEqual({
       min_outTemp: 8,
@@ -156,8 +161,10 @@ describe("calculateDayDataRanges", () => {
         day: "MON",
         date: "2024-01-15",
         min_outTemp: 15,
+        avg_outTemp: 17,
         max_outTemp: 25,
         min_outHumi: 40,
+        avg_outHumi: 51,
         max_outHumi: 60,
         max_gustspeed: 10,
         avg_avgwind: 5,
@@ -165,7 +172,7 @@ describe("calculateDayDataRanges", () => {
       },
     ]
 
-    const result = calculateDayDataRanges(dayData)
+    const result = calculateRanges(dayData)
 
     expect(result).toEqual({
       min_outTemp: 15,
@@ -221,7 +228,7 @@ describe("calculateHourDataRanges", () => {
       },
     ]
 
-    const result = calculateHourDataRanges(hourData)
+    const result = calculateRanges(hourData)
 
     expect(result).toEqual({
       min_outTemp: 16,
