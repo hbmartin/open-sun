@@ -1,24 +1,8 @@
 import type React from "react"
+import WeatherIcon from "@/components/WeatherIcon"
 import type { HourData } from "@/lib/types"
 import { formatHour } from "@/lib/utils"
-import WeatherIcon from "@/components/WeatherIcon"
-
-const getWeatherConditionColor = (condition: string) => {
-  switch (condition) {
-    case "light-rain": {
-      return "bg-blue-200"
-    }
-    case "heavy-rain": {
-      return "bg-blue-400"
-    }
-    case "humid-cloudy": {
-      return "bg-gray-300"
-    }
-    default: {
-      return "bg-blue-200"
-    }
-  }
-}
+import { mapWeatherToColor } from "@/lib/weather-conditions"
 
 export default function HourlyDetailInline({
   hourly_data,
@@ -48,10 +32,11 @@ export default function HourlyDetailInline({
                 style={{ height: "60px" }}
               >
                 <div
-                  className={`absolute left-0 w-4 ${getWeatherConditionColor("light-rain")}`} // TODO: Add weather condition color
+                  className="absolute left-0 w-4"
                   style={{
                     height: "60px",
                     top: 0,
+                    background: `linear-gradient(to bottom, ${mapWeatherToColor(hour)} 50%, ${mapWeatherToColor(hourly_data[(index * 2) + 1] || hour)} 50%)`,
                   }}
                 />
 

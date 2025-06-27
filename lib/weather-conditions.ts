@@ -1,4 +1,27 @@
-import type { RangeObservation, WeatherCondition } from "@/lib/types.ts"
+import type { HourData, RangeObservation, WeatherCondition } from "@/lib/types.ts"
+
+export function mapWeatherToColor(data: HourData): string {
+  const { avg_outHumi: humidity, avg_solarrad: solarRadiation, avg_rainofhourly: hourlyRainRate } = data
+  if (hourlyRainRate > 0 && hourlyRainRate <= 0.01) {
+    return "#cdf6ff"
+  }
+  if (hourlyRainRate > 0.01 && hourlyRainRate <= 0.1) {
+    return "#77c0ed"
+  }
+  if (hourlyRainRate > 0.1) {
+    return "#3b8bb5"
+  }
+  if (solarRadiation > 700) {
+    return "#ffd49b"
+  }
+  if (solarRadiation > 100) {
+    return "#ffeab3"
+  }
+  if (humidity > 85) {
+    return "#B8B8B8"
+  }
+  return "#EBEBED"
+}
 
 export function mapWeatherToCondition(data: RangeObservation): WeatherCondition {
     const { avg_outHumi: humidity, avg_avgwind: windSpeed, avg_solarrad: solarRadiation, avg_uvi: uvIndex, avg_rainofhourly: hourlyRainRate } = data
