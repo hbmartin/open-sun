@@ -1,6 +1,7 @@
 import type React from "react"
 import type { HourData } from "@/lib/types"
 import { formatHour } from "@/lib/utils"
+import WeatherIcon from "@/components/WeatherIcon"
 
 const getWeatherConditionColor = (condition: string) => {
   switch (condition) {
@@ -34,16 +35,6 @@ export default function HourlyDetailInline({
   return (
     <div className="bg-gray-50 transition-all duration-500 ease-in-out border-b border-gray-200 ">
       <div className="py-4">
-        {/* <div className="mb-4">
-          <h3 className="text-lg font-semibold text-gray-900 mb-1">
-            {selectedDay.dayOfWeek} Hourly Forecast
-          </h3>
-          <p className="text-sm text-gray-600">
-            High: {selectedDay.highTemp}° Low: {selectedDay.lowTemp}° Heavy rain
-            and windy until afternoon.
-          </p>
-        </div> */}
-
         <div className="relative">
           {[...Array.from({ length: 12 }).keys()].map((index) => {
             const hour = hourly_data[index * 2]
@@ -69,8 +60,9 @@ export default function HourlyDetailInline({
                     <div className="font-semibold text-gray-900">
                       {formatHour(hour.hour)}
                     </div>
-                    <div className="text-sm text-gray-600 mt-1">
-                      {hour.avg_rainofhourly}&quot;
+                    <div className="text-sm text-gray-600 mt-1 flex items-center gap-1">
+                      <WeatherIcon data={hour} size={15} />
+                      <span>{hour.avg_rainofhourly}&quot;</span>
                     </div>
                   </div>
 

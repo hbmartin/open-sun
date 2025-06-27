@@ -1,4 +1,4 @@
-export interface WeatherData {
+export interface InstantObservation {
   inTemp: number | null
   inHumi: number | null
   AbsPress: number | null
@@ -17,7 +17,7 @@ export interface WeatherData {
   eventrain: number
 }
 
-export interface Observation {
+export interface RangeObservation {
   date: string
   min_outTemp: number
   avg_outTemp: number
@@ -28,13 +28,15 @@ export interface Observation {
   max_gustspeed: number
   avg_avgwind: number
   avg_rainofhourly: number
+  avg_uvi: number
+  avg_solarrad: number
 }
 
-export interface DayData extends Observation {
+export interface DayData extends RangeObservation {
   day: string
 }
 
-export interface HourData extends Observation {
+export interface HourData extends RangeObservation {
   hour: string
 }
 
@@ -56,8 +58,13 @@ export interface DailyData {
   ranges: Ranges
 }
 
-// Interface for suncalc-ts
-export interface TimesData {
-  dawn: Date
-  dusk: Date
-}
+export type WeatherCondition = 
+| "cloudy" 
+| "drizzle" 
+| "rain" 
+| "rain-wind" 
+| "wind" 
+| "sun-dim" 
+| "sun-medium" 
+| "sunny" 
+| "clear-night";

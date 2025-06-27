@@ -1,7 +1,6 @@
 import { Rss, Sunrise, Sunset } from "lucide-react"
 import type React from "react"
 import { useMemo } from "react"
-import type { TimesData } from "@/lib/types"
 import { getSunTimes } from "@/lib/utils"
 
 export default function SunInfo(): React.JSX.Element {
@@ -13,7 +12,7 @@ export default function SunInfo(): React.JSX.Element {
     return `${hours}:${minutes} ${period}`
   }, [])
 
-  const timesData: TimesData = getSunTimes(new Date())
+  const timesData = getSunTimes(new Date())
 
   return (
     <div className="px-4 py-3 text-center">

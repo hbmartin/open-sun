@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query"
 import { Sunrise, Sunset } from "lucide-react"
 import type React from "react"
+import HourlyDetailInline from "@/components/hourly-detail-inline"
 import { fetchHourlyData } from "@/lib/fetcher"
 import { getSunTimes } from "@/lib/utils"
-import HourlyDetailInline from "./hourly-detail-inline.tsx"
 
 export default function HourlyContainer({
   date,

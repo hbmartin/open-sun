@@ -1,5 +1,5 @@
 // biome-ignore-all lint/suspicious/noExplicitAny: API calls
-import type { DayData, HourData, Observation, Ranges } from "@/lib/types"
+import type { DayData, HourData, RangeObservation, Ranges } from "@/lib/types"
 
 const days = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]
 function getAbbreviatedDay(dateString: string): string {
@@ -20,6 +20,8 @@ export function mapDailyApiResponse(item: any): DayData {
     max_gustspeed: item.max_gustspeed,
     avg_avgwind: item.avg_avgwind,
     avg_rainofhourly: item.avg_rainofhourly,
+    avg_uvi: item.avg_uvi,
+    avg_solarrad: item.avg_solarrad,
   }
 }
 
@@ -41,10 +43,12 @@ export function mapHourlyApiResponse(
     max_gustspeed: item.max_gustspeed,
     avg_avgwind: item.avg_avgwind,
     avg_rainofhourly: item.avg_rainofhourly,
+    avg_uvi: item.avg_uvi,
+    avg_solarrad: item.avg_solarrad,
   }
 }
 
-export function calculateRanges(data: Observation[]): Ranges {
+export function calculateRanges(data: RangeObservation[]): Ranges {
   return {
     min_outTemp: Math.min(...data.map((d) => d.min_outTemp)),
     max_outTemp: Math.max(...data.map((d) => d.max_outTemp)),

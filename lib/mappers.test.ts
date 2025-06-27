@@ -115,6 +115,8 @@ describe("calculateDayDataRanges", () => {
         max_gustspeed: 15,
         avg_avgwind: 8,
         avg_rainofhourly: 0.5,
+        avg_uvi: 3,
+        avg_solarrad: 800,
       },
       {
         day: "TUE",
@@ -128,6 +130,8 @@ describe("calculateDayDataRanges", () => {
         max_gustspeed: 20,
         avg_avgwind: 10,
         avg_rainofhourly: 1,
+        avg_uvi: 4,
+        avg_solarrad: 800,
       },
       {
         day: "WED",
@@ -141,6 +145,8 @@ describe("calculateDayDataRanges", () => {
         max_gustspeed: 12,
         avg_avgwind: 6,
         avg_rainofhourly: 0.2,
+        avg_uvi: 5,
+        avg_solarrad: 800,
       },
     ]
 
@@ -169,6 +175,8 @@ describe("calculateDayDataRanges", () => {
         max_gustspeed: 10,
         avg_avgwind: 5,
         avg_rainofhourly: 0,
+        avg_uvi: 3,
+        avg_solarrad: 800,
       },
     ]
 
@@ -199,6 +207,8 @@ describe("calculateHourDataRanges", () => {
         max_gustspeed: 8,
         avg_avgwind: 5,
         avg_rainofhourly: 0.1,
+        avg_uvi: 3,
+        avg_solarrad: 800,
       },
       {
         date: "2024-01-15",
@@ -212,6 +222,8 @@ describe("calculateHourDataRanges", () => {
         max_gustspeed: 12,
         avg_avgwind: 7,
         avg_rainofhourly: 0,
+        avg_uvi: 3,
+        avg_solarrad: 800,
       },
       {
         date: "2024-01-15",
@@ -225,6 +237,8 @@ describe("calculateHourDataRanges", () => {
         max_gustspeed: 15,
         avg_avgwind: 9,
         avg_rainofhourly: 0.3,
+        avg_uvi: 3,
+        avg_solarrad: 800,
       },
     ]
 

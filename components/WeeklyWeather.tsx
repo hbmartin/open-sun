@@ -8,7 +8,9 @@ import WeatherIcon from "@/components/WeatherIcon"
 import { fetchLastWeekData } from "@/lib/fetcher"
 
 export default function WeeklyWeather(): React.JSX.Element {
-  const [expandedDayIndex, setExpandedDayIndex] = useState<number | undefined>()
+  const [expandedDayIndex, setExpandedDayIndex] = useState<Set<number>>(
+    new Set(),
+  )
 
   const { data: lastWeekData, isPending: isLoadingLastWeekData } = useQuery({
     queryKey: ["lastWeekData"],
@@ -16,7 +18,15 @@ export default function WeeklyWeather(): React.JSX.Element {
   })
 
   const handleDayClick = (index: number) => {
-    setExpandedDayIndex(expandedDayIndex === index ? undefined : index)
+    setExpandedDayIndex((previous) => {
+      const newSet = new Set(previous)
+      if (previous.has(index)) {
+        newSet.delete(index)
+      } else {
+        newSet.add(index)
+      }
+      return newSet
+    })
   }
 
   return (
@@ -31,7 +41,7 @@ export default function WeeklyWeather(): React.JSX.Element {
               <button
                 type="button"
                 onClick={() => handleDayClick(index)}
-                className="w-full flex items-center px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                className="w-full flex items-center px-4 py-3 border-b border-gray-100 transition-colors"
               >
                 <div className="flex flex-col w-14">
                   <div className="text-base font-semibold text-gray-900 text-left">
@@ -44,7 +54,7 @@ export default function WeeklyWeather(): React.JSX.Element {
                     </span>
                   </div>
                 </div>
-                <WeatherIcon type={day.icon} size={30} />
+                <WeatherIcon data={day} size={30} />
                 <RangedBar
                   low={day.min_outTemp}
                   high={day.max_outTemp}
@@ -55,15 +65,13 @@ export default function WeeklyWeather(): React.JSX.Element {
 
               {/* Expanded Hourly View */}
               <div
-                className={`overflow-hidden transition-all duration-500 ease-in-out ${
-                  expandedDayIndex === index
-                    ? "opacity-100"
-                    : "max-h-0 opacity-0"
+                className={`overflow-hidden transition-all duration-300 ease-out ${
+                  expandedDayIndex.has(index)
+                    ? "max-h-screen"
+                    : "max-h-0"
                 }`}
               >
-                {expandedDayIndex === index && (
-                  <HourlyContainer date={day.date} />
-                )}
+                <HourlyContainer date={day.date} />
               </div>
             </div>
           ))}
