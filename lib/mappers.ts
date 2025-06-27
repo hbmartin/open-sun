@@ -18,10 +18,16 @@ export function mapDailyApiResponse(item: any): DayData {
     avg_outHumi: item.avg_outHumi,
     max_outHumi: item.max_outHumi,
     max_gustspeed: item.max_gustspeed,
+    min_avgwind: item.min_avgwind,
+    max_avgwind: item.max_avgwind,
     avg_avgwind: item.avg_avgwind,
     avg_rainofhourly: item.avg_rainofhourly,
     avg_uvi: item.avg_uvi,
     avg_solarrad: item.avg_solarrad,
+    min_uvi: item.min_uvi,
+    max_uvi: item.max_uvi,
+    min_solarrad: item.min_solarrad,
+    max_solarrad: item.max_solarrad,
   }
 }
 
@@ -41,10 +47,16 @@ export function mapHourlyApiResponse(
     avg_outHumi: item.avg_outHumi,
     max_outHumi: item.max_outHumi,
     max_gustspeed: item.max_gustspeed,
+    min_avgwind: item.min_avgwind,
+    max_avgwind: item.max_avgwind,
     avg_avgwind: item.avg_avgwind,
     avg_rainofhourly: item.avg_rainofhourly,
     avg_uvi: item.avg_uvi,
     avg_solarrad: item.avg_solarrad,
+    min_uvi: item.min_uvi,
+    max_uvi: item.max_uvi,
+    min_solarrad: item.min_solarrad,
+    max_solarrad: item.max_solarrad,
   }
 }
 
@@ -55,5 +67,11 @@ export function calculateRanges(data: RangeObservation[]): Ranges {
     min_outHumi: Math.min(...data.map((d) => d.min_outHumi)),
     max_outHumi: Math.max(...data.map((d) => d.max_outHumi)),
     max_gustspeed: Math.max(...data.map((d) => d.max_gustspeed)),
+    min_avgwind: Math.min(...data.map((d) => d.min_avgwind)),
+    max_avgwind: Math.max(...data.map((d) => d.max_avgwind)),
+    min_uvi: Math.min(...data.map((d) => d.min_uvi)),
+    max_uvi: Math.max(...data.map((d) => d.max_uvi)),
+    min_solarrad: Math.min(...data.map((d) => d.min_solarrad)),
+    max_solarrad: Math.max(...data.map((d) => d.max_solarrad)),
   }
 }

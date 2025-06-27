@@ -3,12 +3,15 @@ import { Sunrise, Sunset } from "lucide-react"
 import type React from "react"
 import HourlyDetailInline from "@/components/hourly-detail-inline"
 import { fetchHourlyData } from "@/lib/fetcher"
+import type { DisplayMetric } from "@/lib/types"
 import { getSunTimes } from "@/lib/utils"
 
 export default function HourlyContainer({
   date,
+  metric,
 }: {
   date: string
+  metric: DisplayMetric
 }): React.JSX.Element {
   const { data, isPending } = useQuery({
     queryKey: ["dailyData", date],
@@ -71,9 +74,10 @@ export default function HourlyContainer({
         </div>
       </div>
       <HourlyDetailInline
-        hourly_data={data?.data}
-        minTemp={data?.ranges.min_outTemp}
-        maxTemp={data?.ranges.max_outTemp}
+        hourly_data={data.data}
+        metric={metric}
+        minTemp={data.ranges[`min_${metric}`]}
+        maxTemp={data.ranges[`max_${metric}`]}
       />
     </div>
   )

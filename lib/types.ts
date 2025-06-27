@@ -26,10 +26,16 @@ export interface RangeObservation {
   avg_outHumi: number
   max_outHumi: number
   max_gustspeed: number
+  min_avgwind: number
   avg_avgwind: number
+  max_avgwind: number
   avg_rainofhourly: number
+  min_uvi: number
   avg_uvi: number
+  max_uvi: number
+  min_solarrad: number
   avg_solarrad: number
+  max_solarrad: number
 }
 
 export interface DayData extends RangeObservation {
@@ -46,6 +52,12 @@ export interface Ranges {
   min_outHumi: number
   max_outHumi: number
   max_gustspeed: number
+  min_avgwind: number
+  max_avgwind: number
+  min_uvi: number
+  max_uvi: number
+  min_solarrad: number
+  max_solarrad: number
 }
 
 export interface WeeklyData {
@@ -68,3 +80,19 @@ export type WeatherCondition =
 | "sun-medium" 
 | "sunny" 
 | "clear-night";
+
+export enum DisplayMetric {
+  TEMP = "outTemp",
+  HUMID = "outHumi", 
+  WIND = "avgwind",
+  UVI = "uvi",
+  SOLAR = "solarrad"
+}
+
+export const metric_display_units: Record<DisplayMetric, string> = {
+  [DisplayMetric.TEMP]: "°",
+  [DisplayMetric.HUMID]: "%",
+  [DisplayMetric.WIND]: "",
+  [DisplayMetric.UVI]: "",
+  [DisplayMetric.SOLAR]: "",
+}

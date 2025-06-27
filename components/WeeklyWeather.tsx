@@ -6,8 +6,9 @@ import HourlyContainer from "@/components/HourlyContainer"
 import RangedBar from "@/components/RangedBar"
 import WeatherIcon from "@/components/WeatherIcon"
 import { fetchLastWeekData } from "@/lib/fetcher"
+import { type DisplayMetric, metric_display_units } from "@/lib/types"
 
-export default function WeeklyWeather(): React.JSX.Element {
+export default function WeeklyWeather({ metric }: { metric: DisplayMetric }): React.JSX.Element {
   const [expandedDayIndex, setExpandedDayIndex] = useState<Set<number>>(
     new Set(),
   )
@@ -56,10 +57,11 @@ export default function WeeklyWeather(): React.JSX.Element {
                 </div>
                 <WeatherIcon data={day} size={30} />
                 <RangedBar
-                  low={day.min_outTemp}
-                  high={day.max_outTemp}
-                  minTemp={lastWeekData.ranges.min_outTemp}
-                  maxTemp={lastWeekData.ranges.max_outTemp}
+                  low={day[`min_${metric}`]}
+                  high={day[`max_${metric}`]}
+                  minTemp={lastWeekData.ranges[`min_${metric}`]}
+                  maxTemp={lastWeekData.ranges[`max_${metric}`]}
+                  unit={metric_display_units[metric]}
                 />
               </button>
 
@@ -71,7 +73,7 @@ export default function WeeklyWeather(): React.JSX.Element {
                     : "max-h-0"
                 }`}
               >
-                <HourlyContainer date={day.date} />
+                <HourlyContainer date={day.date} metric={metric} />
               </div>
             </div>
           ))}
