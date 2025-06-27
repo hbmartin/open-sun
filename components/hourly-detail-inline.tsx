@@ -1,16 +1,21 @@
 import type React from "react"
 import type { HourData } from "@/lib/types"
+import { formatHour } from "@/lib/utils"
 
 const getWeatherConditionColor = (condition: string) => {
   switch (condition) {
-    case "light-rain":
+    case "light-rain": {
       return "bg-blue-200"
-    case "heavy-rain":
+    }
+    case "heavy-rain": {
       return "bg-blue-400"
-    case "humid-cloudy":
+    }
+    case "humid-cloudy": {
       return "bg-gray-300"
-    default:
+    }
+    default: {
       return "bg-blue-200"
+    }
   }
 }
 
@@ -19,16 +24,15 @@ export default function HourlyDetailInline({
   minTemp,
   maxTemp,
 }: {
-  hourly_data: HourData[] | undefined
+  hourly_data: (HourData | undefined)[]
   minTemp: number
   maxTemp: number
 }): React.JSX.Element {
-  console.log(hourly_data)
   if (hourly_data === undefined) {
     return <div>No data</div>
   }
   return (
-    <div className="bg-gray-50 transition-all duration-500 ease-in-out">
+    <div className="bg-gray-50 transition-all duration-500 ease-in-out border-b border-gray-200 ">
       <div className="py-4">
         {/* <div className="mb-4">
           <h3 className="text-lg font-semibold text-gray-900 mb-1">
@@ -41,10 +45,10 @@ export default function HourlyDetailInline({
         </div> */}
 
         <div className="relative">
-          {[...Array(12).keys()].map((i) => {
-            const hour = hourly_data[i * 2]
+          {[...Array.from({ length: 12 }).keys()].map((index) => {
+            const hour = hourly_data[index * 2]
             if (hour === undefined) {
-              return <p key={`${i}`}>No data</p>
+              return
             }
             return (
               <div
@@ -61,9 +65,9 @@ export default function HourlyDetailInline({
                 />
 
                 <div className="flex items-center justify-between w-full ml-6 py-3">
-                  <div className="w-8">
+                  <div className="w-16">
                     <div className="font-semibold text-gray-900">
-                      {hour.hour}
+                      {formatHour(hour.hour)}
                     </div>
                     <div className="text-sm text-gray-600 mt-1">
                       {hour.avg_rainofhourly}&quot;
@@ -72,7 +76,7 @@ export default function HourlyDetailInline({
 
                   <div className="relative w-full h-10 flex items-center mx-4">
                     <div
-                      className="absolute bg-gray-700 text-white rounded-full w-10 h-10 flex items-center justify-center font-medium text-sm transition-all duration-300 ease-out"
+                      className="absolute bg-gray-700 text-white rounded-full size-10 flex items-center justify-center font-medium text-sm transition-all duration-300 ease-out"
                       style={{
                         left: `${((hour.avg_outTemp - minTemp) / (maxTemp - minTemp)) * 100}%`,
                         transform: "translateX(-50%)",
@@ -85,10 +89,6 @@ export default function HourlyDetailInline({
               </div>
             )
           })}
-        </div>
-
-        <div className="mt-4 pt-3 border-t border-gray-200 text-center text-sm text-gray-600">
-          Sunrise 6:37 AM; Sunset 7:27 PM
         </div>
       </div>
     </div>

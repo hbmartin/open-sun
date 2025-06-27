@@ -17,22 +17,25 @@ export interface WeatherData {
   eventrain: number
 }
 
-export interface DayData {
+export interface Observation {
   date: string
-  day: string
   min_outTemp: number
+  avg_outTemp: number
   max_outTemp: number
   min_outHumi: number
+  avg_outHumi: number
   max_outHumi: number
   max_gustspeed: number
   avg_avgwind: number
   avg_rainofhourly: number
 }
 
-export interface HourData extends Omit<DayData, "day"> {
+export interface DayData extends Observation {
+  day: string
+}
+
+export interface HourData extends Observation {
   hour: string
-  avg_outTemp: number
-  avg_outHumi: number
 }
 
 export interface Ranges {
@@ -49,6 +52,12 @@ export interface WeeklyData {
 }
 
 export interface DailyData {
-  data: HourData[]
+  data: (HourData | undefined)[]
   ranges: Ranges
+}
+
+// Interface for suncalc-ts
+export interface TimesData {
+  dawn: Date
+  dusk: Date
 }

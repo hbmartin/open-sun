@@ -2,10 +2,10 @@ import { useQuery } from "@tanstack/react-query"
 import { Droplets } from "lucide-react"
 import type React from "react"
 import { useState } from "react"
+import HourlyContainer from "@/components/HourlyContainer"
 import RangedBar from "@/components/RangedBar"
 import WeatherIcon from "@/components/WeatherIcon"
 import { fetchLastWeekData } from "@/lib/fetcher"
-import HourlyContainer from "@/components/HourlyContainer"
 
 export default function WeeklyWeather(): React.JSX.Element {
   const [expandedDayIndex, setExpandedDayIndex] = useState<number | undefined>()
@@ -61,7 +61,9 @@ export default function WeeklyWeather(): React.JSX.Element {
                     : "max-h-0 opacity-0"
                 }`}
               >
-                {expandedDayIndex === index && <HourlyContainer date={day.date} />}
+                {expandedDayIndex === index && (
+                  <HourlyContainer date={day.date} />
+                )}
               </div>
             </div>
           ))}

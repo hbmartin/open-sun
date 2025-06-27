@@ -1,10 +1,8 @@
 import { Rss, Sunrise, Sunset } from "lucide-react"
-import React, { useMemo } from "react"
-
-interface TimesData {
-  dawn: Date
-  dusk: Date
-}
+import type React from "react"
+import { useMemo } from "react"
+import type { TimesData } from "@/lib/types"
+import { getSunTimes } from "@/lib/utils"
 
 export default function SunInfo(): React.JSX.Element {
   const loadTime = useMemo(() => {
@@ -14,33 +12,21 @@ export default function SunInfo(): React.JSX.Element {
     const period = now.getHours() >= 12 ? "PM" : "AM"
     return `${hours}:${minutes} ${period}`
   }, [])
-  const [timesData, setTimesData] = React.useState<TimesData | undefined>()
-  React.useEffect(() => {
-    import("suncalc-ts")
-      .then((SunCalc) => {
-        const times = SunCalc.getTimes(
-          new Date(),
-          34.276_833_976_513_366,
-          -117.169_252_354_640_18,
-        )
-        setTimesData(times)
-      })
-      .catch((error) => {
-        console.error("Failed to load SunCalc:", error)
-      })
-  }, [])
+
+  const timesData: TimesData = getSunTimes(new Date())
+
   return (
     <div className="px-4 py-3 text-center">
       <div className="flex items-center justify-center">
         <Sunrise size={16} className="text-orange-600 mr-2" />
         <span className="text-gray-700 mr-4">
-          {timesData?.dawn.getHours()}:{timesData?.dawn.getMinutes()} AM
+          {timesData.dawn.getHours()}:{timesData.dawn.getMinutes()} AM
         </span>
         <Rss size={16} className="text-gray-800 mr-2" />
         <span className="text-gray-700 mr-4">{loadTime}</span>
         <Sunset size={16} className="text-purple-800 mr-2" />
         <span className="text-gray-700">
-          {timesData?.dusk.getHours()}:{timesData?.dusk.getMinutes()} PM
+          {timesData.dusk.getHours()}:{timesData.dusk.getMinutes()} PM
         </span>
       </div>
     </div>

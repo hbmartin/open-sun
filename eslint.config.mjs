@@ -92,6 +92,7 @@ const config = [
             req: true,
             res: true,
             utils: true,
+            e: true,
           },
         },
       ],
@@ -142,6 +143,13 @@ const config = [
       "no-console": "off",
       "@typescript-eslint/no-explicit-any": "off",
       "unicorn/consistent-function-scoping": "off",
+      "unicorn/no-null": "off",
+    },
+  },
+  {
+    files: ["**/fetcher.ts", "**/mappers.ts"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
     },
   },
 ]

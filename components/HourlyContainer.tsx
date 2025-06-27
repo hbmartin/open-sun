@@ -1,9 +1,9 @@
-import type React from "react"
 import { useQuery } from "@tanstack/react-query"
+import { Sunrise, Sunset } from "lucide-react"
+import type React from "react"
 import { fetchHourlyData } from "@/lib/fetcher"
-import HourlyRow from "@/components/HourlyRow"
-import HourlyDetailInline from "./hourly-detail-inline"
-import { useEffect } from "react"
+import { getSunTimes } from "@/lib/utils"
+import HourlyDetailInline from "./hourly-detail-inline.tsx"
 
 export default function HourlyContainer({
   date,
@@ -15,25 +15,21 @@ export default function HourlyContainer({
     queryFn: ({ queryKey }) => fetchHourlyData(queryKey[1]),
   })
 
-  useEffect(() => {
-    console.log(data)
-  }, [data])
-
   if (isPending)
     return (
       <div className="animate-pulse">
         <div className="space-y-3">
-          {Array.from({ length: 24 }).map((_, i) => (
+          {Array.from({ length: 24 }).map((_, index) => (
             <div
-              key={`${i} ${date}`}
+              key={`${index} ${date}`}
               className="flex items-center justify-between"
             >
-              <div className="w-4 h-12 bg-gray-200 rounded"></div>
+              <div className="w-4 h-12 bg-gray-200 rounded" />
               <div className="flex-1 ml-4">
-                <div className="h-4 bg-gray-200 rounded w-16 mb-2"></div>
-                <div className="h-3 bg-gray-200 rounded w-32"></div>
+                <div className="h-4 bg-gray-200 rounded w-16 mb-2" />
+                <div className="h-3 bg-gray-200 rounded w-32" />
               </div>
-              <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
+              <div className="size-10 bg-gray-200 rounded-full" />
             </div>
           ))}
         </div>
@@ -46,45 +42,39 @@ export default function HourlyContainer({
       </div>
     )
   }
+  if (!isPending && !data?.data) {
+    return (
+      <div className="text-center text-gray-500 py-8">
+        Something went wrong.
+      </div>
+    )
+  }
+  const timesData = getSunTimes(new Date(date))
 
   return (
     <div className="bg-gray-50 border-t border-gray-200">
-      {/* Day Header 
-    <div className="px-4 py-3 border-b border-gray-200">
-      <div className="text-sm font-semibold text-gray-900 mb-1">
-        {day.date}
+      <div className="px-4 py-2 border-b border-gray-200 flex">
+        <div className="text-sm font-semibold text-gray-900 flex-1">
+          {new Date(date).toLocaleDateString()}
+        </div>
+        <div className="flex items-center justify-center">
+          <Sunrise size={12} className="text-orange-600 mr-2" />
+          <span className="text-sm text-gray-700 mr-4">
+            {timesData.dawn.getHours()}:
+            {timesData.dawn.getMinutes().toString().padStart(2, "0")} AM
+          </span>
+          <Sunset size={12} className="text-purple-800 mr-2" />
+          <span className="text-sm text-gray-700">
+            {timesData.dusk.getHours()}:
+            {timesData.dusk.getMinutes().toString().padStart(2, "0")} PM
+          </span>
+        </div>
       </div>
-      <div className="text-xs text-gray-600 italic">
-        High: {day.max_outTemp}° Low: {day.min_outTemp}°.{" "}
-        {day.description}
-      </div>
-    </div>
-    */}
-
-      {/* Hourly Data */}
-      {/* <div className="bg-white">
-        {[...Array(24).keys()].map((i) => {
-          const hourly_data = data?.data[i] ?? undefined
-          return hourly_data !== undefined ? (
-            <HourlyRow
-              key={`${i} ${date}`}
-              hour={hourly_data}
-            />
-          ) : (
-            <p key={`${i} ${date}`}>No data</p>
-          )
-        })}
-      </div> */}
       <HourlyDetailInline
         hourly_data={data?.data}
         minTemp={data?.ranges.min_outTemp}
         maxTemp={data?.ranges.max_outTemp}
       />
-
-      {/* Sunrise/Sunset */}
-      <div className="px-4 py-3 text-center text-sm text-gray-600 border-t border-gray-200">
-        Sunrise 6:37 AM; Sunset 7:27 PM
-      </div>
     </div>
   )
 }

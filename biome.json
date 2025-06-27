@@ -7,7 +7,8 @@
   },
   "formatter": {
     "enabled": true,
-    "indentStyle": "space"
+    "indentStyle": "space",
+    "includes": ["!lib/suncalc.ts"]
   },
   "linter": {
     "enabled": true,
