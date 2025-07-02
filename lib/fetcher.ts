@@ -26,7 +26,7 @@ export async function fetchCurrentWeatherData(): Promise<InstantObservation> {
     const body = await response.json()
     return body.data
   } else {
-    const staticData = readFileSync(join(process.cwd(), "data", "current.json"), "utf-8")
+    const staticData = await readFileSync(join(process.cwd(), "data", "current.json"), "utf-8")
     const body = JSON.parse(staticData)
     return body.data
   }
@@ -55,7 +55,7 @@ export async function fetchLastWeekData(): Promise<WeeklyData> {
 
     return { data: data.reverse(), ranges }
   } else {
-    const staticData = readFileSync(join(process.cwd(), "data", "daily.json"), "utf-8")
+    const staticData = await readFileSync(join(process.cwd(), "data", "daily.json"), "utf-8")
     const body = JSON.parse(staticData)
     const data: DayData[] = body.data.map((item: any) =>
       mapDailyApiResponse(item),
@@ -91,7 +91,7 @@ export async function fetchHourlyData(date: string): Promise<DailyData> {
 
     return { data, ranges }
   } else {
-    const staticData = readFileSync(join(process.cwd(), "data", `hourly-${date}.json`), "utf-8")
+    const staticData = await readFileSync(join(process.cwd(), "data", `hourly-${date}.json`), "utf-8")
     const body = JSON.parse(staticData)
     const data: (HourData | undefined)[] = body.data.map((item: any) =>
       mapHourlyApiResponse(item, date),
