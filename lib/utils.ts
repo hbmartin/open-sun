@@ -25,5 +25,7 @@ export function formatDate(dateString: string): string {
 }
 
 export function getSunTimes(date: Date): SunCalc.TimesData {
-  return SunCalc.getTimes(date, 34.276_833_976_513_366, -117.169_252_354_640_18)
-}
+    const latitude = Number(process.env["LOCATION_LATITUDE"])
+    const longitude = Number(process.env["LOCATION_LONGITUDE"])
+    return SunCalc.getTimes(date, latitude, longitude)
+  }

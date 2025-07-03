@@ -15,6 +15,7 @@ export interface InstantObservation {
   pm25: number | null
   rainofhourly: number
   eventrain: number
+  sunTimes: import("@/lib/suncalc").TimesData
 }
 
 export interface RangeObservation {
@@ -40,6 +41,7 @@ export interface RangeObservation {
 
 export interface DayData extends RangeObservation {
   day: string
+  sunTimes: import("@/lib/suncalc").TimesData
 }
 
 export interface HourData extends RangeObservation {

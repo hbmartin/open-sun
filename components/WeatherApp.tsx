@@ -1,10 +1,12 @@
+"use client"
+
 import { Clock, Eye, Library, Wind } from "lucide-react"
 import type React from "react"
 import { useState } from "react"
 import CurrentWeather from "@/components/CurrentWeather"
 import SunInfo from "@/components/SunInfo"
 import WeeklyWeather from "@/components/WeeklyWeather"
-import { DisplayMetric } from "@/lib/types"
+import { type DailyData, DisplayMetric, type InstantObservation, type WeeklyData } from "@/lib/types"
 
 const tab_names: Record<DisplayMetric, string> = {
   [DisplayMetric.TEMP]: "TEMP (°F)",
@@ -20,7 +22,17 @@ const iconMap: Record<string, React.ElementType> = {
   Notifications: Clock,
 }
 
-export default function WeatherApp() {
+interface WeatherAppProperties {
+  currentWeatherData: InstantObservation
+  lastWeekData: WeeklyData
+  hourlyDataByDate: Record<string, DailyData>
+}
+
+export default function WeatherApp({
+  currentWeatherData,
+  lastWeekData,
+  hourlyDataByDate,
+}: WeatherAppProperties) {
   const [activeTab, setActiveTab] = useState<DisplayMetric>(DisplayMetric.TEMP)
   const [activeNavItem, setActiveNavItem] = useState("History")
 
@@ -45,9 +57,9 @@ export default function WeatherApp() {
         </div>
       </div>
 
-      <CurrentWeather />
+      <CurrentWeather currentWeatherData={currentWeatherData} />
       <SunInfo />
-      <WeeklyWeather metric={activeTab} />
+      <WeeklyWeather metric={activeTab} lastWeekData={lastWeekData} hourlyDataByDate={hourlyDataByDate} />
 
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-sm bg-white border-t border-gray-200">
         <div className="flex justify-around py-2">

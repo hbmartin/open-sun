@@ -3,14 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "npm run generate-static-data && next build",
+    "build": "next build",
     "dev": "next dev",
-    "lint": "next lint",
+    "lint": "next lint && biome check",
+    "lf": "next lint --fix && biome check --fix",
     "start": "next start",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "generate-static-data": "node scripts/generate-static-data.js"
+    "static-data": "node scripts/generate-static-data.js"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.11",

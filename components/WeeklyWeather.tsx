@@ -1,22 +1,26 @@
-import { useQuery } from "@tanstack/react-query"
 import { Droplets } from "lucide-react"
 import type React from "react"
 import { useState } from "react"
 import HourlyContainer from "@/components/HourlyContainer"
 import RangedBar from "@/components/RangedBar"
 import WeatherIcon from "@/components/WeatherIcon"
-import { fetchLastWeekData } from "@/lib/fetcher"
-import { type DisplayMetric, metric_display_units } from "@/lib/types"
+import { type DailyData, type DisplayMetric, type WeeklyData, metric_display_units } from "@/lib/types"
 
-export default function WeeklyWeather({ metric }: { metric: DisplayMetric }): React.JSX.Element {
+interface WeeklyWeatherProperties {
+  metric: DisplayMetric
+  lastWeekData: WeeklyData
+  hourlyDataByDate: Record<string, DailyData>
+}
+
+export default function WeeklyWeather({
+  metric,
+  lastWeekData,
+  hourlyDataByDate,
+}: WeeklyWeatherProperties): React.JSX.Element {
   const [expandedDayIndex, setExpandedDayIndex] = useState<Set<number>>(
     new Set(),
   )
 
-  const { data: lastWeekData, isPending: isLoadingLastWeekData } = useQuery({
-    queryKey: ["lastWeekData"],
-    queryFn: fetchLastWeekData,
-  })
 
   const handleDayClick = (index: number) => {
     setExpandedDayIndex((previous) => {
@@ -35,9 +39,7 @@ export default function WeeklyWeather({ metric }: { metric: DisplayMetric }): Re
       <h2 className="text-xl font-bold text-gray-900 mb-2">Last Week</h2>
 
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-        {!isLoadingLastWeekData &&
-          lastWeekData &&
-          lastWeekData.data.map((day, index) => (
+        {lastWeekData.data.map((day, index) => (
             <div key={day.date}>
               <button
                 type="button"
@@ -73,10 +75,10 @@ export default function WeeklyWeather({ metric }: { metric: DisplayMetric }): Re
                     : "max-h-0"
                 }`}
               >
-                <HourlyContainer date={day.date} metric={metric} />
+                <HourlyContainer date={day.date} metric={metric} dailyData={hourlyDataByDate[day.date]} />
               </div>
             </div>
-          ))}
+        ))}
       </div>
     </div>
   )

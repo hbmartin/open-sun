@@ -4,7 +4,9 @@
       "Bash(mkdir:*)",
       "WebFetch(domain:nextjs.org)",
       "WebFetch(domain:vercel.com)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(find:*)",
+      "Bash(rg:*)"
     ],
     "deny": []
   }

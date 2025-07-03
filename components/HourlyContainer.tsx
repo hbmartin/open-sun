@@ -1,51 +1,29 @@
-import { useQuery } from "@tanstack/react-query"
 import { Sunrise, Sunset } from "lucide-react"
 import type React from "react"
 import HourlyDetailInline from "@/components/hourly-detail-inline"
-import { fetchHourlyData } from "@/lib/fetcher"
-import type { DisplayMetric } from "@/lib/types"
+import type { DailyData, DisplayMetric } from "@/lib/types"
 import { getSunTimes } from "@/lib/utils"
+
+interface HourlyContainerProperties {
+  date: string
+  metric: DisplayMetric
+  dailyData: DailyData
+}
 
 export default function HourlyContainer({
   date,
   metric,
-}: {
-  date: string
-  metric: DisplayMetric
-}): React.JSX.Element {
-  const { data, isPending } = useQuery({
-    queryKey: ["dailyData", date],
-    queryFn: ({ queryKey }) => fetchHourlyData(queryKey[1]),
-  })
+  dailyData,
+}: HourlyContainerProperties): React.JSX.Element {
 
-  if (isPending)
-    return (
-      <div className="animate-pulse">
-        <div className="space-y-3">
-          {Array.from({ length: 24 }).map((_, index) => (
-            <div
-              key={`${index} ${date}`}
-              className="flex items-center justify-between"
-            >
-              <div className="w-4 h-12 bg-gray-200 rounded" />
-              <div className="flex-1 ml-4">
-                <div className="h-4 bg-gray-200 rounded w-16 mb-2" />
-                <div className="h-3 bg-gray-200 rounded w-32" />
-              </div>
-              <div className="size-10 bg-gray-200 rounded-full" />
-            </div>
-          ))}
-        </div>
-      </div>
-    )
-  if (!isPending && data?.data.every((item) => item === undefined)) {
+  if (dailyData.data.every((item) => item === undefined)) {
     return (
       <div className="text-center text-gray-500 py-8">
         No hourly data available for this day.
       </div>
     )
   }
-  if (!isPending && !data?.data) {
+  if (!dailyData.data) {
     return (
       <div className="text-center text-gray-500 py-8">
         Something went wrong.
@@ -74,10 +52,10 @@ export default function HourlyContainer({
         </div>
       </div>
       <HourlyDetailInline
-        hourly_data={data.data}
+        hourly_data={dailyData.data}
         metric={metric}
-        minTemp={data.ranges[`min_${metric}`]}
-        maxTemp={data.ranges[`max_${metric}`]}
+        minTemp={dailyData.ranges[`min_${metric}`]}
+        maxTemp={dailyData.ranges[`max_${metric}`]}
       />
     </div>
   )

@@ -28,8 +28,24 @@
     "enabled": true,
     "actions": {
       "source": {
-        "organizeImports": "on"
+        "organizeImports": {
+          "options": {
+            "groups": [{ "type": true }]
+          }
+        }
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["lib/utils.ts"],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "useLiteralKeys": "off"
+          }
+        }
+      }
+    }
+  ]
 }
