@@ -1,5 +1,5 @@
 import WeatherApp from "@/components/WeatherApp"
-import { fetchCurrentWeatherData, fetchHourlyData, fetchLastWeekData } from "@/lib/fetcher"
+import { fetchCurrentWeatherData, fetchHourlyDataRange, fetchLastWeekData } from "@/lib/fetcher"
 import { getSunTimes } from "@/lib/utils"
 
 export default async function Page() {
@@ -11,7 +11,7 @@ export default async function Page() {
   // Add sun times to current weather data
   const currentWeatherDataWithSunTimes = {
     ...currentWeatherData,
-    sunTimes: getSunTimes(new Date())
+    sunTimes: getSunTimes(new Date()),
   }
 
   // Add sun times to last week data
@@ -19,18 +19,15 @@ export default async function Page() {
     ...lastWeekData,
     data: lastWeekData.data.map(day => ({
       ...day,
-      sunTimes: getSunTimes(new Date(day.date))
-    }))
+      sunTimes: getSunTimes(new Date(day.date)),
+    })),
   }
 
-  const hourlyDataPromises = lastWeekData.data.map(day => 
-    fetchHourlyData(day.date),
-  )
-  const hourlyDataArray = await Promise.all(hourlyDataPromises)
-  
-  const hourlyDataByDate = Object.fromEntries(
-    lastWeekData.data.map((day, index) => [day.date, hourlyDataArray[index]]),
-  )
+  const startDate = lastWeekData.data.at(-1)?.date
+  const endDate = lastWeekData.data[0]?.date
+  const hourlyDataByDate = startDate && endDate 
+    ? await fetchHourlyDataRange(startDate, endDate)
+    : {}
 
   return (
     <WeatherApp

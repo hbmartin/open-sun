@@ -6,7 +6,8 @@
       "WebFetch(domain:vercel.com)",
       "WebFetch(domain:github.com)",
       "Bash(find:*)",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "Bash(pnpm lf:*)"
     ],
     "deny": []
   }
