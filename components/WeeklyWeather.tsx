@@ -75,7 +75,7 @@ export default function WeeklyWeather({
                     : "max-h-0"
                 }`}
               >
-                <HourlyContainer date={day.date} metric={metric} dailyData={hourlyDataByDate[day.date]} />
+                <HourlyContainer date={day.date} metric={metric} dailyData={hourlyDataByDate[day.date]} timesData={day.sunTimes} />
               </div>
             </div>
         ))}

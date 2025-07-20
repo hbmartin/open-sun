@@ -1,21 +1,20 @@
 import { Rss, Sunrise, Sunset } from "lucide-react"
 import type React from "react"
 import { useMemo } from "react"
-import { getSunTimes } from "@/lib/utils"
+import type { TimesData } from "@/lib/suncalc"
 
 interface SunInfoProperties {
-  currentDate: Date
+  currentDate: Date,
+  timesData: TimesData
 }
 
-export default function SunInfo({ currentDate }: SunInfoProperties): React.JSX.Element {
+export default function SunInfo({ currentDate, timesData }: SunInfoProperties): React.JSX.Element {
   const loadTime = useMemo(() => {
     const hours = currentDate.getHours() % 12 || 12
     const minutes = currentDate.getMinutes().toString().padStart(2, "0")
     const period = currentDate.getHours() >= 12 ? "PM" : "AM"
     return `${hours}:${minutes} ${period}`
   }, [currentDate])
-
-  const timesData = getSunTimes(currentDate)
 
   return (
     <div className="px-4 py-3 text-center">
