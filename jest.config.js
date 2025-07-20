@@ -17,7 +17,7 @@ const config = {
     "!**/.next/**",
     "!**/coverage/**",
   ],
-  moduleNameMapping: {
+  moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/$1",
   },
 }

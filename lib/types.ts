@@ -100,5 +100,3 @@ export const metric_display_units: Record<DisplayMetric, string> = {
   [DisplayMetric.UVI]: "",
   [DisplayMetric.SOLAR]: "",
 }
-
-export type { Environment as ProcessEnvironment } from "./environment.ts"

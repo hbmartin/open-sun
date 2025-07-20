@@ -7,7 +7,8 @@
       "WebFetch(domain:github.com)",
       "Bash(find:*)",
       "Bash(rg:*)",
-      "Bash(pnpm lf:*)"
+      "Bash(pnpm lf:*)",
+      "Bash(pnpm test:*)"
     ],
     "deny": []
   }

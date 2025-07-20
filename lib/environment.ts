@@ -29,8 +29,10 @@ export type Environment = z.infer<typeof environmentSchema>
 let cachedEnvironment: Environment | undefined
 
 export function getEnvironment(): Environment {
-  if (cachedEnvironment === undefined) {
-    cachedEnvironment = environmentSchema.parse(process.env)
+  if (cachedEnvironment) {
+    return cachedEnvironment
   }
-  return cachedEnvironment
+  const _cachedEnvironment = environmentSchema.parse(process.env)
+  cachedEnvironment = _cachedEnvironment
+  return _cachedEnvironment
 }
