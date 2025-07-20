@@ -11,5 +11,18 @@
       "Bash(pnpm test:*)"
     ],
     "deny": []
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|MultiEdit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pnpm lf"
+          }
+        ]
+      }
+    ]
   }
 }

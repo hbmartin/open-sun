@@ -119,8 +119,16 @@ describe("mapHourlyApiResponse", () => {
       avg_outHumi: 55,
       max_outHumi: 70,
       max_gustspeed: 12.3,
+      min_avgwind: 5.0,
+      max_avgwind: 8.5,
       avg_avgwind: 6.8,
       avg_rainofhourly: 0.2,
+      avg_uvi: 3.5,
+      avg_solarrad: 750,
+      min_uvi: 2.0,
+      max_uvi: 5.0,
+      min_solarrad: 600,
+      max_solarrad: 900,
     }
     const date = "2024-01-15"
 
@@ -136,8 +144,16 @@ describe("mapHourlyApiResponse", () => {
       avg_outHumi: 55,
       max_outHumi: 70,
       max_gustspeed: 12.3,
+      min_avgwind: 5.0,
+      max_avgwind: 8.5,
       avg_avgwind: 6.8,
       avg_rainofhourly: 0.2,
+      avg_uvi: 3.5,
+      avg_solarrad: 750,
+      min_uvi: 2.0,
+      max_uvi: 5.0,
+      min_solarrad: 600,
+      max_solarrad: 900,
     })
   })
 
