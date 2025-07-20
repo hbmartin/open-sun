@@ -1,14 +1,33 @@
-"use client"
-
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import WeatherApp from "@/components/WeatherApp"
+import { fetchCurrentWeatherData, fetchHourlyDataRange, fetchLastWeekData } from "@/lib/fetcher"
+import { getSunTimes } from "@/lib/utils"
 
-const queryClient = new QueryClient()
+export default async function Page() {
+  const currentDate = new Date()
+  const [currentWeatherData, lastWeekData] = await Promise.all([
+    fetchCurrentWeatherData(),
+    fetchLastWeekData(),
+  ])
 
-export default function Page() {
+  // Add sun times to current weather data
+  const currentWeatherDataWithSunTimes = {
+    ...currentWeatherData,
+    sunTimes: getSunTimes(currentDate),
+  }
+
+  const lastItem = lastWeekData.data.at(-1)
+  if (!lastItem) {
+    throw new Error("No data")
+  }
+
+  const hourlyDataByDate = await fetchHourlyDataRange(lastItem.date)
+
   return (
-    <QueryClientProvider client={queryClient}>
-      <WeatherApp />
-    </QueryClientProvider>
+    <WeatherApp
+      currentWeatherData={currentWeatherDataWithSunTimes}
+      lastWeekData={lastWeekData}
+      hourlyDataByDate={hourlyDataByDate}
+      currentDate={currentDate}
+    />
   )
 }

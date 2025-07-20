@@ -1,6 +1,14 @@
 {
   "permissions": {
-    "allow": ["Bash(mkdir:*)"],
+    "allow": [
+      "Bash(mkdir:*)",
+      "WebFetch(domain:nextjs.org)",
+      "WebFetch(domain:vercel.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(find:*)",
+      "Bash(rg:*)",
+      "Bash(pnpm lf:*)"
+    ],
     "deny": []
   }
 }

@@ -1,3 +1,5 @@
+import type { TimesData } from "@/lib/suncalc"
+
 export interface InstantObservation {
   inTemp: number | null
   inHumi: number | null
@@ -15,6 +17,7 @@ export interface InstantObservation {
   pm25: number | null
   rainofhourly: number
   eventrain: number
+  sunTimes: TimesData
 }
 
 export interface RangeObservation {
@@ -40,6 +43,7 @@ export interface RangeObservation {
 
 export interface DayData extends RangeObservation {
   day: string
+  sunTimes: TimesData
 }
 
 export interface HourData extends RangeObservation {
