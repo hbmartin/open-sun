@@ -15,16 +15,6 @@ export default async function Page() {
     sunTimes: getSunTimes(currentDate),
   }
 
-  // Add sun times to last week data
-  const lastWeekDataWithSunTimes = {
-    ...lastWeekData,
-    data: lastWeekData.data.map(day => ({
-      ...day,
-      sunTimes: getSunTimes(new Date(day.date)),
-    })),
-  }
-  console.log(lastWeekDataWithSunTimes.data[0].sunTimes)
-
   const lastItem = lastWeekData.data.at(-1)
   if (!lastItem) {
     throw new Error("No data")
@@ -35,7 +25,7 @@ export default async function Page() {
   return (
     <WeatherApp
       currentWeatherData={currentWeatherDataWithSunTimes}
-      lastWeekData={lastWeekDataWithSunTimes}
+      lastWeekData={lastWeekData}
       hourlyDataByDate={hourlyDataByDate}
       currentDate={currentDate}
     />

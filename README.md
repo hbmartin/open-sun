@@ -165,8 +165,7 @@ curl -X POST "https://your-app.vercel.app/api/revalidate?secret=YOUR_SECRET" \
 The production build automatically generates initial static data:
 
 ```bash
-npm run build
-# Runs: npm run generate-static-data && next build
+pnpm run build
 ```
 
 This ensures fresh data is available immediately upon deployment.
