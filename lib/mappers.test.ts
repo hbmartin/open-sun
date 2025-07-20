@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeAll } from "@jest/globals"
+import { beforeAll, describe, expect, it } from "@jest/globals"
 import {
   calculateRanges,
   mapDailyApiResponse,
@@ -23,14 +23,14 @@ describe("mapDailyApiResponse", () => {
       avg_outHumi: 55,
       max_outHumi: 80,
       max_gustspeed: 15.2,
-      min_avgwind: 5.0,
-      max_avgwind: 12.0,
+      min_avgwind: 5,
+      max_avgwind: 12,
       avg_avgwind: 8.1,
       avg_rainofhourly: 0.5,
       avg_uvi: 4.5,
       avg_solarrad: 850,
-      min_uvi: 2.0,
-      max_uvi: 7.0,
+      min_uvi: 2,
+      max_uvi: 7,
       min_solarrad: 600,
       max_solarrad: 1100,
     }
@@ -47,14 +47,14 @@ describe("mapDailyApiResponse", () => {
       avg_outHumi: 55,
       max_outHumi: 80,
       max_gustspeed: 15.2,
-      min_avgwind: 5.0,
-      max_avgwind: 12.0,
+      min_avgwind: 5,
+      max_avgwind: 12,
       avg_avgwind: 8.1,
       avg_rainofhourly: 0.5,
       avg_uvi: 4.5,
       avg_solarrad: 850,
-      min_uvi: 2.0,
-      max_uvi: 7.0,
+      min_uvi: 2,
+      max_uvi: 7,
       min_solarrad: 600,
       max_solarrad: 1100,
     })
