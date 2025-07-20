@@ -49,7 +49,7 @@ export default function HourlyDetailInline({
                     </div>
                     <div className="text-sm text-gray-600 mt-1 flex items-center gap-1">
                       <WeatherIcon data={hour} size={15} />
-                      <span>{hour.avg_rainofhourly}&quot;</span>
+                      <span>{hour.avg_rainofhourly > 0.005 ? hour.avg_rainofhourly.toFixed(2) : 0}&quot;</span>
                     </div>
                   </div>
 

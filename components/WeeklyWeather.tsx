@@ -53,7 +53,7 @@ export default function WeeklyWeather({
                   <div className="flex space-x-1">
                     <Droplets size={14} className="text-blue-400" />
                     <span className="text-xs text-blue-500 font-medium">
-                      {day.avg_rainofhourly}&quot;
+                      {day.avg_rainofhourly > 0.005 ? day.avg_rainofhourly.toFixed(2) : 0}&quot;
                     </span>
                   </div>
                 </div>

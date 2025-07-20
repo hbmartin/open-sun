@@ -26,12 +26,14 @@ interface WeatherAppProperties {
   currentWeatherData: InstantObservation
   lastWeekData: WeeklyData
   hourlyDataByDate: Record<string, DailyData>
+  currentDate: Date
 }
 
 export default function WeatherApp({
   currentWeatherData,
   lastWeekData,
   hourlyDataByDate,
+  currentDate,
 }: WeatherAppProperties) {
   const [activeTab, setActiveTab] = useState<DisplayMetric>(DisplayMetric.TEMP)
   const [activeNavItem, setActiveNavItem] = useState("History")
@@ -58,7 +60,7 @@ export default function WeatherApp({
       </div>
 
       <CurrentWeather currentWeatherData={currentWeatherData} />
-      <SunInfo />
+      <SunInfo currentDate={currentDate} />
       <WeeklyWeather metric={activeTab} lastWeekData={lastWeekData} hourlyDataByDate={hourlyDataByDate} />
 
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-sm bg-white border-t border-gray-200">

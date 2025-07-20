@@ -3,28 +3,31 @@ import type React from "react"
 import { useMemo } from "react"
 import { getSunTimes } from "@/lib/utils"
 
-export default function SunInfo(): React.JSX.Element {
-  const loadTime = useMemo(() => {
-    const now = new Date()
-    const hours = now.getHours() % 12 || 12
-    const minutes = now.getMinutes().toString().padStart(2, "0")
-    const period = now.getHours() >= 12 ? "PM" : "AM"
-    return `${hours}:${minutes} ${period}`
-  }, [])
+interface SunInfoProperties {
+  currentDate: Date
+}
 
-  const timesData = getSunTimes(new Date())
+export default function SunInfo({ currentDate }: SunInfoProperties): React.JSX.Element {
+  const loadTime = useMemo(() => {
+    const hours = currentDate.getHours() % 12 || 12
+    const minutes = currentDate.getMinutes().toString().padStart(2, "0")
+    const period = currentDate.getHours() >= 12 ? "PM" : "AM"
+    return `${hours}:${minutes} ${period}`
+  }, [currentDate])
+
+  const timesData = getSunTimes(currentDate)
 
   return (
     <div className="px-4 py-3 text-center">
       <div className="flex items-center justify-center">
         <Sunrise size={16} className="text-orange-600 mr-2" />
-        <span className="text-gray-700 mr-4">
+        <span className="text-gray-700 mr-4" suppressHydrationWarning>
           {timesData.dawn.getHours()}:{timesData.dawn.getMinutes()} AM
         </span>
         <Rss size={16} className="text-gray-800 mr-2" />
         <span className="text-gray-700 mr-4">{loadTime}</span>
         <Sunset size={16} className="text-purple-800 mr-2" />
-        <span className="text-gray-700">
+        <span className="text-gray-700" suppressHydrationWarning>
           {timesData.dusk.getHours()}:{timesData.dusk.getMinutes()} PM
         </span>
       </div>

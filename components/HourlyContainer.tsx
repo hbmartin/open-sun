@@ -15,18 +15,17 @@ export default function HourlyContainer({
   metric,
   dailyData,
 }: HourlyContainerProperties): React.JSX.Element {
-
-  if (dailyData.data.every((item) => item === undefined)) {
-    return (
-      <div className="text-center text-gray-500 py-8">
-        No hourly data available for this day.
-      </div>
-    )
-  }
   if (!dailyData.data) {
     return (
       <div className="text-center text-gray-500 py-8">
         Something went wrong.
+      </div>
+    )
+  }
+  if (dailyData.data.every((item) => item === undefined)) {
+    return (
+      <div className="text-center text-gray-500 py-8">
+        No hourly data available for this day.
       </div>
     )
   }
@@ -40,12 +39,12 @@ export default function HourlyContainer({
         </div>
         <div className="flex items-center justify-center">
           <Sunrise size={12} className="text-orange-600 mr-2" />
-          <span className="text-sm text-gray-700 mr-4">
+          <span className="text-sm text-gray-700 mr-4" suppressHydrationWarning>
             {timesData.dawn.getHours()}:
             {timesData.dawn.getMinutes().toString().padStart(2, "0")} AM
           </span>
           <Sunset size={12} className="text-purple-800 mr-2" />
-          <span className="text-sm text-gray-700">
+          <span className="text-sm text-gray-700" suppressHydrationWarning>
             {timesData.dusk.getHours()}:
             {timesData.dusk.getMinutes().toString().padStart(2, "0")} PM
           </span>
