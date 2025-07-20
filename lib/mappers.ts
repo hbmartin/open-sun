@@ -1,6 +1,6 @@
 // biome-ignore-all lint/suspicious/noExplicitAny: API calls
 import type { DayData, HourData, RangeObservation, Ranges } from "@/lib/types"
-import { getSunTimes } from "./utils.ts"
+import { getSunTimes } from "@/lib/utils"
 
 const days = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]
 function getAbbreviatedDay(dateString: string): string {

@@ -60,7 +60,7 @@ export default function WeatherApp({
       </div>
 
       <CurrentWeather currentWeatherData={currentWeatherData} />
-      <SunInfo currentDate={currentDate} />
+      <SunInfo currentDate={currentDate} timesData={currentWeatherData.sunTimes} />
       <WeeklyWeather metric={activeTab} lastWeekData={lastWeekData} hourlyDataByDate={hourlyDataByDate} />
 
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-sm bg-white border-t border-gray-200">

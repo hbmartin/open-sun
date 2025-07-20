@@ -2,18 +2,20 @@ import { Sunrise, Sunset } from "lucide-react"
 import type React from "react"
 import HourlyDetailInline from "@/components/hourly-detail-inline"
 import type { DailyData, DisplayMetric } from "@/lib/types"
-import { getSunTimes } from "@/lib/utils"
+import type { TimesData } from "@/lib/suncalc"
 
 interface HourlyContainerProperties {
   date: string
   metric: DisplayMetric
   dailyData: DailyData
+  timesData: TimesData
 }
 
 export default function HourlyContainer({
   date,
   metric,
   dailyData,
+  timesData,
 }: HourlyContainerProperties): React.JSX.Element {
   if (!dailyData.data) {
     return (
@@ -29,7 +31,6 @@ export default function HourlyContainer({
       </div>
     )
   }
-  const timesData = getSunTimes(new Date(date))
 
   return (
     <div className="bg-gray-50 border-t border-gray-200">

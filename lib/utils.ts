@@ -1,6 +1,7 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { getTimes } from "@/lib/suncalc"
+import { getEnvironment } from "@/lib/environment"
 import type { TimesData } from "./suncalc.ts"
 
 export function cn(...inputs: ClassValue[]) {
@@ -26,7 +27,6 @@ export function formatDate(dateString: string): string {
 }
 
 export function getSunTimes(date: Date): TimesData {
-  const latitude = Number(process.env["LOCATION_LATITUDE"])
-  const longitude = Number(process.env["LOCATION_LONGITUDE"])
-  return getTimes(date, latitude, longitude)
+  const environment = getEnvironment()
+  return getTimes(date, environment.LOCATION_LATITUDE, environment.LOCATION_LONGITUDE)
 }

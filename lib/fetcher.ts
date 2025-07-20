@@ -5,6 +5,7 @@ import {
   mapDailyApiResponse,
   mapHourlyApiResponse,
 } from "@/lib/mappers"
+import { getEnvironment } from "@/lib/environment"
 import type {
   DailyData,
   DayData,
@@ -15,7 +16,8 @@ import type {
 } from "./types.ts"
 
 export async function fetchCurrentWeatherData(): Promise<InstantObservation> {
-  const url = process.env["WEATHER_CURRENT_API_URL"] || "http://localhost:8080/"
+  const environment = getEnvironment()
+  const url = environment.WEATHER_CURRENT_API_URL
   const response = await fetch(url)
   const body = await response.json()
   return body.data
@@ -25,11 +27,8 @@ export async function fetchLastWeekData(): Promise<WeeklyData> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), 5000)
   
-  const url = process.env["WEATHER_DAILY_API_URL"] || 
-    "http://localhost:8080/daily.json?tz=America/Los_Angeles&q=min_outTemp&q=max_outTemp" + 
-    "&q=avg_outTemp&q=min_outHumi&q=avg_outHumi&q=max_outHumi&q=max_gustspeed&q=avg_avgwind" + 
-    "&q=avg_uvi&q=avg_solarrad&q=avg_rainofhourly&q=min_avgwind&q=max_avgwind" +
-    "&q=min_uvi&q=max_uvi&q=min_solarrad&q=max_solarrad"
+  const environment = getEnvironment()
+  const url = environment.WEATHER_DAILY_API_URL
   const response = await fetch(url, {
     signal: controller.signal,
   })
@@ -47,8 +46,8 @@ export async function fetchHourlyDataRange(start_date: string): Promise<Record<s
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), 5000)
   
-  const baseUrl = process.env["WEATHER_HOURLY_API_URL"] || 
-    "http://localhost:8080/hourly.json?tz=America/Los_Angeles&q=min_outTemp&q=max_outTemp&q=min_outHumi&q=max_outHumi&q=max_gustspeed&q=avg_avgwind&q=max_gustspeed&q=avg_rainofhourly&q=avg_outHumi&q=avg_outTemp&q=avg_uvi&q=avg_solarrad&q=min_avgwind&q=max_avgwind&q=min_uvi&q=max_uvi&q=min_solarrad&q=max_solarrad"
+  const environment = getEnvironment()
+  const baseUrl = environment.WEATHER_HOURLY_API_URL
   const url = `${baseUrl}&start_date=${start_date}`
   const response = await fetch(url, {
     signal: controller.signal,
