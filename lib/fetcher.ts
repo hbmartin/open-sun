@@ -54,8 +54,8 @@ export async function fetchHourlyDataRange(start_date: string): Promise<Record<s
   const response = await fetch(url, {
     signal: controller.signal,
   })
-  
   clearTimeout(timeoutId)
+  console.log("body")
   const body = await response.json()
   const validatedResponse = HourlyApiResponseSchema.parse(body)
   return mapHourlyApiResponse(validatedResponse)
