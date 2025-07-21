@@ -50,7 +50,7 @@ export async function fetchHourlyDataRange(start_date: string): Promise<Record<s
   
   const environment = getEnvironment()
   const baseUrl = environment.WEATHER_HOURLY_API_URL
-  const url = `${baseUrl}&start_date=${start_date}`
+  const url = baseUrl.includes("localhost") ? `${baseUrl}&start_date=${start_date}` : `${baseUrl}`
   const response = await fetch(url, {
     signal: controller.signal,
   })
