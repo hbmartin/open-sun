@@ -1,6 +1,8 @@
-// biome-ignore-all lint/suspicious/noExplicitAny: API calls
-import type { DayData, HourData, RangeObservation, Ranges } from "@/lib/types"
+import type { DailyData, DayData, HourData, RangeObservation, Ranges } from "@/lib/types"
 import { getSunTimes } from "@/lib/utils"
+import type { DailyApiResponseSchema, HourlyApiResponseSchema } from "@/lib/schemas"
+import type { z } from "zod"
+
 
 const days = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]
 function getAbbreviatedDay(dateString: string): string {
@@ -8,58 +10,70 @@ function getAbbreviatedDay(dateString: string): string {
   return days[date.getDay()]
 }
 
-export function mapDailyApiResponse(item: any): DayData {
-  return {
-    day: getAbbreviatedDay(item.date),
-    date: item.date,
-    min_outTemp: item.min_outTemp,
-    avg_outTemp: item.avg_outTemp,
-    max_outTemp: item.max_outTemp,
-    min_outHumi: item.min_outHumi,
-    avg_outHumi: item.avg_outHumi,
-    max_outHumi: item.max_outHumi,
-    max_gustspeed: item.max_gustspeed,
-    min_avgwind: item.min_avgwind,
-    max_avgwind: item.max_avgwind,
-    avg_avgwind: item.avg_avgwind,
-    avg_rainofhourly: item.avg_rainofhourly,
-    avg_uvi: item.avg_uvi,
-    avg_solarrad: item.avg_solarrad,
-    min_uvi: item.min_uvi,
-    max_uvi: item.max_uvi,
-    min_solarrad: item.min_solarrad,
-    max_solarrad: item.max_solarrad,
-    sunTimes: getSunTimes(new Date(item.date)),
-  }
+export function mapDailyApiResponse(response: z.infer<typeof DailyApiResponseSchema>): DayData[] {
+  return response.data.map((validatedItem) => {
+    return {
+      day: getAbbreviatedDay(validatedItem.date),
+      date: validatedItem.date,
+      min_outTemp: validatedItem.min_outTemp,
+      avg_outTemp: validatedItem.avg_outTemp,
+      max_outTemp: validatedItem.max_outTemp,
+      min_outHumi: validatedItem.min_outHumi,
+      avg_outHumi: validatedItem.avg_outHumi,
+      max_outHumi: validatedItem.max_outHumi,
+      max_gustspeed: validatedItem.max_gustspeed,
+      min_avgwind: validatedItem.min_avgwind,
+      max_avgwind: validatedItem.max_avgwind,
+      avg_avgwind: validatedItem.avg_avgwind,
+      avg_rainofhourly: validatedItem.avg_rainofhourly,
+      avg_uvi: validatedItem.avg_uvi,
+      avg_solarrad: validatedItem.avg_solarrad,
+      min_uvi: validatedItem.min_uvi,
+      max_uvi: validatedItem.max_uvi,
+      min_solarrad: validatedItem.min_solarrad,
+      max_solarrad: validatedItem.max_solarrad,
+      sunTimes: getSunTimes(new Date(validatedItem.date)),
+    }
+  })
 }
 
 export function mapHourlyApiResponse(
-  item: any,
-  date: string,
-): HourData | undefined {
-  if (item === null) return undefined
-
-  return {
-    date,
-    hour: item.hour,
-    min_outTemp: item.min_outTemp,
-    avg_outTemp: item.avg_outTemp,
-    max_outTemp: item.max_outTemp,
-    min_outHumi: item.min_outHumi,
-    avg_outHumi: item.avg_outHumi,
-    max_outHumi: item.max_outHumi,
-    max_gustspeed: item.max_gustspeed,
-    min_avgwind: item.min_avgwind,
-    max_avgwind: item.max_avgwind,
-    avg_avgwind: item.avg_avgwind,
-    avg_rainofhourly: item.avg_rainofhourly,
-    avg_uvi: item.avg_uvi,
-    avg_solarrad: item.avg_solarrad,
-    min_uvi: item.min_uvi,
-    max_uvi: item.max_uvi,
-    min_solarrad: item.min_solarrad,
-    max_solarrad: item.max_solarrad,
+  response: z.infer<typeof HourlyApiResponseSchema>,
+): Record<string, DailyData> {
+  const hourlyDataByDate: Record<string, DailyData> = {}
+  
+  for (const [date, dayData] of Object.entries(response.data)) {
+    const data: (HourData | undefined)[] = dayData.map((validatedItem) => {
+      if (validatedItem === null) return
+      return {
+        date,
+        hour: validatedItem.hour,
+        min_outTemp: validatedItem.min_outTemp,
+        avg_outTemp: validatedItem.avg_outTemp,
+        max_outTemp: validatedItem.max_outTemp,
+        min_outHumi: validatedItem.min_outHumi,
+        avg_outHumi: validatedItem.avg_outHumi,
+        max_outHumi: validatedItem.max_outHumi,
+        max_gustspeed: validatedItem.max_gustspeed,
+        min_avgwind: validatedItem.min_avgwind,
+        max_avgwind: validatedItem.max_avgwind,
+        avg_avgwind: validatedItem.avg_avgwind,
+        avg_rainofhourly: validatedItem.avg_rainofhourly,
+        avg_uvi: validatedItem.avg_uvi,
+        avg_solarrad: validatedItem.avg_solarrad,
+        min_uvi: validatedItem.min_uvi,
+        max_uvi: validatedItem.max_uvi,
+        min_solarrad: validatedItem.min_solarrad,
+        max_solarrad: validatedItem.max_solarrad,
+      }
+    })
+    const filteredData = data.filter((d) => d !== undefined) as HourData[]
+    const ranges: Ranges = calculateRanges(filteredData)
+    
+    hourlyDataByDate[date] = { data, ranges }
   }
+
+  return hourlyDataByDate
 }
 
 export function calculateRanges(data: RangeObservation[]): Ranges {
