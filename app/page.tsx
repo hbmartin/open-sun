@@ -3,10 +3,15 @@ import { fetchCurrentWeatherData, fetchHourlyDataRange, fetchLastWeekData } from
 
 export default async function Page() {
   const currentDate = new Date()
-  const [currentWeatherData, lastWeekData] = await Promise.all([
-    fetchCurrentWeatherData(),
-    fetchLastWeekData(),
-  ])
+  // const [currentWeatherData, lastWeekData] = await Promise.all([
+  //   fetchCurrentWeatherData(),
+  //   fetchLastWeekData(),
+  // ])
+  console.log("fetching current weather data")
+  const currentWeatherData = await fetchCurrentWeatherData()
+  console.log("fetching last week data")
+  const lastWeekData = await fetchLastWeekData()
+  console.log("fetching hourly data")
 
   const lastItem = lastWeekData.data.at(-1)
   if (!lastItem) {
