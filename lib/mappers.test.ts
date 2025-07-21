@@ -7,8 +7,9 @@ import {
 import type { DayData, HourData } from "@/lib/types"
 
 beforeAll(() => {
-  // Set required environment variables for tests
+  // biome-ignore lint/complexity/useLiteralKeys: exp
   process.env["LOCATION_LATITUDE"] = "37"
+  // biome-ignore lint/complexity/useLiteralKeys: exp
   process.env["LOCATION_LONGITUDE"] = "-122"
 })
 
@@ -119,14 +120,14 @@ describe("mapHourlyApiResponse", () => {
       avg_outHumi: 55,
       max_outHumi: 70,
       max_gustspeed: 12.3,
-      min_avgwind: 5.0,
+      min_avgwind: 5,
       max_avgwind: 8.5,
       avg_avgwind: 6.8,
       avg_rainofhourly: 0.2,
       avg_uvi: 3.5,
       avg_solarrad: 750,
-      min_uvi: 2.0,
-      max_uvi: 5.0,
+      min_uvi: 2,
+      max_uvi: 5,
       min_solarrad: 600,
       max_solarrad: 900,
     }
@@ -144,14 +145,14 @@ describe("mapHourlyApiResponse", () => {
       avg_outHumi: 55,
       max_outHumi: 70,
       max_gustspeed: 12.3,
-      min_avgwind: 5.0,
+      min_avgwind: 5,
       max_avgwind: 8.5,
       avg_avgwind: 6.8,
       avg_rainofhourly: 0.2,
       avg_uvi: 3.5,
       avg_solarrad: 750,
-      min_uvi: 2.0,
-      max_uvi: 5.0,
+      min_uvi: 2,
+      max_uvi: 5,
       min_solarrad: 600,
       max_solarrad: 900,
     })
