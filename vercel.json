@@ -1,0 +1,9 @@
+{
+  "cron": [
+    {
+      "path": "/api/revalidate?secret=YOUR_SECRET",
+      "schedule": "0 * * * *",
+      "method": "POST"
+    }
+  ]
+} 
