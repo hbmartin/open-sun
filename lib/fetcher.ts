@@ -10,7 +10,7 @@ import type {
   InstantObservation,
   Ranges,
   WeeklyData,
-} from "./types.ts"
+} from "./types"
 import { getSunTimes } from "@/lib/utils"
 import { CurrentWeatherApiResponseSchema, DailyApiResponseSchema, HourlyApiResponseSchema } from "@/lib/schemas"
 
@@ -41,7 +41,7 @@ export async function fetchLastWeekData(): Promise<WeeklyData> {
   const data: DayData[] = mapDailyApiResponse(validatedResponse)
   const ranges: Ranges = calculateRanges(data)
 
-  return { data: data.reverse(), ranges }
+  return { data: data.toReversed(), ranges }
 }
 
 export async function fetchHourlyDataRange(start_date: string): Promise<Record<string, DailyData>> {

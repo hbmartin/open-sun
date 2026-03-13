@@ -1,16 +1,10 @@
-import { FlatCompat } from "@eslint/eslintrc"
 import pluginJs from "@eslint/js"
+import nextConfig from "eslint-config-next"
 import pluginReact from "eslint-plugin-react"
 import pluginReactHooks from "eslint-plugin-react-hooks"
-import tailwind from "eslint-plugin-tailwindcss"
 import eslintPluginUnicorn from "eslint-plugin-unicorn"
 import globals from "globals"
 import tseslint from "typescript-eslint"
-
-const compat = new FlatCompat({
-  // import.meta.dirname is available after Node.js v20.11.0
-  baseDirectory: import.meta.dirname,
-})
 
 /** @type {import('eslint').Linter.Config[]} */
 const config = [
@@ -18,37 +12,26 @@ const config = [
   { files: ["**/*.{js,mjs,cjs,ts,jsx,tsx}"] },
   { languageOptions: { globals: { ...globals.browser, ...globals.node } } },
   pluginJs.configs.recommended,
+  ...nextConfig,
   ...tseslint.configs.strict,
   ...tseslint.configs.stylistic,
   pluginReact.configs.flat.recommended,
   pluginReact.configs.flat["jsx-runtime"],
   eslintPluginUnicorn.configs.all,
-  ...tailwind.configs["flat/recommended"],
-  ...compat.config({
-    extends: ["next"],
-    settings: {
-      next: {
-        rootDir: ".",
-      },
-      react: {
-        version: "detect",
-      },
-    },
-  }),
   {
     plugins: {
       "react-hooks": pluginReactHooks,
     },
     rules: {
-      ...pluginReactHooks.configs.recommended.rules,
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "warn",
     },
   },
   {
     rules: {
       "react/react-in-jsx-scope": "off",
-      "tailwindcss/no-custom-classname": "error",
       "@typescript-eslint/no-unused-vars": [
-        "error", // or "error"
+        "error",
         {
           argsIgnorePattern: "^_",
           varsIgnorePattern: "^_",
@@ -79,11 +62,6 @@ const config = [
       "react/no-did-mount-set-state": "error",
       "react/no-did-update-set-state": "error",
       "react/no-direct-mutation-state": "error",
-      "tailwindcss/classnames-order": "off",
-      "tailwindcss/enforces-negative-arbitrary-values": "error",
-      "tailwindcss/enforces-shorthand": "error",
-      "tailwindcss/migration-from-tailwind-2": "error",
-      "tailwindcss/no-contradicting-classname": "error",
       "unicorn/prevent-abbreviations": [
         "error",
         {
@@ -135,6 +113,8 @@ const config = [
     rules: {
       "no-console": "off",
       "unicorn/prefer-module": "off",
+      "@typescript-eslint/consistent-type-imports": "off",
+      "@typescript-eslint/no-var-requires": "off",
     },
   },
   {

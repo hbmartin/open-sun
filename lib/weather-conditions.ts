@@ -1,4 +1,4 @@
-import type { HourData, RangeObservation, WeatherCondition } from "@/lib/types.ts"
+import type { HourData, RangeObservation, WeatherCondition } from "@/lib/types"
 
 export function mapWeatherToColor(data: HourData): string {
   const { avg_outHumi: humidity, avg_solarrad: solarRadiation, avg_rainofhourly: hourlyRainRate } = data

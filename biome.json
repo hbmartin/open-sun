@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.1.2/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.4.6/schema.json",
   "vcs": {
     "enabled": true,
     "clientKind": "git",
@@ -16,6 +16,40 @@
       "project": "all",
       "next": "all",
       "react": "all"
+    },
+    "rules": {
+      "correctness": {
+        "noUnresolvedImports": "off",
+        "useImportExtensions": "off"
+      },
+      "suspicious": {
+        "useIterableCallbackReturn": "off"
+      },
+      "style": {
+        "useComponentExportOnlyModules": {
+          "level": "error",
+          "options": {
+            "allowConstantExport": true,
+            "allowExportNames": [
+              "metadata",
+              "generateMetadata",
+              "generateStaticParams",
+              "revalidate",
+              "dynamic",
+              "dynamicParams",
+              "fetchCache",
+              "runtime",
+              "preferredRegion"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "css": {
+    "parser": {
+      "cssModules": false,
+      "tailwindDirectives": true
     }
   },
   "javascript": {
