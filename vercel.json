@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/revalidate?secret=YOUR_SECRET",
+      "schedule": "0 * * * *"
+    }
+  ]
+} 
