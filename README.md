@@ -1,186 +1,57 @@
-# Simple weather app
+# Open Sun
 
-*Automatically synced with your [v0.dev](https://v0.dev) deployments*
+A personal weather-station dashboard built with Next.js. It shows current conditions, a week of daily history, and per-hour detail for each day, along with sunrise/sunset information computed for the station's location.
 
 [![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/hbmartins-projects/v0-open-sun)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.dev-black?style=for-the-badge)](https://v0.dev/chat/projects/HCj0uARiv04)
 
-## Overview
+## How it works
 
-This repository will stay in sync with your deployed chats on [v0.dev](https://v0.dev).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.dev](https://v0.dev).
+- `app/page.tsx` is a server component that fetches three endpoints from a weather-station API at request time: current conditions, daily summaries, and hourly data (`lib/fetcher.ts`).
+- Responses are validated with zod schemas (`lib/schemas.ts`) and mapped into view models (`lib/mappers.ts`) before being handed to the client-side `WeatherApp` component.
+- Sun times (sunrise, sunset, twilight phases) are computed locally with a vendored copy of [SunCalc](https://github.com/mourner/suncalc) (`lib/suncalc.ts`) using the configured station coordinates.
+- The rendered page is cached by Next.js. A Vercel cron job (see `vercel.json`) hits `GET /api/revalidate?secret=...` hourly, which calls `revalidatePath("/", "layout")` to refresh the cached page.
 
-## Deployment
+## Environment variables
 
-Your project is live at:
+Validated at server startup by `instrumentation.ts` via the zod schema in `lib/environment.ts` — a misconfigured deployment fails immediately rather than on the first request.
 
-**[https://vercel.com/hbmartins-projects/v0-open-sun](https://vercel.com/hbmartins-projects/v0-open-sun)**
+| Variable | Required | Description |
+| --- | --- | --- |
+| `LOCATION_LATITUDE` | Yes | Station latitude (−90 to 90), used for sun-time calculations. |
+| `LOCATION_LONGITUDE` | Yes | Station longitude (−180 to 180), used for sun-time calculations. |
+| `WEATHER_CURRENT_API_URL` | No | Endpoint for current conditions. Defaults to `http://localhost:8080/`. |
+| `WEATHER_DAILY_API_URL` | No | Endpoint for daily aggregates. Defaults to a `localhost:8080/daily.json` query. |
+| `WEATHER_HOURLY_API_URL` | No | Endpoint for hourly aggregates. Defaults to a `localhost:8080/hourly.json` query. When the URL points at localhost, a `start_date` query parameter is appended. |
+| `REVALIDATE_SECRET` | For revalidation | Shared secret required by `GET /api/revalidate`. |
 
-## Build your app
-
-Continue building your app on:
-
-**[https://v0.dev/chat/projects/HCj0uARiv04](https://v0.dev/chat/projects/HCj0uARiv04)**
-
-## How It Works
-
-1. Create and modify your project using [v0.dev](https://v0.dev)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
-
-## Incremental Static Regeneration (ISR)
-
-This weather app implements ISR to optimize performance and reduce API calls in production while maintaining real-time data freshness.
-
-### Architecture Overview
-
-The app uses a dual-mode data fetching strategy:
-
-**Development Mode (`NODE_ENV=development`):**
-- Direct API calls to `localhost:8080` for real-time data
-- No caching or static generation
-- Ideal for development and testing
-
-**Production Mode (Vercel deployment):**
-- Static JSON files served from `/data` directory
-- ISR with 1-hour automatic revalidation
-- On-demand revalidation for immediate updates
-- Significantly faster page loads and reduced API overhead
-
-### Static Data Structure
-
-The following static files are generated:
-
-```
-data/
-├── current.json          # Current weather conditions
-├── daily.json           # Week-long daily weather data
-├── hourly-YYYY-MM-DD.json # Hourly data for specific dates
-└── ...
-```
-
-### ISR Configuration
-
-**Automatic Time-based Revalidation:**
-- Pages revalidate every hour (`revalidate = 3600`)
-- Stale data is served while fresh data is generated in background
-- Zero downtime updates
-
-**Cache Tags:**
-- `current-weather` - Current conditions
-- `daily-weather` - Weekly forecast
-- `hourly-weather-{date}` - Hourly data for specific dates
-
-### On-Demand Revalidation
-
-For immediate data updates without waiting for the hourly revalidation:
-
-#### Setup Environment Variable
-
-Add to your Vercel environment variables:
-```
-REVALIDATE_SECRET=your-secure-random-string
-```
-
-#### API Endpoint
-
-**POST** `/api/revalidate?secret=YOUR_SECRET`
-
-#### Request Examples
-
-**Update Current Weather:**
-```bash
-curl -X POST "https://your-app.vercel.app/api/revalidate?secret=YOUR_SECRET" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "current",
-    "data": {
-      "temperature": 25.5,
-      "humidity": 65,
-      "pressure": 1013.25,
-      "windSpeed": 12.5,
-      "windDirection": 180,
-      "condition": "partly-cloudy"
-    }
-  }'
-```
-
-**Update Daily Forecast:**
-```bash
-curl -X POST "https://your-app.vercel.app/api/revalidate?secret=YOUR_SECRET" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "daily",
-    "data": [
-      {
-        "date": "2024-01-01",
-        "minTemp": 18.2,
-        "maxTemp": 28.7,
-        "condition": "sunny"
-      }
-    ]
-  }'
-```
-
-**Update Hourly Data:**
-```bash
-curl -X POST "https://your-app.vercel.app/api/revalidate?secret=YOUR_SECRET" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "hourly",
-    "date": "2024-01-01",
-    "data": [
-      {
-        "time": "2024-01-01T00:00:00Z",
-        "temperature": 22.1,
-        "humidity": 58,
-        "condition": "clear"
-      }
-    ]
-  }'
-```
-
-#### Response Format
-
-**Success (200):**
-```json
-{
-  "message": "Revalidated successfully",
-  "type": "current",
-  "date": null,
-  "timestamp": "2024-01-01T12:00:00.000Z"
-}
-```
-
-**Error (401):**
-```json
-{
-  "message": "Invalid secret"
-}
-```
-
-### Build Process
-
-The production build automatically generates initial static data:
+## Development
 
 ```bash
-pnpm run build
+pnpm install
+pnpm dev
 ```
 
-This ensures fresh data is available immediately upon deployment.
+The dev server expects a weather-station API on `localhost:8080` (or set the `WEATHER_*_API_URL` variables to point elsewhere).
 
-### Benefits
+## Scripts
 
-1. **Performance**: Static files load instantly
-2. **Reliability**: No dependency on external APIs during page loads
-3. **Scalability**: Handles high traffic without API rate limits
-4. **Freshness**: Automatic hourly updates + on-demand revalidation
-5. **Cost Efficiency**: Reduced API calls and serverless function executions
+| Script | Description |
+| --- | --- |
+| `pnpm dev` | Start the dev server. |
+| `pnpm build` / `pnpm start` | Production build / serve. |
+| `pnpm test` | Run the [Vitest](https://vitest.dev) suite. |
+| `pnpm test:watch` | Run tests in watch mode. |
+| `pnpm test:coverage` | Run tests with V8 coverage. |
+| `pnpm typecheck` | TypeScript type-check (`tsc --noEmit`). |
+| `pnpm lint` | ESLint + Biome checks. |
+| `pnpm lf` | ESLint + Biome with autofix. |
 
-### Monitoring
+## On-demand revalidation
 
-Monitor revalidation events through:
-- Vercel deployment logs
-- Custom analytics on the `/api/revalidate` endpoint
-- Next.js built-in analytics for ISR cache hits/misses
+To refresh the cached page immediately (outside the hourly cron):
+
+```bash
+curl "https://your-app.vercel.app/api/revalidate?secret=YOUR_SECRET"
+```
+
+Returns `200` with a timestamp on success, `401` for a missing or incorrect secret.
