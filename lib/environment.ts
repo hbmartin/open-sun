@@ -22,6 +22,7 @@ const environmentSchema = z.object({
     ),
   LOCATION_LATITUDE: z.coerce.number().min(-90).max(90),
   LOCATION_LONGITUDE: z.coerce.number().min(-180).max(180),
+  REVALIDATE_SECRET: z.string().min(1),
 })
 
 export type Environment = z.infer<typeof environmentSchema>

@@ -101,6 +101,27 @@ describe("mapHourlyApiResponse", () => {
     expect(Number.isFinite(ranges.max_gustspeed)).toBe(true)
   })
 
+  it("returns zero ranges when every hourly observation is missing", () => {
+    const result = mapHourlyApiResponse({
+      data: { "2026-06-01": [null, null] },
+    })
+
+    expect(result["2026-06-01"].data).toEqual([undefined, undefined])
+    expect(result["2026-06-01"].ranges).toEqual({
+      min_outTemp: 0,
+      max_outTemp: 0,
+      min_outHumi: 0,
+      max_outHumi: 0,
+      max_gustspeed: 0,
+      min_avgwind: 0,
+      max_avgwind: 0,
+      min_uvi: 0,
+      max_uvi: 0,
+      min_solarrad: 0,
+      max_solarrad: 0,
+    })
+  })
+
   it("maps multiple dates independently", () => {
     const response = {
       data: {

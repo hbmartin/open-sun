@@ -1,6 +1,5 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import {
-  addTime,
   getMoonIllumination,
   getMoonPosition,
   getMoonTimes,
@@ -113,14 +112,21 @@ describe("getMoonTimes", () => {
 })
 
 describe("addTime", () => {
-  it("adds a custom time pair to getTimes results", () => {
-    addTime(-4, "customDawn", "customDusk")
+  it("adds a custom time pair to getTimes results", async () => {
+    vi.resetModules()
+    try {
+      const { addTime, getTimes } = await import("@/lib/suncalc")
 
-    const times = getTimes(date, latitude, longitude)
+      addTime(-4, "customDawn", "customDusk")
 
-    expect(times["customDawn"]).toBeInstanceOf(Date)
-    expect(times["customDusk"]).toBeInstanceOf(Date)
-    expect(times["customDawn"].getTime()).toBeGreaterThan(times.dawn.getTime())
-    expect(times["customDusk"].getTime()).toBeLessThan(times.dusk.getTime())
+      const times = getTimes(date, latitude, longitude)
+
+      expect(times["customDawn"]).toBeInstanceOf(Date)
+      expect(times["customDusk"]).toBeInstanceOf(Date)
+      expect(times["customDawn"].getTime()).toBeGreaterThan(times.dawn.getTime())
+      expect(times["customDusk"].getTime()).toBeLessThan(times.dusk.getTime())
+    } finally {
+      vi.resetModules()
+    }
   })
 })

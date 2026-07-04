@@ -14,7 +14,7 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
-    "jsx": "react-jsx",
+    "jsx": "preserve",
     "incremental": false,
     "allowUnusedLabels": false,
     "allowUnreachableCode": false,

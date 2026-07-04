@@ -3,6 +3,19 @@ import { getSunTimes } from "@/lib/utils"
 import type { DailyApiResponseSchema, HourlyApiResponseSchema } from "@/lib/schemas"
 import type { z } from "zod"
 
+const emptyRanges: Ranges = {
+  min_outTemp: 0,
+  max_outTemp: 0,
+  min_outHumi: 0,
+  max_outHumi: 0,
+  max_gustspeed: 0,
+  min_avgwind: 0,
+  max_avgwind: 0,
+  min_uvi: 0,
+  max_uvi: 0,
+  min_solarrad: 0,
+  max_solarrad: 0,
+}
 
 const days = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]
 function getAbbreviatedDay(dateString: string): string {
@@ -77,6 +90,10 @@ export function mapHourlyApiResponse(
 }
 
 export function calculateRanges(data: RangeObservation[]): Ranges {
+  if (data.length === 0) {
+    return { ...emptyRanges }
+  }
+
   return {
     min_outTemp: Math.min(...data.map((d) => d.min_outTemp)),
     max_outTemp: Math.max(...data.map((d) => d.max_outTemp)),

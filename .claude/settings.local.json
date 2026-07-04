@@ -10,7 +10,7 @@
       "Bash(pnpm lf:*)",
       "Bash(pnpm test:*)",
       "Bash(pnpm outdated:*)",
-      "Bash(find /Users/haroldmartin/Downloads/open-sun/open-sun-v0 -type f -name \".*\" | grep -E \"\\\\.\\(json|js|ts|tsx|jsx\\)$\" | head -30)",
+      "Bash(find . -type f -name \".*\" | grep -E \"\\\\.\\(json|js|ts|tsx|jsx\\)$\" | head -30)",
       "Bash(pnpm info:*)",
       "Bash(npx next:*)",
       "Bash(pnpm lint:*)",
