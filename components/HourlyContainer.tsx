@@ -1,8 +1,8 @@
-import { Sunrise, Sunset } from "lucide-react"
 import type React from "react"
-import HourlyDetailInline from "@/components/hourly-detail-inline"
-import type { DailyData, DisplayMetric } from "@/lib/types"
 import type { TimesData } from "@/lib/suncalc"
+import type { DailyData, DisplayMetric } from "@/lib/types"
+import { Sunrise, Sunset } from "lucide-react"
+import HourlyDetailInline from "@/components/hourly-detail-inline"
 
 interface HourlyContainerProperties {
   date: string

@@ -1,8 +1,8 @@
+import type { TimesData } from "./suncalc"
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
-import { getTimes } from "@/lib/suncalc"
 import { getEnvironment } from "@/lib/environment"
-import type { TimesData } from "./suncalc"
+import { getTimes } from "@/lib/suncalc"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))

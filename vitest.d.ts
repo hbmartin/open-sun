@@ -4,8 +4,8 @@ declare namespace NodeJS {
   interface ProcessEnv {
     LOCATION_LATITUDE?: string
     LOCATION_LONGITUDE?: string
-    NEXT_PUBLIC_SITE_URL?: string
     REVALIDATE_SECRET?: string
+    SITE_URL?: string
     VERCEL_PROJECT_PRODUCTION_URL?: string
     VERCEL_URL?: string
     WEATHER_CURRENT_API_URL?: string

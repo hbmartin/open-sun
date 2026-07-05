@@ -1,6 +1,6 @@
 import type React from "react"
-import WeatherIcon from "@/components/WeatherIcon"
 import type { DisplayMetric, HourData } from "@/lib/types"
+import WeatherIcon from "@/components/WeatherIcon"
 import { formatHour } from "@/lib/utils"
 import { mapWeatherToColor } from "@/lib/weather-conditions"
 

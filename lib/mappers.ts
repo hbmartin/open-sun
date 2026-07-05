@@ -1,7 +1,7 @@
+import type { z } from "zod"
+import type { DailyApiResponseSchema, HourlyApiResponseSchema } from "@/lib/schemas"
 import type { DailyData, DayData, HourData, RangeObservation, Ranges } from "@/lib/types"
 import { getSunTimes } from "@/lib/utils"
-import type { DailyApiResponseSchema, HourlyApiResponseSchema } from "@/lib/schemas"
-import type { z } from "zod"
 
 const emptyRanges: Ranges = {
   min_outTemp: 0,
