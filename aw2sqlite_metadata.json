@@ -1,0 +1,61 @@
+{
+  "databases": {
+    "aw2sqlite": {
+      "source_url": "http://192.168.0.226/livedata.htm",
+      "about_url": "https://github.com/hbmartin/ambientweather2sqlite",
+      "tables": {
+        "observations": {
+          "columns": {
+            "CurrTime": "Receiver Time:",
+            "IndoorID": "Indoor Sensor ID and  Battery",
+            "inBattSta": "Indoor Sensor ID and  Battery",
+            "Outdoor1ID": "Outdoor Sensor ID and Battery",
+            "outBattSta1": "Outdoor Sensor ID and Battery",
+            "Outdoor2ID": "Outdoor2 Sensor ID and Battery",
+            "outBattSta2": "Outdoor2 Sensor ID and Battery",
+            "inTemp": "Indoor Temperature",
+            "inHumi": "Indoor Humidity",
+            "AbsPress": "Absolute Pressure",
+            "RelPress": "Relative Pressure",
+            "outTemp": "Outdoor Temperature",
+            "outHumi": "Outdoor Humidity",
+            "windir": "Wind Direction",
+            "avgwind": "Wind Speed",
+            "gustspeed": "Wind Gust",
+            "dailygust": "Max Daily Gust",
+            "solarrad": "Solar Radiation",
+            "uv": "UV",
+            "uvi": "UVI",
+            "pm25": "PM2.5",
+            "rainofhourly": "Hourly Rain Rate",
+            "eventrain": "Event Rain",
+            "rainofdaily": "Daily Rain",
+            "rainofweekly": "Weekly Rain",
+            "rainofmonthly": "Monthly Rain",
+            "rainofyearly": "Yearly Rain"
+          },
+          "units": {
+            "inTemp": "fahrenheit",
+            "inHumi": "percent",
+            "AbsPress": "inch_Hg",
+            "RelPress": "inch_Hg",
+            "outTemp": "fahrenheit",
+            "outHumi": "percent",
+            "windir": "mph",
+            "avgwind": "mph",
+            "gustspeed": "mph",
+            "dailygust": "mph",
+            "solarrad": "watt / meter ** 2",
+            "pm25": "microgram / meter ** 3",
+            "rainofhourly": "inch",
+            "eventrain": "inch",
+            "rainofdaily": "inch",
+            "rainofweekly": "inch",
+            "rainofmonthly": "inch",
+            "rainofyearly": "inch"
+          }
+        }
+      }
+    }
+  }
+}

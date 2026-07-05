@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { ZodError } from "zod"
 
 async function importFreshEnvironment() {
   vi.resetModules()
@@ -23,6 +24,7 @@ describe("getEnvironment", () => {
 
     expect(environment.LOCATION_LATITUDE).toBe(51.5)
     expect(environment.LOCATION_LONGITUDE).toBe(-0.12)
+    expect(environment.REVALIDATE_SECRET).toBe("test-secret")
     expect(environment.WEATHER_CURRENT_API_URL).toBe("http://localhost:8080/")
     expect(environment.WEATHER_DAILY_API_URL).toContain("daily.json")
     expect(environment.WEATHER_HOURLY_API_URL).toContain("hourly.json")
@@ -37,13 +39,20 @@ describe("getEnvironment", () => {
     )
   })
 
+  it("throws when the revalidation secret is missing", async () => {
+    vi.stubEnv("REVALIDATE_SECRET", "")
+    const { getEnvironment } = await importFreshEnvironment()
+
+    expect(() => getEnvironment()).toThrow(ZodError)
+  })
+
   it("throws when a required coordinate is missing", async () => {
     const originalLatitude = process.env["LOCATION_LATITUDE"]
     delete process.env["LOCATION_LATITUDE"]
     try {
       const { getEnvironment } = await importFreshEnvironment()
 
-      expect(() => getEnvironment()).toThrow()
+      expect(() => getEnvironment()).toThrow(ZodError)
     } finally {
       process.env["LOCATION_LATITUDE"] = originalLatitude
     }
@@ -53,14 +62,14 @@ describe("getEnvironment", () => {
     vi.stubEnv("LOCATION_LATITUDE", "91")
     const { getEnvironment } = await importFreshEnvironment()
 
-    expect(() => getEnvironment()).toThrow()
+    expect(() => getEnvironment()).toThrow(ZodError)
   })
 
   it("throws when an API URL is not a valid URL", async () => {
     vi.stubEnv("WEATHER_DAILY_API_URL", "not-a-url")
     const { getEnvironment } = await importFreshEnvironment()
 
-    expect(() => getEnvironment()).toThrow()
+    expect(() => getEnvironment()).toThrow(ZodError)
   })
 
   it("caches the parsed environment after the first call", async () => {

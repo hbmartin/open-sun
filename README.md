@@ -22,7 +22,7 @@ Validated at server startup by `instrumentation.ts` via the zod schema in `lib/e
 | `WEATHER_CURRENT_API_URL` | No | Endpoint for current conditions. Defaults to `http://localhost:8080/`. |
 | `WEATHER_DAILY_API_URL` | No | Endpoint for daily aggregates. Defaults to a `localhost:8080/daily.json` query. |
 | `WEATHER_HOURLY_API_URL` | No | Endpoint for hourly aggregates. Defaults to a `localhost:8080/hourly.json` query. When the URL points at localhost, a `start_date` query parameter is appended. |
-| `REVALIDATE_SECRET` | For revalidation | Shared secret required by `GET /api/revalidate`. |
+| `REVALIDATE_SECRET` | Yes | Shared secret required by `GET /api/revalidate`. |
 
 ## Development
 

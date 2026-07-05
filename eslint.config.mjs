@@ -1,5 +1,5 @@
 import pluginJs from "@eslint/js"
-import nextConfig from "eslint-config-next"
+import nextPlugin from "@next/eslint-plugin-next"
 import pluginReact from "eslint-plugin-react"
 import pluginReactHooks from "eslint-plugin-react-hooks"
 import eslintPluginUnicorn from "eslint-plugin-unicorn"
@@ -8,11 +8,30 @@ import tseslint from "typescript-eslint"
 
 /** @type {import('eslint').Linter.Config[]} */
 const config = [
-  { ignores: [".next/**", "public/**", "next.config.js", "postcss.config.js"] },
+  {
+    ignores: [
+      ".next/**",
+      "out/**",
+      "public/**",
+      "next-env.d.ts",
+      "next.config.js",
+      "postcss.config.js",
+    ],
+  },
   { files: ["**/*.{js,mjs,cjs,ts,jsx,tsx}"] },
   { languageOptions: { globals: { ...globals.browser, ...globals.node } } },
+  { settings: { react: { version: "detect" } } },
   pluginJs.configs.recommended,
-  ...nextConfig,
+  {
+    name: "next/core-web-vitals",
+    plugins: {
+      "@next/next": nextPlugin,
+    },
+    rules: {
+      ...nextPlugin.configs.recommended.rules,
+      ...nextPlugin.configs["core-web-vitals"].rules,
+    },
+  },
   ...tseslint.configs.strict,
   ...tseslint.configs.stylistic,
   pluginReact.configs.flat.recommended,
@@ -118,12 +137,27 @@ const config = [
     },
   },
   {
+    files: ["**/*.d.ts"],
+    rules: {
+      "unicorn/prevent-abbreviations": "off",
+    },
+  },
+  {
     files: ["**/*.{test,spec}.{js,ts,jsx,tsx}", "**/__tests__/**/*"],
+    languageOptions: {
+      globals: {
+        ...globals.jest,
+        ...globals.node,
+      },
+    },
     rules: {
       "no-console": "off",
+      "no-undef": "off",
       "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-var-requires": "off",
       "unicorn/consistent-function-scoping": "off",
       "unicorn/no-null": "off",
+      "unicorn/prefer-module": "off",
     },
   },
   {
