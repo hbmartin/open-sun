@@ -14,6 +14,7 @@ describe("cn", () => {
 describe("formatHour", () => {
   it("formats midnight as 12 AM", () => {
     expect(formatHour("0")).toBe("12 AM")
+    expect(formatHour("00")).toBe("12 AM")
   })
 
   it("formats noon as 12 PM", () => {
@@ -42,6 +43,10 @@ describe("formatDate", () => {
 
   it("formats the last day of the year", () => {
     expect(formatDate("2025-12-31")).toBe("Wednesday, December 31, 2025")
+  })
+
+  it("formats a datetime string with a time component", () => {
+    expect(formatDate("2025-01-15T00:00:00")).toBe("Wednesday, January 15, 2025")
   })
 })
 

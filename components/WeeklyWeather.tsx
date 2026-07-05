@@ -1,7 +1,7 @@
 import type React from "react"
 import type { DailyData, DisplayMetric, WeeklyData } from "@/lib/types"
 import { Droplets } from "lucide-react"
-import { useCallback, useState } from "react"
+import { useState } from "react"
 import HourlyContainer from "@/components/HourlyContainer"
 import RangedBar from "@/components/RangedBar"
 import WeatherIcon from "@/components/WeatherIcon"
@@ -22,8 +22,7 @@ export default function WeeklyWeather({
     new Set(),
   )
 
-  const handleDayClick = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
-    const index = Number(event.currentTarget.value)
+  const handleDayClick = (index: number) => {
     setExpandedDayIndex((previous) => {
       const newSet = new Set(previous)
       if (previous.has(index)) {
@@ -33,7 +32,7 @@ export default function WeeklyWeather({
       }
       return newSet
     })
-  }, [])
+  }
 
   return (
     <div className="px-4">
@@ -44,8 +43,7 @@ export default function WeeklyWeather({
           <div key={day.date}>
             <button
               type="button"
-              value={index}
-              onClick={handleDayClick}
+              onClick={() => handleDayClick(index)}
               className="w-full flex items-center px-4 py-3 border-b border-gray-100 transition-colors"
             >
               <div className="flex flex-col w-14">

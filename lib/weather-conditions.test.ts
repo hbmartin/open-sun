@@ -145,4 +145,20 @@ describe("mapWeatherToCondition", () => {
       mapWeatherToCondition(makeHour({ avg_solarrad: 800, avg_uvi: 8 })),
     ).toBe("sunny")
   })
+
+  it("prioritizes rain over nighttime", () => {
+    expect(
+      mapWeatherToCondition(
+        makeHour({ avg_rainofhourly: 0.2, avg_solarrad: 0, avg_uvi: 0 }),
+      ),
+    ).toBe("rain")
+  })
+
+  it("prioritizes drizzle over nighttime", () => {
+    expect(
+      mapWeatherToCondition(
+        makeHour({ avg_rainofhourly: 0.005, avg_solarrad: 0, avg_uvi: 0 }),
+      ),
+    ).toBe("drizzle")
+  })
 })

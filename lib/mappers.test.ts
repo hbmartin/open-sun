@@ -5,6 +5,7 @@ import {
   mapDailyApiResponse,
   mapHourlyApiResponse,
 } from "@/lib/mappers"
+import { getSunTimes } from "@/lib/utils"
 
 function makeObservation(
   overrides: Partial<RangeObservation> = {},
@@ -49,8 +50,7 @@ describe("mapDailyApiResponse", () => {
     expect(result[1].day).toBe("TUE")
     expect(result[0].date).toBe("2026-06-01")
     expect(result[1].max_outTemp).toBe(75)
-    expect(result[0].sunTimes.sunrise).toBeInstanceOf(Date)
-    expect(result[0].sunTimes.sunset).toBeInstanceOf(Date)
+    expect(result[0].sunTimes).toEqual(getSunTimes(new Date("2026-06-01")))
   })
 })
 
