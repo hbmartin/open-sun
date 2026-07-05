@@ -1,6 +1,18 @@
 import { z } from "zod"
 
-const environmentSchema = z.object({
+const optionalUrlSchema = z.string().url().optional()
+
+const siteUrlSchema = z.object({
+  SITE_URL: optionalUrlSchema,
+  NEXT_PUBLIC_SITE_URL: optionalUrlSchema,
+})
+
+const appUrlSchema = siteUrlSchema.extend({
+  VERCEL_PROJECT_PRODUCTION_URL: z.string().min(1).optional(),
+  VERCEL_URL: z.string().min(1).optional(),
+})
+
+const environmentSchema = siteUrlSchema.extend({
   WEATHER_CURRENT_API_URL: z
     .string()
     .url()
@@ -26,6 +38,8 @@ const environmentSchema = z.object({
 })
 
 export type Environment = z.infer<typeof environmentSchema>
+type SiteUrlEnvironment = z.infer<typeof siteUrlSchema>
+type AppUrlEnvironment = z.infer<typeof appUrlSchema>
 
 let cachedEnvironment: Environment | undefined
 
@@ -36,4 +50,28 @@ export function getEnvironment(): Environment {
   const _cachedEnvironment = environmentSchema.parse(process.env)
   cachedEnvironment = _cachedEnvironment
   return _cachedEnvironment
+}
+
+export function getConfiguredSiteUrl(
+  environment: SiteUrlEnvironment = siteUrlSchema.parse(process.env),
+): string | undefined {
+  return environment.SITE_URL ?? environment.NEXT_PUBLIC_SITE_URL
+}
+
+export function getAppUrl(
+  environment: AppUrlEnvironment = appUrlSchema.parse(process.env),
+): string {
+  const configuredUrl = getConfiguredSiteUrl(environment)
+  if (configuredUrl) {
+    return configuredUrl
+  }
+
+  // Vercel's *_URL system vars contain domains, despite the suffix.
+  const vercelDomain =
+    environment.VERCEL_PROJECT_PRODUCTION_URL ?? environment.VERCEL_URL
+  if (vercelDomain) {
+    return `https://${vercelDomain}`
+  }
+
+  return "http://localhost:3000"
 }

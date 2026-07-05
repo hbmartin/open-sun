@@ -39,6 +39,42 @@ describe("getEnvironment", () => {
     )
   })
 
+  it("prefers SITE_URL over the legacy public site URL", async () => {
+    vi.stubEnv("SITE_URL", "https://site.example.com")
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://legacy.example.com")
+    const { getConfiguredSiteUrl } = await importFreshEnvironment()
+
+    expect(getConfiguredSiteUrl()).toBe("https://site.example.com")
+  })
+
+  it("falls back to the legacy public site URL", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://legacy.example.com")
+    const { getConfiguredSiteUrl } = await importFreshEnvironment()
+
+    expect(getConfiguredSiteUrl()).toBe("https://legacy.example.com")
+  })
+
+  it("builds the app URL from the production Vercel domain", async () => {
+    vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "open-sun.example.vercel.app")
+    vi.stubEnv("VERCEL_URL", "preview-open-sun.example.vercel.app")
+    const { getAppUrl } = await importFreshEnvironment()
+
+    expect(getAppUrl()).toBe("https://open-sun.example.vercel.app")
+  })
+
+  it("falls back to the preview Vercel domain for the app URL", async () => {
+    vi.stubEnv("VERCEL_URL", "preview-open-sun.example.vercel.app")
+    const { getAppUrl } = await importFreshEnvironment()
+
+    expect(getAppUrl()).toBe("https://preview-open-sun.example.vercel.app")
+  })
+
+  it("falls back to localhost for the app URL", async () => {
+    const { getAppUrl } = await importFreshEnvironment()
+
+    expect(getAppUrl()).toBe("http://localhost:3000")
+  })
+
   it("throws when the revalidation secret is missing", async () => {
     vi.stubEnv("REVALIDATE_SECRET", "")
     const { getEnvironment } = await importFreshEnvironment()
@@ -67,6 +103,13 @@ describe("getEnvironment", () => {
 
   it("throws when an API URL is not a valid URL", async () => {
     vi.stubEnv("WEATHER_DAILY_API_URL", "not-a-url")
+    const { getEnvironment } = await importFreshEnvironment()
+
+    expect(() => getEnvironment()).toThrow(ZodError)
+  })
+
+  it("throws when the configured site URL is not a valid URL", async () => {
+    vi.stubEnv("SITE_URL", "not-a-url")
     const { getEnvironment } = await importFreshEnvironment()
 
     expect(() => getEnvironment()).toThrow(ZodError)

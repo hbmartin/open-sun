@@ -17,12 +17,16 @@ Validated at server startup by `instrumentation.ts` via the zod schema in `lib/e
 
 | Variable | Required | Description |
 | --- | --- | --- |
+| `SITE_URL` | No | Public base URL for metadata links, including protocol. Preferred over Vercel system URLs when set. |
+| `NEXT_PUBLIC_SITE_URL` | No | Legacy fallback for deployments still configured with the old public site URL variable. Prefer `SITE_URL` for new deployments. |
 | `LOCATION_LATITUDE` | Yes | Station latitude (−90 to 90), used for sun-time calculations. |
 | `LOCATION_LONGITUDE` | Yes | Station longitude (−180 to 180), used for sun-time calculations. |
 | `WEATHER_CURRENT_API_URL` | No | Endpoint for current conditions. Defaults to `http://localhost:8080/`. |
 | `WEATHER_DAILY_API_URL` | No | Endpoint for daily aggregates. Defaults to a `localhost:8080/daily.json` query. |
 | `WEATHER_HOURLY_API_URL` | No | Endpoint for hourly aggregates. Defaults to a `localhost:8080/hourly.json` query. When the URL points at localhost, a `start_date` query parameter is appended. |
 | `REVALIDATE_SECRET` | Yes | Shared secret required by `GET /api/revalidate`. |
+
+`SITE_URL` and `NEXT_PUBLIC_SITE_URL` must be full URLs, for example `https://example.com`. If neither is set, metadata links use Vercel's `VERCEL_PROJECT_PRODUCTION_URL` or `VERCEL_URL` when available, then fall back to `http://localhost:3000`.
 
 ## Development
 
