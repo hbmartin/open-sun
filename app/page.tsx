@@ -1,9 +1,10 @@
+import { connection } from "next/server"
 import WeatherApp from "@/components/WeatherApp"
 import { fetchCurrentWeatherData, fetchHourlyDataRange, fetchLastWeekData } from "@/lib/fetcher"
 
-export const dynamic = "force-dynamic"
-
 export default async function Page() {
+  await connection()
+
   const currentDate = new Date()
   const [currentWeatherData, lastWeekData] = await Promise.all([
     fetchCurrentWeatherData(),

@@ -1,7 +1,7 @@
-import { Rss, Sunrise, Sunset } from "lucide-react"
 import type React from "react"
-import { useMemo } from "react"
 import type { TimesData } from "@/lib/suncalc"
+import { Rss, Sunrise, Sunset } from "lucide-react"
+import { useMemo } from "react"
 
 interface SunInfoProperties {
   currentDate: Date,

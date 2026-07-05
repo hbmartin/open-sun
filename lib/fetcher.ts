@@ -1,9 +1,3 @@
-import {
-  calculateRanges,
-  mapDailyApiResponse,
-  mapHourlyApiResponse,
-} from "@/lib/mappers"
-import { getEnvironment } from "@/lib/environment"
 import type {
   DailyData,
   DayData,
@@ -11,8 +5,14 @@ import type {
   Ranges,
   WeeklyData,
 } from "./types"
-import { getSunTimes } from "@/lib/utils"
+import { getEnvironment } from "@/lib/environment"
+import {
+  calculateRanges,
+  mapDailyApiResponse,
+  mapHourlyApiResponse,
+} from "@/lib/mappers"
 import { CurrentWeatherApiResponseSchema, DailyApiResponseSchema, HourlyApiResponseSchema } from "@/lib/schemas"
+import { getSunTimes } from "@/lib/utils"
 
 export async function fetchCurrentWeatherData(): Promise<InstantObservation> {
   const environment = getEnvironment()

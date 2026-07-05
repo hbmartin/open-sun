@@ -1,7 +1,7 @@
-import { Cloud, CloudDrizzle, CloudRain, CloudRainWind, Moon, Sun, SunDim, SunMedium, Wind } from "lucide-react"
 import type React from "react"
-import { useMemo } from "react"
 import type { RangeObservation, WeatherCondition } from "@/lib/types"
+import { Cloud, CloudDrizzle, CloudRain, CloudRainWind, Moon, Sun, SunDim, SunMedium, Wind } from "lucide-react"
+import { useMemo } from "react"
 import { mapWeatherToCondition } from "@/lib/weather-conditions"
 
 const iconMap: Record<WeatherCondition, [React.ElementType, string]> = {

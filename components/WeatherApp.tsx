@@ -1,8 +1,8 @@
 "use client"
 
-import { Clock, Eye, Library, Wind } from "lucide-react"
 import type React from "react"
-import { useState } from "react"
+import { Clock, Eye, Library, Wind } from "lucide-react"
+import { useCallback, useState } from "react"
 import CurrentWeather from "@/components/CurrentWeather"
 import SunInfo from "@/components/SunInfo"
 import WeeklyWeather from "@/components/WeeklyWeather"
@@ -37,6 +37,18 @@ export default function WeatherApp({
 }: WeatherAppProperties) {
   const [activeTab, setActiveTab] = useState<DisplayMetric>(DisplayMetric.TEMP)
   const [activeNavItem, setActiveNavItem] = useState("History")
+  const handleMetricTabClick = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      setActiveTab(event.currentTarget.value as DisplayMetric)
+    },
+    [],
+  )
+  const handleNavItemClick = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      setActiveNavItem(event.currentTarget.value)
+    },
+    [],
+  )
 
   return (
     <div className="min-h-screen bg-gray-50 max-w-sm mx-auto relative">
@@ -46,7 +58,8 @@ export default function WeatherApp({
             <button
               type="button"
               key={tab}
-              onClick={() => setActiveTab(tab as DisplayMetric)}
+              value={tab}
+              onClick={handleMetricTabClick}
               className={`pb-2 text-sm font-medium transition-colors ${
                 activeTab === tab
                   ? "text-orange-500 border-b-2 border-orange-500"
@@ -72,7 +85,8 @@ export default function WeatherApp({
               <button
                 type="button"
                 key={item}
-                onClick={() => setActiveNavItem(item)}
+                value={item}
+                onClick={handleNavItemClick}
                 className={`flex flex-col items-center py-2 px-4 transition-colors ${
                   activeNavItem === item
                     ? "text-blue-500"

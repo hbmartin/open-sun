@@ -1,6 +1,6 @@
+import type { HourData } from "@/lib/types"
 import { describe, expect, it } from "vitest"
 import { mapWeatherToColor, mapWeatherToCondition } from "@/lib/weather-conditions"
-import type { HourData } from "@/lib/types"
 
 function makeHour(overrides: Partial<HourData> = {}): HourData {
   return {

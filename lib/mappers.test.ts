@@ -1,10 +1,10 @@
+import type { RangeObservation } from "@/lib/types"
 import { describe, expect, it } from "vitest"
 import {
   calculateRanges,
   mapDailyApiResponse,
   mapHourlyApiResponse,
 } from "@/lib/mappers"
-import type { RangeObservation } from "@/lib/types"
 
 function makeObservation(
   overrides: Partial<RangeObservation> = {},
@@ -142,6 +142,22 @@ describe("mapHourlyApiResponse", () => {
 })
 
 describe("calculateRanges", () => {
+  it("returns zero ranges when no observations are provided", () => {
+    expect(calculateRanges([])).toEqual({
+      min_outTemp: 0,
+      max_outTemp: 0,
+      min_outHumi: 0,
+      max_outHumi: 0,
+      max_gustspeed: 0,
+      min_avgwind: 0,
+      max_avgwind: 0,
+      min_uvi: 0,
+      max_uvi: 0,
+      min_solarrad: 0,
+      max_solarrad: 0,
+    })
+  })
+
   it("returns min/max across all observations", () => {
     const ranges = calculateRanges([
       makeObservation({
