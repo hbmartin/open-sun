@@ -25,6 +25,9 @@
       "suspicious": {
         "useIterableCallbackReturn": "off"
       },
+      "performance": {
+        "noJsxPropsBind": "off"
+      },
       "style": {
         "useComponentExportOnlyModules": {
           "level": "error",
