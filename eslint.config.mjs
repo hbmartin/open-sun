@@ -13,6 +13,7 @@ const config = [
       ".next/**",
       "out/**",
       "public/**",
+      "coverage/**",
       "next-env.d.ts",
       "next.config.js",
       "postcss.config.js",
