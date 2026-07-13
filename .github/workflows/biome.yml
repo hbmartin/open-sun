@@ -4,6 +4,13 @@ on:
   push:
   pull_request:
 
+concurrency:
+  group: biome-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   quality:
     runs-on: ubuntu-latest

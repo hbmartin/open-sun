@@ -60,3 +60,8 @@ Temporary Items
 # iCloud generated files
 *.icloud
 
+
+# Local review/triage artifacts (not part of the app)
+triage_decisions.db
+reviews_triage/
+coverage/

@@ -19,7 +19,7 @@ export default function HourlyDetailInline({
     return <div>No data</div>
   }
   return (
-    <div className="bg-gray-50 transition-all duration-500 ease-in-out border-b border-gray-200 ">
+    <div className="bg-gray-50 dark:bg-gray-950 transition-all duration-500 ease-in-out border-b border-gray-200 dark:border-gray-800 ">
       <div className="py-4">
         <div className="relative">
           {[...Array.from({ length: 12 }).keys()].map((index) => {
@@ -44,10 +44,10 @@ export default function HourlyDetailInline({
 
                 <div className="flex items-center justify-between w-full ml-6 py-3">
                   <div className="w-16">
-                    <div className="font-semibold text-gray-900">
+                    <div className="font-semibold text-gray-900 dark:text-gray-100">
                       {formatHour(hour.hour)}
                     </div>
-                    <div className="text-sm text-gray-600 mt-1 flex items-center gap-1">
+                    <div className="text-sm text-gray-600 dark:text-gray-400 mt-1 flex items-center gap-1">
                       <WeatherIcon data={hour} size={15} />
                       <span>{hour.avg_rainofhourly > 0.005 ? hour.avg_rainofhourly.toFixed(2) : 0}&quot;</span>
                     </div>
@@ -55,7 +55,7 @@ export default function HourlyDetailInline({
 
                   <div className="relative w-full h-10 flex items-center mx-4">
                     <div
-                      className="absolute bg-gray-700 text-white rounded-full size-10 flex items-center justify-center font-medium text-sm transition-all duration-300 ease-out"
+                      className="absolute bg-gray-700 dark:bg-gray-300 text-white dark:text-gray-900 rounded-full size-10 flex items-center justify-center font-medium text-sm transition-all duration-300 ease-out"
                       style={{
                         left: `${((hour[`avg_${metric}`] - minTemp) / (maxTemp - minTemp)) * 100}%`,
                         transform: "translateX(-50%)",

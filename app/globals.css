@@ -1,6 +1,10 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Drive `dark:` utilities from the `.dark` class that next-themes toggles on
+   <html>, rather than the OS-only prefers-color-scheme default in Tailwind v4. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 body {
   font-family: system-ui, BlinkMacSystemFont, Helvetica, Arial, ui-sans-serif;
 }
@@ -148,4 +152,7 @@ body {
 }
 .range-bar {
   background-color: #454545;
+}
+.dark .range-bar {
+  background-color: #a3a3a3;
 }
