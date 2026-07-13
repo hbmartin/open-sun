@@ -1,5 +1,5 @@
 import type React from "react"
-import { useMemo } from "react"
+import { getRangePosition } from "@/lib/utils"
 
 export default function RangedBar({
   low,
@@ -14,14 +14,9 @@ export default function RangedBar({
   maxTemp: number
   unit: string
 }): React.JSX.Element {
-
-  const { lowPercent, highPercent, barWidth } = useMemo(() => {
-    const range = maxTemp - minTemp
-    const lowPercent = ((low - minTemp) / range) * 100
-    const highPercent = ((high - minTemp) / range) * 100
-    const barWidth = highPercent - lowPercent
-    return { lowPercent, highPercent, barWidth }
-  }, [low, high, minTemp, maxTemp])
+  const lowPercent = getRangePosition(low, minTemp, maxTemp)
+  const highPercent = getRangePosition(high, minTemp, maxTemp)
+  const barWidth = highPercent - lowPercent
 
   return (
     <div className="relative flex-1 h-6 inline-flex ml-12 mr-6 items-center">

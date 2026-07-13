@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest"
-import { cn, formatDate, formatHour, getSunTimes } from "@/lib/utils"
+import {
+  cn,
+  formatCalendarDate,
+  formatDate,
+  formatHour,
+  formatStationTime,
+  getRangePosition,
+  getSunTimes,
+} from "@/lib/utils"
 
 describe("cn", () => {
   it("joins class names and drops falsy values", () => {
@@ -47,6 +55,32 @@ describe("formatDate", () => {
 
   it("formats a datetime string with a time component", () => {
     expect(formatDate("2025-01-15T00:00:00")).toBe("Wednesday, January 15, 2025")
+  })
+})
+
+describe("formatCalendarDate", () => {
+  it("preserves a date-only value in every runtime timezone", () => {
+    expect(formatCalendarDate("2026-07-12")).toBe("7/12/2026")
+  })
+})
+
+describe("formatStationTime", () => {
+  it("formats timestamps in the weather station timezone", () => {
+    expect(formatStationTime(new Date("2026-07-12T19:30:00Z"))).toBe(
+      "12:30 PM",
+    )
+  })
+})
+
+describe("getRangePosition", () => {
+  it("centers values when the range is constant", () => {
+    expect(getRangePosition(72, 72, 72)).toBe(50)
+  })
+
+  it("calculates and clamps percentages", () => {
+    expect(getRangePosition(15, 10, 20)).toBe(50)
+    expect(getRangePosition(5, 10, 20)).toBe(0)
+    expect(getRangePosition(25, 10, 20)).toBe(100)
   })
 })
 

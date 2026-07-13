@@ -10,7 +10,7 @@ import { metric_display_units } from "@/lib/types"
 interface WeeklyWeatherProperties {
   metric: DisplayMetric
   lastWeekData: WeeklyData
-  hourlyDataByDate: Record<string, DailyData>
+  hourlyDataByDate: Partial<Record<string, DailyData>>
 }
 
 export default function WeeklyWeather({
