@@ -1,7 +1,7 @@
 import type React from "react"
 import type { DisplayMetric, HourData } from "@/lib/types"
 import WeatherIcon from "@/components/WeatherIcon"
-import { formatHour } from "@/lib/utils"
+import { formatHour, getRangePosition } from "@/lib/utils"
 import { mapWeatherToColor } from "@/lib/weather-conditions"
 
 export default function HourlyDetailInline({
@@ -57,7 +57,7 @@ export default function HourlyDetailInline({
                     <div
                       className="absolute bg-gray-700 dark:bg-gray-300 text-white dark:text-gray-900 rounded-full size-10 flex items-center justify-center font-medium text-sm transition-all duration-300 ease-out"
                       style={{
-                        left: `${((hour[`avg_${metric}`] - minTemp) / (maxTemp - minTemp)) * 100}%`,
+                        left: `${getRangePosition(hour[`avg_${metric}`], minTemp, maxTemp)}%`,
                         transform: "translateX(-50%)",
                       }}
                     >

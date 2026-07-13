@@ -3,11 +3,12 @@ import type { TimesData } from "@/lib/suncalc"
 import type { DailyData, DisplayMetric } from "@/lib/types"
 import { Sunrise, Sunset } from "lucide-react"
 import HourlyDetailInline from "@/components/hourly-detail-inline"
+import { formatCalendarDate, formatStationTime } from "@/lib/utils"
 
 interface HourlyContainerProperties {
   date: string
   metric: DisplayMetric
-  dailyData: DailyData
+  dailyData?: DailyData
   timesData: TimesData
 }
 
@@ -17,7 +18,7 @@ export default function HourlyContainer({
   dailyData,
   timesData,
 }: HourlyContainerProperties): React.JSX.Element {
-  if (!dailyData.data) {
+  if (!dailyData?.data) {
     return (
       <div className="text-center text-gray-500 dark:text-gray-400 py-8">
         Something went wrong.
@@ -36,18 +37,16 @@ export default function HourlyContainer({
     <div className="bg-gray-50 dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800">
       <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-800 flex">
         <div className="text-sm font-semibold text-gray-900 dark:text-gray-100 flex-1">
-          {new Date(date).toLocaleDateString()}
+          {formatCalendarDate(date)}
         </div>
         <div className="flex items-center justify-center">
           <Sunrise size={12} className="text-orange-600 dark:text-orange-400 mr-2" />
-          <span className="text-sm text-gray-700 dark:text-gray-300 mr-4" suppressHydrationWarning>
-            {timesData.dawn.getHours()}:
-            {timesData.dawn.getMinutes().toString().padStart(2, "0")} AM
+          <span className="text-sm text-gray-700 dark:text-gray-300 mr-4">
+            {formatStationTime(timesData.dawn)}
           </span>
           <Sunset size={12} className="text-purple-800 dark:text-purple-400 mr-2" />
-          <span className="text-sm text-gray-700 dark:text-gray-300" suppressHydrationWarning>
-            {timesData.dusk.getHours()}:
-            {timesData.dusk.getMinutes().toString().padStart(2, "0")} PM
+          <span className="text-sm text-gray-700 dark:text-gray-300">
+            {formatStationTime(timesData.dusk)}
           </span>
         </div>
       </div>

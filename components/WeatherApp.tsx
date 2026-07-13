@@ -26,7 +26,7 @@ const iconMap: Record<string, React.ElementType> = {
 interface WeatherAppProperties {
   currentWeatherData: InstantObservation
   lastWeekData: WeeklyData
-  hourlyDataByDate: Record<string, DailyData>
+  hourlyDataByDate: Partial<Record<string, DailyData>>
   currentDate: Date
 }
 
