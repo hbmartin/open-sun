@@ -1,8 +1,6 @@
 import type React from "react"
-import type { RangeObservation, WeatherCondition } from "@/lib/types"
+import type { WeatherCondition } from "@/lib/types"
 import { Cloud, CloudDrizzle, CloudRain, CloudRainWind, Moon, Sun, SunDim, SunMedium, Wind } from "lucide-react"
-import { useMemo } from "react"
-import { mapWeatherToCondition } from "@/lib/weather-conditions"
 
 const iconMap: Record<WeatherCondition, [React.ElementType, string]> = {
   cloudy: [Cloud, "text-gray-500"],
@@ -11,19 +9,20 @@ const iconMap: Record<WeatherCondition, [React.ElementType, string]> = {
   "rain-wind": [CloudRainWind, "text-blue-600"],
   wind: [Wind, "text-gray-400"],
   "sun-dim": [SunDim, "text-yellow-600"],
-  "sun-medium": [SunMedium, "text-yellow-500"], 
+  "sun-medium": [SunMedium, "text-yellow-500"],
   sunny: [Sun, "text-yellow-400"],
   "clear-night": [Moon, "text-gray-300"],
 }
 
+// Takes a condition rather than an observation so the same icon set serves both
+// station history and forecast rows, whose shapes have nothing in common.
 export default function WeatherIcon({
-  data,
+  condition,
   size = 24,
 }: {
-  data: RangeObservation
+  condition: WeatherCondition
   size?: number
 }): React.JSX.Element {
-  const condition = useMemo(() => mapWeatherToCondition(data), [data])
   const [Icon, color] = iconMap[condition]
   return <Icon size={size} className={color} />
 }

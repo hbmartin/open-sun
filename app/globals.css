@@ -156,3 +156,10 @@ body {
 .dark .range-bar {
   background-color: #a3a3a3;
 }
+/* Forecast uncertainty interval, drawn behind the range bar. */
+.range-bar-band {
+  background-color: #d4d4d4;
+}
+.dark .range-bar-band {
+  background-color: #525252;
+}

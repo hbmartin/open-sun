@@ -1,5 +1,10 @@
 import WeatherApp from "@/components/WeatherApp"
-import { fetchCurrentWeatherData, fetchHourlyDataRange, fetchLastWeekData } from "@/lib/fetcher"
+import {
+  fetchCurrentWeatherData,
+  fetchForecastData,
+  fetchHourlyDataRange,
+  fetchLastWeekData,
+} from "@/lib/fetcher"
 
 // Incremental Static Regeneration: the page is statically rendered and
 // regenerated at most once an hour, matching the hourly Vercel cron that
@@ -8,9 +13,12 @@ export const revalidate = 3600
 
 export default async function Page() {
   const currentDate = new Date()
-  const [currentWeatherData, lastWeekData] = await Promise.all([
+  // fetchForecastData never rejects, so a missing or malformed forecast cannot
+  // fail this Promise.all and take the station history down with it.
+  const [currentWeatherData, lastWeekData, forecast] = await Promise.all([
     fetchCurrentWeatherData(),
     fetchLastWeekData(),
+    fetchForecastData(currentDate),
   ])
 
   const lastItem = lastWeekData.data.at(-1)
@@ -26,6 +34,7 @@ export default async function Page() {
       lastWeekData={lastWeekData}
       hourlyDataByDate={hourlyDataByDate}
       currentDate={currentDate}
+      forecast={forecast}
     />
   )
 }
