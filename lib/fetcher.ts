@@ -1,11 +1,14 @@
 import type {
   DailyData,
   DayData,
+  ForecastFetchResult,
   InstantObservation,
   Ranges,
   WeeklyData,
 } from "./types"
 import { getEnvironment } from "@/lib/environment"
+import { mapForecastDocument } from "@/lib/forecast-mappers"
+import { ForecastDocumentSchema } from "@/lib/forecast-schemas"
 import {
   calculateRanges,
   mapDailyApiResponse,
@@ -13,6 +16,8 @@ import {
 } from "@/lib/mappers"
 import { CurrentWeatherApiResponseSchema, DailyApiResponseSchema, HourlyApiResponseSchema } from "@/lib/schemas"
 import { getSunTimes } from "@/lib/utils"
+
+const FORECAST_TIMEOUT_MS = 5000
 
 export async function fetchCurrentWeatherData(): Promise<InstantObservation> {
   const environment = getEnvironment()
@@ -58,4 +63,49 @@ export async function fetchHourlyDataRange(start_date: string): Promise<Record<s
   const body = await response.json()
   const validatedResponse = HourlyApiResponseSchema.parse(body)
   return mapHourlyApiResponse(validatedResponse)
+}
+
+/**
+ * The published forecast, or a reason it is not available.
+ *
+ * Never rejects. The forecast is supplementary to the station history, so a
+ * publisher that is down, stale, or emitting a shape we do not recognise must
+ * degrade to a message inside the Forecast tab rather than take the page with
+ * it. The `reason` is how a contract violation stays loud without throwing.
+ */
+export async function fetchForecastData(now: Date = new Date()): Promise<ForecastFetchResult> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), FORECAST_TIMEOUT_MS)
+
+  try {
+    const url = getEnvironment().WEATHER_FORECAST_API_URL
+    const response = await fetch(url, { signal: controller.signal })
+    // A missing branch returns an HTML 404 body, so checking status first turns
+    // that into a clear message instead of an opaque JSON parse error.
+    if (!response.ok) {
+      return { kind: "unavailable", reason: `HTTP ${response.status}` }
+    }
+
+    const parsed = ForecastDocumentSchema.safeParse(await response.json())
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0]
+      console.warn("forecast document rejected", parsed.error.issues)
+      return {
+        kind: "unavailable",
+        reason: `schema mismatch: ${issue.path.join(".") || "document"}`,
+      }
+    }
+
+    return { kind: "ok", forecast: mapForecastDocument(parsed.data, now) }
+  } catch (error) {
+    if (controller.signal.aborted) {
+      return { kind: "unavailable", reason: "timed out" }
+    }
+    console.warn("forecast fetch failed", error)
+    return { kind: "unavailable", reason: "network error" }
+  } finally {
+    // The other fetchers clear this after an await, so a rejection leaks the
+    // timer; a finally block is the fix rather than the pattern to copy.
+    clearTimeout(timeoutId)
+  }
 }

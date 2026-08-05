@@ -32,6 +32,14 @@ const environmentSchema = siteUrlSchema.extend({
     .default(
       "http://localhost:8080/hourly.json?tz=America/Los_Angeles&q=min_outTemp&q=max_outTemp&q=min_outHumi&q=max_outHumi&q=avg_avgwind&q=max_gustspeed&q=avg_rainofhourly&q=avg_outHumi&q=avg_outTemp&q=avg_uvi&q=avg_solarrad&q=min_avgwind&q=max_avgwind&q=min_uvi&q=max_uvi&q=min_solarrad&q=max_solarrad",
     ),
+  // Published hourly to an orphan `data` branch by scripts/publish_forecast.py.
+  // Unlike the station endpoints there is one canonical location, so this
+  // defaults rather than being optional: existing deployments need no new
+  // configuration and instrumentation.ts still validates at boot.
+  WEATHER_FORECAST_API_URL: z
+    .string()
+    .url()
+    .default("https://raw.githubusercontent.com/hbmartin/open-sun/data/forecast.json"),
   LOCATION_LATITUDE: z.coerce.number().min(-90).max(90),
   LOCATION_LONGITUDE: z.coerce.number().min(-180).max(180),
   REVALIDATE_SECRET: z.string().min(1),
