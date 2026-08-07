@@ -1,13 +1,21 @@
 "use client"
 
 import type React from "react"
-import { Clock, Eye, Library, Wind } from "lucide-react"
-import { useId, useRef, useState } from "react"
+import type {
+  DailyData,
+  ForecastFetchResult,
+  InstantObservation,
+  WeeklyData,
+} from "@/lib/types"
+import { Clock, Eye, Library } from "lucide-react"
+import { useId, useState } from "react"
 import CurrentWeather from "@/components/CurrentWeather"
+import ForecastWeather from "@/components/ForecastWeather"
+import MetricTabs from "@/components/MetricTabs"
 import SunInfo from "@/components/SunInfo"
 import ThemeToggle from "@/components/ThemeToggle"
 import WeeklyWeather from "@/components/WeeklyWeather"
-import { type DailyData, DisplayMetric, type InstantObservation, type WeeklyData } from "@/lib/types"
+import { DisplayMetric, ForecastMetric } from "@/lib/types"
 
 const tab_names: Record<DisplayMetric, string> = {
   [DisplayMetric.TEMP]: "TEMP (°F)",
@@ -16,18 +24,34 @@ const tab_names: Record<DisplayMetric, string> = {
   [DisplayMetric.UVI]: "UV INDEX",
   [DisplayMetric.SOLAR]: "SOLAR RAD",
 }
-const navItems = ["History", "Forecast", "Notifications"]
-const iconMap: Record<string, React.ElementType> = {
+
+// The forecast carries no UV index or solar radiation, and its daily rows have
+// no wind or humidity, so it gets the three variables it can populate at both
+// resolutions rather than a subset of the history tabs that would render empty.
+const forecast_tab_names: Record<ForecastMetric, string> = {
+  [ForecastMetric.TEMP]: "TEMP (°F)",
+  [ForecastMetric.POP]: "RAIN CHANCE",
+  [ForecastMetric.PRECIP]: "RAIN (IN)",
+}
+
+const navItems = ["History", "Forecast", "Notifications"] as const
+type NavItem = (typeof navItems)[number]
+
+const iconMap: Record<NavItem, React.ElementType> = {
   Forecast: Eye,
   History: Library,
   Notifications: Clock,
 }
+
+const historyTabs = Object.values(DisplayMetric)
+const forecastTabs = Object.values(ForecastMetric)
 
 interface WeatherAppProperties {
   currentWeatherData: InstantObservation
   lastWeekData: WeeklyData
   hourlyDataByDate: Partial<Record<string, DailyData>>
   currentDate: Date
+  forecast: ForecastFetchResult
 }
 
 export default function WeatherApp({
@@ -35,44 +59,36 @@ export default function WeatherApp({
   lastWeekData,
   hourlyDataByDate,
   currentDate,
+  forecast,
 }: WeatherAppProperties) {
   const [activeTab, setActiveTab] = useState<DisplayMetric>(DisplayMetric.TEMP)
-  const [activeNavItem, setActiveNavItem] = useState("History")
-  const tabs = Object.values(DisplayMetric)
-  const tabReferences = useRef<(HTMLButtonElement | null)[]>([])
+  // Each view keeps its own metric selection, so switching back restores it.
+  const [activeForecastTab, setActiveForecastTab] = useState<ForecastMetric>(
+    ForecastMetric.TEMP,
+  )
+  const [activeNavItem, setActiveNavItem] = useState<NavItem>("History")
   const panelId = useId()
 
-  const handleTabKeyDown = (event: React.KeyboardEvent, index: number) => {
-    let nextIndex: number | undefined
-    switch (event.key) {
-    case "ArrowRight": {
-      nextIndex = (index + 1) % tabs.length
-    
-    break
+  const isForecast = activeNavItem === "Forecast"
+
+  const renderPanel = () => {
+    if (isForecast) {
+      return <ForecastWeather metric={activeForecastTab} forecast={forecast} />
     }
-    case "ArrowLeft": {
-      nextIndex = (index - 1 + tabs.length) % tabs.length
-    
-    break
+    if (activeNavItem === "Notifications") {
+      return (
+        <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+          Notifications are not available yet.
+        </div>
+      )
     }
-    case "Home": {
-      nextIndex = 0
-    
-    break
-    }
-    case "End": {
-      nextIndex = tabs.length - 1
-    
-    break
-    }
-    // No default
-    }
-    if (nextIndex === undefined) {
-      return
-    }
-    event.preventDefault()
-    setActiveTab(tabs[nextIndex])
-    tabReferences.current[nextIndex]?.focus()
+    return (
+      <WeeklyWeather
+        metric={activeTab}
+        lastWeekData={lastWeekData}
+        hourlyDataByDate={hourlyDataByDate}
+      />
+    )
   }
 
   return (
@@ -82,43 +98,39 @@ export default function WeatherApp({
         <ThemeToggle />
       </div>
 
-      <div className="px-4 pt-2 mb-2">
-        <div
-          role="tablist"
-          aria-label="Weather metric"
-          className="flex space-x-6 border-b border-gray-200 dark:border-gray-800"
-        >
-          {tabs.map((tab, index) => (
-            <button
-              type="button"
-              key={tab}
-              role="tab"
-              id={`tab-${tab}`}
-              aria-selected={activeTab === tab}
-              aria-controls={panelId}
-              tabIndex={activeTab === tab ? 0 : -1}
-              ref={(element) => {
-                tabReferences.current[index] = element
-              }}
-              onClick={() => setActiveTab(tab)}
-              onKeyDown={(event) => handleTabKeyDown(event, index)}
-              className={`pb-2 text-sm font-medium transition-colors ${
-                activeTab === tab
-                  ? "text-orange-500 border-b-2 border-orange-500"
-                  : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-              }`}
-            >
-              {tab_names[tab]}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* Keyed by view: the tablist's ref array is positional, so a five-tab
+          set must not be reconciled onto a three-tab one. */}
+      {isForecast ? (
+        <MetricTabs
+          key="forecast"
+          tabs={forecastTabs}
+          labels={forecast_tab_names}
+          activeTab={activeForecastTab}
+          onSelect={setActiveForecastTab}
+          panelId={panelId}
+          label="Forecast metric"
+        />
+      ) : (
+        <MetricTabs
+          key="history"
+          tabs={historyTabs}
+          labels={tab_names}
+          activeTab={activeTab}
+          onSelect={setActiveTab}
+          panelId={panelId}
+          label="Weather metric"
+        />
+      )}
 
       <CurrentWeather currentWeatherData={currentWeatherData} />
       <SunInfo currentDate={currentDate} timesData={currentWeatherData.sunTimes} />
 
-      <div id={panelId} role="tabpanel" aria-labelledby={`tab-${activeTab}`}>
-        <WeeklyWeather metric={activeTab} lastWeekData={lastWeekData} hourlyDataByDate={hourlyDataByDate} />
+      <div
+        id={panelId}
+        role="tabpanel"
+        aria-labelledby={`tab-${isForecast ? activeForecastTab : activeTab}`}
+      >
+        {renderPanel()}
       </div>
 
       <nav
@@ -127,7 +139,7 @@ export default function WeatherApp({
       >
         <div className="flex justify-around py-2">
           {navItems.map((item) => {
-            const IconComponent = iconMap[item] ?? Wind
+            const IconComponent = iconMap[item]
             const isActive = activeNavItem === item
 
             return (

@@ -18,7 +18,7 @@ const emptyRanges: Ranges = {
 }
 
 const days = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]
-function getAbbreviatedDay(dateString: string): string {
+export function getAbbreviatedDay(dateString: string): string {
   const date = new Date(`${dateString}T00:00:00`)
   return days[date.getDay()]
 }

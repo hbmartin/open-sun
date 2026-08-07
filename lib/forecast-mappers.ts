@@ -1,0 +1,236 @@
+import type { ForecastDailyRow, ForecastDocument, ForecastHourlyRow } from "@/lib/forecast-schemas"
+import type {
+  ForecastData,
+  ForecastDayData,
+  ForecastFreshness,
+  ForecastHourData,
+  ForecastRanges,
+} from "@/lib/types"
+import { getAbbreviatedDay } from "@/lib/mappers"
+import { quantileBand } from "@/lib/quantiles"
+import { ForecastMetric } from "@/lib/types"
+import { getStationDate, getStationHour, getStationSunTimes } from "@/lib/utils"
+
+const HOURS_PER_DAY = 24
+const FRESH_MAX_HOURS = 3
+const STALE_MAX_HOURS = 12
+const MILLISECONDS_PER_HOUR = 3_600_000
+
+const emptyForecastRanges: ForecastRanges = {
+  min_temp: 0,
+  max_temp: 0,
+  min_pop: 0,
+  max_pop: 0,
+  min_precip: 0,
+  max_precip: 0,
+}
+
+/** Probability of precipitation arrives as a fraction and renders as a percent. */
+function toPercent(value: number | null | undefined): number | undefined {
+  return value === null || value === undefined ? undefined : value * 100
+}
+
+function toValue(value: number | null | undefined): number | undefined {
+  // Absent and null both mean "no value here"; the distinction is not one the
+  // UI can act on.
+  return value ?? undefined
+}
+
+function hasEvidence(row: { release_ids: Record<string, string> }): boolean {
+  // status: "ready" only means SOME slice was promoted. Per-row release ids are
+  // the honest signal, and most daily rows carry none.
+  return Object.keys(row.release_ids).length > 0
+}
+
+export function getForecastFreshness(
+  issuedAt: string,
+  now: Date,
+): { ageHours: number; freshness: ForecastFreshness } {
+  // Schema validation guarantees this parses, so there is no unparseable branch
+  // to cover here. Negative ages come from publisher clock skew, not from a
+  // forecast about the past.
+  const elapsed = (now.getTime() - Date.parse(issuedAt)) / MILLISECONDS_PER_HOUR
+  const ageHours = Math.max(0, elapsed)
+  if (ageHours <= FRESH_MAX_HOURS) {
+    return { ageHours, freshness: "fresh" }
+  }
+  if (ageHours <= STALE_MAX_HOURS) {
+    return { ageHours, freshness: "stale" }
+  }
+  return { ageHours, freshness: "expired" }
+}
+
+function mapHourlyRow(row: ForecastHourlyRow, sunrise: Date, sunset: Date): ForecastHourData {
+  const validTime = new Date(row.valid_time)
+  const pop = toPercent(row.values.pop)
+  const precip = toValue(row.values.precip_in)
+
+  return {
+    date: getStationDate(validTime),
+    hour: getStationHour(validTime),
+    validTime: row.valid_time,
+    leadBucket: row.lead_bucket,
+    isDaytime: validTime >= sunrise && validTime <= sunset,
+    hasEvidence: hasEvidence(row),
+    temp: toValue(row.values.temp_f),
+    pop,
+    precip,
+    humidity: toValue(row.values.humidity_pct),
+    dewPoint: toValue(row.values.dew_point_f),
+    wind: toValue(row.values.wind_speed_mph),
+    gust: toValue(row.values.wind_gust_mph),
+    pressure: toValue(row.values.pressure_sea_inhg),
+    bands: {
+      [ForecastMetric.TEMP]: quantileBand(row.quantiles["temp_f"]),
+      [ForecastMetric.PRECIP]: quantileBand(row.quantiles["precip_in"]),
+    },
+    methods: {
+      [ForecastMetric.TEMP]: row.methods["temp_f"],
+      [ForecastMetric.POP]: row.methods["pop"],
+      [ForecastMetric.PRECIP]: row.methods["precip_in"],
+    },
+  }
+}
+
+function hourRangesFor(hours: (ForecastHourData | undefined)[]): ForecastRanges {
+  const present = hours.filter((hour) => hour !== undefined)
+  if (present.length === 0) {
+    return { ...emptyForecastRanges }
+  }
+  const ranges = { ...emptyForecastRanges }
+  for (const metric of Object.values(ForecastMetric)) {
+    const values = present
+      .map((hour) => hour[metric])
+      .filter((value) => value !== undefined)
+    if (values.length > 0) {
+      ranges[`min_${metric}`] = Math.min(...values)
+      ranges[`max_${metric}`] = Math.max(...values)
+    }
+  }
+  return ranges
+}
+
+function mapDailyRow(
+  row: ForecastDailyRow,
+  hoursByDate: Map<string, (ForecastHourData | undefined)[]>,
+): ForecastDayData {
+  const pop = toPercent(row.values.pop)
+  const precipSum = toValue(row.values.precip_sum_in)
+  const temperatureBand = quantileBand(row.quantiles["temp_max_f"])
+  const popBand = quantileBand(row.quantiles["pop"])
+  const precipBand = quantileBand(row.quantiles["precip_sum_in"])
+  const hours = hoursByDate.get(row.date_local) ?? []
+  const present = hours.filter((hour) => hour !== undefined)
+
+  // POP and precipitation have no daily min/max, so the band supplies the
+  // spread and the point value stands in for both ends when it does not.
+  const popLow = popBand ? popBand.low * 100 : pop
+  const popHigh = popBand ? popBand.high * 100 : pop
+
+  return {
+    date: row.date_local,
+    day: getAbbreviatedDay(row.date_local),
+    leadDays: row.lead_days,
+    hasEvidence: hasEvidence(row),
+    min_temp: toValue(row.values.temp_min_f),
+    max_temp: toValue(row.values.temp_max_f),
+    min_pop: popLow,
+    max_pop: popHigh,
+    min_precip: precipBand ? precipBand.low : precipSum,
+    max_precip: precipBand ? precipBand.high : precipSum,
+    pop,
+    precipSum,
+    // Icon inputs only: a day-representative humidity and the day's peak wind.
+    humidity: present.length > 0 ? averageOf(present.map((hour) => hour.humidity)) : undefined,
+    wind: present.length > 0 ? maximumOf(present.map((hour) => hour.wind)) : undefined,
+    bands: {
+      [ForecastMetric.TEMP]: temperatureBand,
+      [ForecastMetric.PRECIP]: precipBand,
+    },
+    methods: {
+      [ForecastMetric.TEMP]: row.methods["temp_max_f"],
+      [ForecastMetric.POP]: row.methods["pop"],
+      [ForecastMetric.PRECIP]: row.methods["precip_sum_in"],
+    },
+    sunTimes: getStationSunTimes(row.date_local),
+    hours,
+    hourRanges: hourRangesFor(hours),
+  }
+}
+
+function averageOf(values: (number | undefined)[]): number | undefined {
+  const present = values.filter((value) => value !== undefined)
+  if (present.length === 0) {
+    return undefined
+  }
+  return present.reduce((total, value) => total + value, 0) / present.length
+}
+
+function maximumOf(values: (number | undefined)[]): number | undefined {
+  const present = values.filter((value) => value !== undefined)
+  return present.length === 0 ? undefined : Math.max(...present)
+}
+
+export function calculateForecastRanges(days: ForecastDayData[]): ForecastRanges {
+  if (days.length === 0) {
+    return { ...emptyForecastRanges }
+  }
+  const ranges = { ...emptyForecastRanges }
+  for (const metric of Object.values(ForecastMetric)) {
+    const lows = days
+      .map((day) => day[`min_${metric}`])
+      .filter((value) => value !== undefined)
+    const highs = days
+      .map((day) => day[`max_${metric}`])
+      .filter((value) => value !== undefined)
+    if (lows.length > 0) {
+      ranges[`min_${metric}`] = Math.min(...lows)
+    }
+    if (highs.length > 0) {
+      ranges[`max_${metric}`] = Math.max(...highs)
+    }
+  }
+  return ranges
+}
+
+export function mapForecastDocument(
+  document: ForecastDocument,
+  now: Date,
+): ForecastData {
+  // Sun times drive the day/night icon split, so they must be resolved before
+  // the hourly rows that consult them.
+  const sunTimesByDate = new Map(
+    document.daily.map((row) => [row.date_local, getStationSunTimes(row.date_local)]),
+  )
+
+  const hoursByDate = new Map<string, (ForecastHourData | undefined)[]>()
+  for (const row of document.hourly) {
+    const date = getStationDate(new Date(row.valid_time))
+    const sunTimes = sunTimesByDate.get(date)
+    if (!sunTimes) {
+      // An hourly row outside the daily horizon has nowhere to render.
+      continue
+    }
+    const hour = mapHourlyRow(row, sunTimes.sunrise, sunTimes.sunset)
+    const slots =
+      hoursByDate.get(date) ??
+      (Array.from({ length: HOURS_PER_DAY }) as (ForecastHourData | undefined)[])
+    slots[Number(hour.hour)] = hour
+    hoursByDate.set(date, slots)
+  }
+
+  const days = document.daily.map((row) => mapDailyRow(row, hoursByDate))
+  const { ageHours, freshness } = getForecastFreshness(document.issued_at, now)
+
+  return {
+    issuedAt: document.issued_at,
+    ageHours,
+    freshness,
+    status: document.status,
+    statusReason: document.status_reason ?? undefined,
+    sources: document.sources,
+    publisherVersion: document.publisher_version,
+    days,
+    ranges: calculateForecastRanges(days),
+  }
+}

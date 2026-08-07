@@ -6,6 +6,7 @@ import HourlyContainer from "@/components/HourlyContainer"
 import RangedBar from "@/components/RangedBar"
 import WeatherIcon from "@/components/WeatherIcon"
 import { metric_display_units } from "@/lib/types"
+import { mapWeatherToCondition } from "@/lib/weather-conditions"
 
 interface WeeklyWeatherProperties {
   metric: DisplayMetric
@@ -60,7 +61,7 @@ export default function WeeklyWeather({
                   </span>
                 </div>
               </div>
-              <WeatherIcon data={day} size={30} />
+              <WeatherIcon condition={mapWeatherToCondition(day)} size={30} />
               <RangedBar
                 low={day[`min_${metric}`]}
                 high={day[`max_${metric}`]}

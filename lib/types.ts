@@ -1,3 +1,4 @@
+import type { QuantileBand } from "@/lib/quantiles"
 import type { TimesData } from "@/lib/suncalc"
 
 export interface InstantObservation {
@@ -100,3 +101,96 @@ export const metric_display_units: Record<DisplayMetric, string> = {
   [DisplayMetric.UVI]: "",
   [DisplayMetric.SOLAR]: "",
 }
+
+/**
+ * Forecast view models.
+ *
+ * These are a parallel key family to RangeObservation rather than an extension
+ * of it: the forecast's variables do not overlap the station's, and it carries
+ * no solar radiation or UV index at all. Keeping the same `min_`/`max_` naming
+ * shape means the template-key indexing used throughout the history view
+ * (day[`min_${metric}`]) works unchanged on forecast rows.
+ */
+
+/**
+ * The three variables the published document carries at BOTH daily and hourly
+ * resolution, so one tab selection drives the day list and the expanded hourly
+ * panel with no empty states. Hourly-only wind, humidity and dew point surface
+ * inside the expanded rows instead.
+ */
+export enum ForecastMetric {
+  TEMP = "temp",
+  POP = "pop",
+  PRECIP = "precip",
+}
+
+export const forecast_metric_display_units: Record<ForecastMetric, string> = {
+  [ForecastMetric.TEMP]: "°",
+  [ForecastMetric.POP]: "%",
+  [ForecastMetric.PRECIP]: "\"",
+}
+
+export const forecast_metric_precision: Record<ForecastMetric, number> = {
+  [ForecastMetric.TEMP]: 0,
+  [ForecastMetric.POP]: 0,
+  [ForecastMetric.PRECIP]: 2,
+}
+
+export type ForecastRangeKey = `min_${ForecastMetric}` | `max_${ForecastMetric}`
+export type ForecastRanges = Record<ForecastRangeKey, number>
+
+export interface ForecastHourData {
+  date: string
+  hour: string
+  validTime: string
+  leadBucket: string
+  /** Computed from sun times, since the forecast carries no solar radiation. */
+  isDaytime: boolean
+  hasEvidence: boolean
+  temp?: number
+  pop?: number
+  precip?: number
+  humidity?: number
+  dewPoint?: number
+  wind?: number
+  gust?: number
+  pressure?: number
+  bands: Partial<Record<ForecastMetric, QuantileBand>>
+  methods: Partial<Record<ForecastMetric, string>>
+}
+
+export interface ForecastDayData extends Partial<ForecastRanges> {
+  date: string
+  day: string
+  leadDays: number
+  /** False when no promoted release backed any variable in this row. */
+  hasEvidence: boolean
+  pop?: number
+  precipSum?: number
+  humidity?: number
+  wind?: number
+  bands: Partial<Record<ForecastMetric, QuantileBand>>
+  methods: Partial<Record<ForecastMetric, string>>
+  sunTimes: TimesData
+  /** Indexed by station-local hour; empty beyond the 48-hour horizon. */
+  hours: (ForecastHourData | undefined)[]
+  hourRanges: ForecastRanges
+}
+
+export type ForecastFreshness = "fresh" | "stale" | "expired"
+
+export interface ForecastData {
+  issuedAt: string
+  ageHours: number
+  freshness: ForecastFreshness
+  status: "ready" | "degraded"
+  statusReason?: string
+  sources: string[]
+  publisherVersion: string
+  days: ForecastDayData[]
+  ranges: ForecastRanges
+}
+
+export type ForecastFetchResult =
+  | { kind: "ok"; forecast: ForecastData }
+  | { kind: "unavailable"; reason: string }
