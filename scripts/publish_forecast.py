@@ -44,7 +44,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-PUBLISHER_VERSION = "1.0.0"
+PUBLISHER_VERSION = "1.1.0"
 CONTRACT_VERSION = 1
 SOURCE_SCHEMA_VERSION = 5
 
@@ -80,6 +80,69 @@ _log_stream = sys.stdout
 
 def _log(message: str) -> None:
     print(message, file=_log_stream, flush=True)
+
+
+HELD_GOOD = Path.home() / (
+    "Library/Application Support/grounded-weather-forecast/last-good-forecast.json"
+)
+HOLD_MAX_AGE_SECONDS = 6 * 3600
+
+
+def remember_good(source: Path, held: Path = HELD_GOOD) -> None:
+    """Keep a copy of the newest ready document for degraded-window holds."""
+    partial = held.with_suffix(".partial")
+    shutil.copyfile(source, partial)
+    partial.replace(held)
+
+
+def choose_source(
+    candidate: Path,
+    held: Path = HELD_GOOD,
+    *,
+    max_age_seconds: float = HOLD_MAX_AGE_SECONDS,
+    now: datetime | None = None,
+) -> Path:
+    """The document to publish: hold the last ready one through degraded windows.
+
+    A ``degraded`` document is an honest fallback (raw provider means, no
+    promoted methods, no calibration), and every code-identity change makes
+    predict emit one until its restore cycle finishes — a planned, hour-scale
+    window. Publishing it swaps the public forecast's character for that hour
+    (the 2026-08-07 phantom-rain report was exactly this). Holding the last
+    ready document is better until it is genuinely stale, at which point
+    degraded-but-current beats ready-but-old. Any read or parse problem
+    publishes the candidate unchanged: this guard must never block a publish.
+    """
+    try:
+        status = json.loads(candidate.read_text(encoding="utf-8")).get("status")
+    except (OSError, ValueError):
+        return candidate
+    if status == "ready":
+        try:
+            remember_good(candidate, held)
+        except OSError as exc:
+            _log(f"could not remember the ready document: {exc}")
+        return candidate
+    try:
+        held_doc = json.loads(held.read_text(encoding="utf-8"))
+        issued = datetime.fromisoformat(str(held_doc["issued_at"]))
+    except (OSError, ValueError, KeyError, TypeError):
+        _log(f"status={status}; no held ready document — publishing the candidate")
+        return candidate
+    if issued.tzinfo is None:
+        issued = issued.replace(tzinfo=UTC)
+    age = ((now or datetime.now(UTC)) - issued).total_seconds()
+    if held_doc.get("status") == "ready" and age <= max_age_seconds:
+        _log(
+            f"status={status}; holding last ready document issued "
+            f"{held_doc['issued_at']} ({age / 60:.0f}m old)"
+        )
+        return held
+    _log(
+        f"status={status}; held document too old ({age / 3600:.1f}h) — "
+        "publishing the candidate honestly"
+    )
+    return candidate
 
 
 class RefusedError(Exception):
