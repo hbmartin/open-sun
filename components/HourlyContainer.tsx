@@ -1,6 +1,6 @@
-import type React from "react"
 import type { TimesData } from "@/lib/suncalc"
 import type { DailyData, DisplayMetric } from "@/lib/types"
+import type React from "react"
 import { Sunrise, Sunset } from "lucide-react"
 import HourlyDetailInline from "@/components/hourly-detail-inline"
 import { formatCalendarDate, formatStationTime } from "@/lib/utils"
@@ -20,9 +20,7 @@ export default function HourlyContainer({
 }: HourlyContainerProperties): React.JSX.Element {
   if (!dailyData?.data) {
     return (
-      <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-        Something went wrong.
-      </div>
+      <div className="text-center text-gray-500 dark:text-gray-400 py-8">Something went wrong.</div>
     )
   }
   if (dailyData.data.every((item) => item === undefined)) {

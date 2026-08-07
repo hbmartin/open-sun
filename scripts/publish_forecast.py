@@ -413,13 +413,23 @@ units, no minutely block) written hourly by `publish_forecast.py`, which lives
 at `scripts/publish_forecast.py` on `main` and is deployed to
 `~/Library/Application Support/grounded-weather-forecast/`.
 
-This branch is force-pushed as a single unparented commit each hour, so it has
-no history and no diffs. `vercel.json` here disables deployments for the branch.
+`current.json`, `daily.json` and `hourly.json` are station observations,
+rendered from the ambientweather2sqlite database by `publish_station.py`
+(`scripts/publish_station.py` on `main`) and folded into the same commit. The
+station is a LAN device with no route from Vercel, so publishing here is what
+lets `app/page.tsx` prerender at build time.
 
-The contract is consumed by `lib/forecast-schemas.ts` on `main`; the two must
-change together. `publisher_version` inside the document identifies the exact
-script that produced it.
+This branch is force-pushed as a single unparented commit each hour, so it has
+no history and no diffs -- every file must be rewritten together or the ones
+left out are deleted. `vercel.json` here disables deployments for the branch.
+
+The contracts are consumed by `lib/forecast-schemas.ts` and `lib/schemas.ts` on
+`main`; publisher and consumer must change together. `publisher_version`
+identifies the exact script that produced each document.
 """
+
+# Names this script writes itself; an --include-dir may not shadow them.
+RESERVED_BRANCH_FILES = frozenset({"README.md", "forecast.json", "vercel.json"})
 
 DATA_BRANCH_VERCEL = """\
 {
@@ -490,7 +500,49 @@ def _git(
     return result.stdout.decode("utf-8").strip()
 
 
-def build_commit(payload: bytes, git_dir: Path, branch: str, issued_at: str) -> str:
+def collect_extra_blobs(include_dir: Path) -> dict[str, bytes]:
+    """Read the station documents that share this commit.
+
+    The branch is one unparented commit force-pushed wholesale, so anything not
+    in this tree is deleted from the branch. Station and forecast documents
+    therefore cannot be published by two independent jobs -- they would erase
+    each other every hour -- which is why publish_station.py writes to a
+    directory and this function folds the result in.
+    """
+    if not include_dir.is_dir():
+        msg = f"--include-dir {include_dir} is not a directory"
+        raise RefusedError(msg)
+
+    blobs: dict[str, bytes] = {}
+    for path in sorted(include_dir.glob("*.json")):
+        if path.name in RESERVED_BRANCH_FILES:
+            # Silently overwriting forecast.json with a station document would
+            # be an unusually quiet way to lose the forecast.
+            msg = f"{path.name} in {include_dir} collides with a file this script owns"
+            raise RefusedError(msg)
+        content = path.read_bytes()
+        # Refuse rather than publish a file the consumer cannot parse; a stale
+        # document keeps the page working, a truncated one does not.
+        try:
+            json.loads(content)
+        except ValueError as exc:
+            msg = f"{path.name} in {include_dir} is not valid JSON: {exc}"
+            raise RefusedError(msg) from exc
+        blobs[path.name] = content
+
+    if not blobs:
+        msg = f"--include-dir {include_dir} contains no .json files"
+        raise RefusedError(msg)
+    return blobs
+
+
+def build_commit(
+    payload: bytes,
+    git_dir: Path,
+    branch: str,
+    issued_at: str,
+    extra_blobs: dict[str, bytes] | None = None,
+) -> str:
     """Create a bare repo holding one unparented commit with the data tree."""
     env = _git_env(git_dir)
     _git(["init", "--bare", "--quiet", f"--initial-branch={branch}", str(git_dir)], env)
@@ -499,6 +551,7 @@ def build_commit(payload: bytes, git_dir: Path, branch: str, issued_at: str) -> 
         "README.md": DATA_BRANCH_README.encode("utf-8"),
         "forecast.json": payload,
         "vercel.json": DATA_BRANCH_VERCEL.encode("utf-8"),
+        **(extra_blobs or {}),
     }
     # mktree wants entries sorted by name.
     entries = "".join(
@@ -570,6 +623,7 @@ def run(
     dry_run: bool = False,
     no_push: bool = False,
     force: bool = False,
+    include_dir: str | Path | None = None,
 ) -> int:
     global _log_stream  # noqa: PLW0603 - one process-wide output channel
     _log_stream = sys.stderr if print_payload else sys.stdout
@@ -577,6 +631,7 @@ def run(
     try:
         document = load_document(Path(source))
         payload = transform(document, datetime.now(UTC))
+        extra_blobs = collect_extra_blobs(Path(include_dir)) if include_dir else {}
     except RefusedError as exc:
         print(f"refusing to publish: {exc}", file=sys.stderr, flush=True)
         return 2
@@ -592,17 +647,22 @@ def run(
             f"dry run: {issued_at} ({payload['status']}), "
             f"{len(payload['hourly'])} hourly + {len(payload['daily'])} daily, "
             f"{len(body)} bytes"
+            + (f", plus {len(extra_blobs)} station document(s)" if extra_blobs else "")
         )
         return 0
 
-    if not force and read_stamp() == issued_at:
+    # The skip exists so a failed `predict` does not cost a pointless push. It
+    # must not apply when station documents ride along: those advance every
+    # minute, so skipping would freeze observations behind a stale forecast --
+    # the forecast's own issued_at is what surfaces its staleness in the UI.
+    if not force and not extra_blobs and read_stamp() == issued_at:
         _log(f"{issued_at} already published; skipping")
         return 0
 
     temporary = tempfile.mkdtemp(prefix="grounded-publish.", dir=Path.home() / "Library/Caches")
     try:
         git_dir = Path(temporary) / "repo.git"
-        commit = build_commit(body, git_dir, branch, issued_at)
+        commit = build_commit(body, git_dir, branch, issued_at, extra_blobs)
         if no_push:
             # A debugging flag: keep the repo behind so the tree can be inspected.
             _log(f"built {commit} (not pushed); inspect with:")
@@ -620,6 +680,7 @@ def run(
     _log(
         f"published {issued_at} ({payload['status']}) as {commit[:12]} "
         f"to {branch}: {len(body)} bytes"
+        + (f" + {', '.join(sorted(extra_blobs))}" if extra_blobs else "")
     )
     return 0
 
@@ -637,6 +698,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="build the commit locally but do not push")
     parser.add_argument("--force", action="store_true",
                         help="publish even if issued_at has not advanced")
+    parser.add_argument("--include-dir",
+                        help="directory of station .json documents to publish alongside")
     args = parser.parse_args(argv)
     return run(
         source=args.source,
@@ -646,6 +709,7 @@ def main(argv: list[str] | None = None) -> int:
         dry_run=args.dry_run,
         no_push=args.no_push,
         force=args.force,
+        include_dir=args.include_dir,
     )
 
 

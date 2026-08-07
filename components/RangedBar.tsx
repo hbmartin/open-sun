@@ -79,7 +79,8 @@ export default function RangedBar({
           left: `${highPercent}%`,
         }}
       >
-        {formatMetricValue(high, precision)}{unit}
+        {formatMetricValue(high, precision)}
+        {unit}
       </span>
     </div>
   )

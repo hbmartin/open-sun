@@ -29,27 +29,19 @@ function makeHour(overrides: Partial<HourData> = {}): HourData {
 
 describe("mapWeatherToColor", () => {
   it("maps drizzle to the lightest rain color", () => {
-    expect(mapWeatherToColor(makeHour({ avg_rainofhourly: 0.005 }))).toBe(
-      "#cdf6ff",
-    )
+    expect(mapWeatherToColor(makeHour({ avg_rainofhourly: 0.005 }))).toBe("#cdf6ff")
   })
 
   it("maps light rain to the medium rain color", () => {
-    expect(mapWeatherToColor(makeHour({ avg_rainofhourly: 0.05 }))).toBe(
-      "#77c0ed",
-    )
+    expect(mapWeatherToColor(makeHour({ avg_rainofhourly: 0.05 }))).toBe("#77c0ed")
   })
 
   it("maps heavy rain to the darkest rain color", () => {
-    expect(mapWeatherToColor(makeHour({ avg_rainofhourly: 0.5 }))).toBe(
-      "#3b8bb5",
-    )
+    expect(mapWeatherToColor(makeHour({ avg_rainofhourly: 0.5 }))).toBe("#3b8bb5")
   })
 
   it("maps bright sun to the strong sun color", () => {
-    expect(
-      mapWeatherToColor(makeHour({ avg_solarrad: 750, avg_rainofhourly: 0 })),
-    ).toBe("#ffd49b")
+    expect(mapWeatherToColor(makeHour({ avg_solarrad: 750, avg_rainofhourly: 0 }))).toBe("#ffd49b")
   })
 
   it("maps moderate sun to the soft sun color", () => {
@@ -57,108 +49,76 @@ describe("mapWeatherToColor", () => {
   })
 
   it("maps humid overcast to gray", () => {
-    expect(
-      mapWeatherToColor(makeHour({ avg_solarrad: 50, avg_outHumi: 90 })),
-    ).toBe("#B8B8B8")
+    expect(mapWeatherToColor(makeHour({ avg_solarrad: 50, avg_outHumi: 90 }))).toBe("#B8B8B8")
   })
 
   it("falls back to the neutral color", () => {
-    expect(
-      mapWeatherToColor(makeHour({ avg_solarrad: 50, avg_outHumi: 60 })),
-    ).toBe("#EBEBED")
+    expect(mapWeatherToColor(makeHour({ avg_solarrad: 50, avg_outHumi: 60 }))).toBe("#EBEBED")
   })
 })
 
 describe("mapWeatherToCondition", () => {
   it("returns rain-wind for rain with high wind", () => {
-    expect(
-      mapWeatherToCondition(
-        makeHour({ avg_rainofhourly: 0.2, avg_avgwind: 25 }),
-      ),
-    ).toBe("rain-wind")
+    expect(mapWeatherToCondition(makeHour({ avg_rainofhourly: 0.2, avg_avgwind: 25 }))).toBe(
+      "rain-wind",
+    )
   })
 
   it("returns rain for rain without high wind", () => {
-    expect(
-      mapWeatherToCondition(makeHour({ avg_rainofhourly: 0.2, avg_avgwind: 5 })),
-    ).toBe("rain")
+    expect(mapWeatherToCondition(makeHour({ avg_rainofhourly: 0.2, avg_avgwind: 5 }))).toBe("rain")
   })
 
   it("returns rain for light rain", () => {
-    expect(
-      mapWeatherToCondition(
-        makeHour({ avg_rainofhourly: 0.05, avg_avgwind: 5 }),
-      ),
-    ).toBe("rain")
+    expect(mapWeatherToCondition(makeHour({ avg_rainofhourly: 0.05, avg_avgwind: 5 }))).toBe("rain")
   })
 
   it("returns drizzle for trace precipitation", () => {
-    expect(
-      mapWeatherToCondition(makeHour({ avg_rainofhourly: 0.005 })),
-    ).toBe("drizzle")
+    expect(mapWeatherToCondition(makeHour({ avg_rainofhourly: 0.005 }))).toBe("drizzle")
   })
 
   it("returns cloudy for humid nights", () => {
-    expect(
-      mapWeatherToCondition(
-        makeHour({ avg_solarrad: 0, avg_uvi: 0, avg_outHumi: 95 }),
-      ),
-    ).toBe("cloudy")
+    expect(mapWeatherToCondition(makeHour({ avg_solarrad: 0, avg_uvi: 0, avg_outHumi: 95 }))).toBe(
+      "cloudy",
+    )
   })
 
   it("returns clear-night for dry nights", () => {
-    expect(
-      mapWeatherToCondition(
-        makeHour({ avg_solarrad: 0, avg_uvi: 0, avg_outHumi: 50 }),
-      ),
-    ).toBe("clear-night")
+    expect(mapWeatherToCondition(makeHour({ avg_solarrad: 0, avg_uvi: 0, avg_outHumi: 50 }))).toBe(
+      "clear-night",
+    )
   })
 
   it("returns wind for windy days without clear skies", () => {
     expect(
-      mapWeatherToCondition(
-        makeHour({ avg_avgwind: 25, avg_solarrad: 300, avg_uvi: 2 }),
-      ),
+      mapWeatherToCondition(makeHour({ avg_avgwind: 25, avg_solarrad: 300, avg_uvi: 2 })),
     ).toBe("wind")
   })
 
   it("returns cloudy for low daytime solar radiation", () => {
-    expect(
-      mapWeatherToCondition(makeHour({ avg_solarrad: 150, avg_uvi: 1 })),
-    ).toBe("cloudy")
+    expect(mapWeatherToCondition(makeHour({ avg_solarrad: 150, avg_uvi: 1 }))).toBe("cloudy")
   })
 
   it("returns sun-dim for mostly cloudy radiation", () => {
-    expect(
-      mapWeatherToCondition(makeHour({ avg_solarrad: 300, avg_uvi: 2 })),
-    ).toBe("sun-dim")
+    expect(mapWeatherToCondition(makeHour({ avg_solarrad: 300, avg_uvi: 2 }))).toBe("sun-dim")
   })
 
   it("returns sun-medium for partly sunny radiation", () => {
-    expect(
-      mapWeatherToCondition(makeHour({ avg_solarrad: 550, avg_uvi: 4 })),
-    ).toBe("sun-medium")
+    expect(mapWeatherToCondition(makeHour({ avg_solarrad: 550, avg_uvi: 4 }))).toBe("sun-medium")
   })
 
   it("returns sunny for clear-sky radiation", () => {
-    expect(
-      mapWeatherToCondition(makeHour({ avg_solarrad: 800, avg_uvi: 8 })),
-    ).toBe("sunny")
+    expect(mapWeatherToCondition(makeHour({ avg_solarrad: 800, avg_uvi: 8 }))).toBe("sunny")
   })
 
   it("prioritizes rain over nighttime", () => {
     expect(
-      mapWeatherToCondition(
-        makeHour({ avg_rainofhourly: 0.2, avg_solarrad: 0, avg_uvi: 0 }),
-      ),
+      mapWeatherToCondition(makeHour({ avg_rainofhourly: 0.2, avg_solarrad: 0, avg_uvi: 0 })),
     ).toBe("rain")
   })
 
   it("prioritizes drizzle over nighttime", () => {
     expect(
-      mapWeatherToCondition(
-        makeHour({ avg_rainofhourly: 0.005, avg_solarrad: 0, avg_uvi: 0 }),
-      ),
+      mapWeatherToCondition(makeHour({ avg_rainofhourly: 0.005, avg_solarrad: 0, avg_uvi: 0 })),
     ).toBe("drizzle")
   })
 })

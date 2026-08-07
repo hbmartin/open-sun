@@ -51,9 +51,7 @@ describe("CurrentWeatherApiResponseSchema", () => {
 
   it("rejects missing required fields", () => {
     const { outTemp: _, ...incomplete } = validData.data
-    expect(() =>
-      CurrentWeatherApiResponseSchema.parse({ data: incomplete }),
-    ).toThrow()
+    expect(() => CurrentWeatherApiResponseSchema.parse({ data: incomplete })).toThrow()
   })
 })
 

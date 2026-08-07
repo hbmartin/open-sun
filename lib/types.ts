@@ -75,23 +75,23 @@ export interface DailyData {
   ranges: Ranges
 }
 
-export type WeatherCondition = 
-| "cloudy" 
-| "drizzle" 
-| "rain" 
-| "rain-wind" 
-| "wind" 
-| "sun-dim" 
-| "sun-medium" 
-| "sunny" 
-| "clear-night";
+export type WeatherCondition =
+  | "cloudy"
+  | "drizzle"
+  | "rain"
+  | "rain-wind"
+  | "wind"
+  | "sun-dim"
+  | "sun-medium"
+  | "sunny"
+  | "clear-night"
 
 export enum DisplayMetric {
   TEMP = "outTemp",
-  HUMID = "outHumi", 
+  HUMID = "outHumi",
   WIND = "avgwind",
   UVI = "uvi",
-  SOLAR = "solarrad"
+  SOLAR = "solarrad",
 }
 
 export const metric_display_units: Record<DisplayMetric, string> = {
@@ -127,7 +127,7 @@ export enum ForecastMetric {
 export const forecast_metric_display_units: Record<ForecastMetric, string> = {
   [ForecastMetric.TEMP]: "°",
   [ForecastMetric.POP]: "%",
-  [ForecastMetric.PRECIP]: "\"",
+  [ForecastMetric.PRECIP]: '"',
 }
 
 export const forecast_metric_precision: Record<ForecastMetric, number> = {

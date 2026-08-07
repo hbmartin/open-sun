@@ -1,11 +1,6 @@
-import type React from "react"
 import type { QuantileBand } from "@/lib/quantiles"
-import type {
-  ForecastData,
-  ForecastFetchResult,
-  ForecastMetric,
-  ForecastRanges,
-} from "@/lib/types"
+import type { ForecastData, ForecastFetchResult, ForecastMetric, ForecastRanges } from "@/lib/types"
+import type React from "react"
 import { Droplets } from "lucide-react"
 import { useState } from "react"
 import ForecastHourlyContainer from "@/components/ForecastHourlyContainer"
@@ -27,10 +22,7 @@ function describeAge(ageHours: number): string {
 
 function ProvenanceLine({ forecast }: { forecast: ForecastData }): React.JSX.Element {
   const isSuspect = forecast.status === "degraded" || forecast.freshness !== "fresh"
-  const parts = [
-    `Issued ${describeAge(forecast.ageHours)}`,
-    `${forecast.sources.length} sources`,
-  ]
+  const parts = [`Issued ${describeAge(forecast.ageHours)}`, `${forecast.sources.length} sources`]
   if (forecast.status === "degraded") {
     parts.push(`degraded: ${forecast.statusReason ?? "no backtest evidence"}`)
   } else if (forecast.freshness === "expired") {
@@ -40,9 +32,7 @@ function ProvenanceLine({ forecast }: { forecast: ForecastData }): React.JSX.Ele
   return (
     <p
       className={`text-xs mb-2 ${
-        isSuspect
-          ? "text-amber-600 dark:text-amber-400"
-          : "text-gray-500 dark:text-gray-400"
+        isSuspect ? "text-amber-600 dark:text-amber-400" : "text-gray-500 dark:text-gray-400"
       }`}
     >
       {parts.join(" · ")}
@@ -69,9 +59,7 @@ function DayValue({
 }): React.JSX.Element {
   if (low === undefined || high === undefined) {
     return (
-      <span className="flex-1 ml-12 mr-6 text-sm text-gray-400 dark:text-gray-600">
-        No value
-      </span>
+      <span className="flex-1 ml-12 mr-6 text-sm text-gray-400 dark:text-gray-600">No value</span>
     )
   }
   if (low === high) {

@@ -1,4 +1,5 @@
-// biome-ignore-all lint/suspicious/noImplicitAnyLet: vendored
+// Vendored verbatim and kept close to upstream; the lint relaxations this file
+// needs live in the `lib/suncalc.ts` override in .oxlintrc.json.
 /*
  (c) 2011-2015, Vladimir Agafonkin
  SunCalc is a JavaScript library for calculating sun/moon position and light phases.

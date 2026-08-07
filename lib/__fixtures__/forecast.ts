@@ -66,7 +66,6 @@ export function makeForecastDocument(overrides: Record<string, unknown> = {}) {
     sources: ["nbm", "nws", "open_meteo"],
     status: "ready",
     // The wire contract is JSON, where an absent reason is explicitly null.
-    // eslint-disable-next-line unicorn/no-null
     status_reason: null,
     units: {
       temp_f: "F",
@@ -89,8 +88,6 @@ export function makeForecastDocument(overrides: Record<string, unknown> = {}) {
 }
 
 /** A parsed document, for tests that exercise the mappers rather than the schema. */
-export function parsedForecastDocument(
-  overrides: Record<string, unknown> = {},
-): ForecastDocument {
+export function parsedForecastDocument(overrides: Record<string, unknown> = {}): ForecastDocument {
   return makeForecastDocument(overrides) as unknown as ForecastDocument
 }

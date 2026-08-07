@@ -66,11 +66,7 @@ export function formatStationTime(date: Date): string {
   return stationTimeFormatter.format(date)
 }
 
-export function getRangePosition(
-  value: number,
-  minimum: number,
-  maximum: number,
-): number {
+export function getRangePosition(value: number, minimum: number, maximum: number): number {
   if (maximum <= minimum) {
     return 50
   }

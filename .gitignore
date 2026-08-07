@@ -65,3 +65,6 @@ Temporary Items
 triage_decisions.db
 reviews_triage/
 coverage/
+
+# Python bytecode from scripts/
+__pycache__/

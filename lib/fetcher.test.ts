@@ -1,9 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import {
-  fetchCurrentWeatherData,
-  fetchHourlyDataRange,
-  fetchLastWeekData,
-} from "@/lib/fetcher"
+import { fetchCurrentWeatherData, fetchHourlyDataRange, fetchLastWeekData } from "@/lib/fetcher"
 
 function stubFetchJson(payload: unknown) {
   const fetchMock = vi.fn().mockResolvedValue({
@@ -60,6 +56,9 @@ const currentWeatherFixture = {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  // One test re-imports the module with a different station URL; without this
+  // the stubbed env would leak into every test that follows.
+  vi.unstubAllEnvs()
 })
 
 describe("fetchCurrentWeatherData", () => {
@@ -92,10 +91,7 @@ describe("fetchLastWeekData", () => {
 
     const weekly = await fetchLastWeekData()
 
-    expect(weekly.data.map((day) => day.date)).toEqual([
-      "2026-06-02",
-      "2026-06-01",
-    ])
+    expect(weekly.data.map((day) => day.date)).toEqual(["2026-06-02", "2026-06-01"])
     expect(weekly.ranges.min_outTemp).toBe(48)
     expect(weekly.ranges.max_outTemp).toBe(74)
   })
@@ -108,7 +104,7 @@ describe("fetchLastWeekData", () => {
 })
 
 describe("fetchHourlyDataRange", () => {
-  it("appends start_date when using the localhost API", async () => {
+  it("requests the published document unchanged", async () => {
     const fetchMock = stubFetchJson({
       data: {
         "2026-06-01": [{ ...makeRangeItem(), hour: "00" }],
@@ -117,6 +113,32 @@ describe("fetchHourlyDataRange", () => {
 
     await fetchHourlyDataRange("2026-06-01")
 
+    // The published file is already bounded to the days on screen, and
+    // raw.githubusercontent has no query interface to narrow it further.
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.not.stringContaining("start_date"),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    )
+  })
+
+  it("appends start_date to a live aggregation endpoint", async () => {
+    vi.stubEnv(
+      "WEATHER_HOURLY_API_URL",
+      "http://127.0.0.1:8080/hourly?tz=America/Los_Angeles&q=avg_outTemp",
+    )
+    vi.resetModules()
+    const { fetchHourlyDataRange: fresh } = await import("@/lib/fetcher")
+    const fetchMock = stubFetchJson({
+      data: {
+        "2026-06-01": [{ ...makeRangeItem(), hour: "00" }],
+      },
+    })
+
+    await fresh("2026-06-01")
+
+    // A live aw2sqlite endpoint 400s without start_date. Keying on the query
+    // string rather than the substring "localhost" keeps 127.0.0.1 and LAN
+    // addresses working.
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("start_date=2026-06-01"),
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
@@ -126,10 +148,7 @@ describe("fetchHourlyDataRange", () => {
   it("maps hourly data keyed by date, preserving missing hours", async () => {
     stubFetchJson({
       data: {
-        "2026-06-01": [
-          null,
-          { ...makeRangeItem({ min_outTemp: 44 }), hour: "01" },
-        ],
+        "2026-06-01": [null, { ...makeRangeItem({ min_outTemp: 44 }), hour: "01" }],
       },
     })
 

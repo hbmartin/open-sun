@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest"
-import {
-  makeDailyRow,
-  makeForecastDocument,
-  makeHourlyRow,
-} from "@/lib/__fixtures__/forecast"
+import { makeDailyRow, makeForecastDocument, makeHourlyRow } from "@/lib/__fixtures__/forecast"
 import { ForecastDocumentSchema } from "@/lib/forecast-schemas"
 
 function parse(overrides: Record<string, unknown> = {}) {

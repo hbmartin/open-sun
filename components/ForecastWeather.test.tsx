@@ -39,9 +39,7 @@ describe("ForecastWeather", () => {
   })
 
   it("names the reason when the document is degraded", () => {
-    const markup = render(
-      ok({ status: "degraded", status_reason: "no live evidence" }),
-    )
+    const markup = render(ok({ status: "degraded", status_reason: "no live evidence" }))
     expect(markup).toContain("degraded: no live evidence")
     expect(markup).toContain("text-amber-600")
   })

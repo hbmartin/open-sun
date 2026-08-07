@@ -12,34 +12,25 @@ const appUrlSchema = siteUrlSchema.extend({
   VERCEL_URL: z.string().min(1).optional(),
 })
 
+// Every data source is published hourly to the orphan `data` branch: the
+// station documents by scripts/publish_station.py, the forecast by
+// scripts/publish_forecast.py, both folded into one commit.
+//
+// The station is a LAN device behind aw2sqlite on a home Mac, so a deployed
+// build has no route to it -- pointing these at localhost is what made every
+// Vercel deployment fail to prerender `/` after ISR landed. Reading the
+// published copy instead keeps the page buildable from anywhere.
+//
+// These default rather than being optional so existing deployments need no new
+// configuration and instrumentation.ts still validates at boot. Point them at a
+// running `aw2sqlite serve --port 8080` for development; see the README.
+const DATA_BRANCH = "https://raw.githubusercontent.com/hbmartin/open-sun/data"
+
 const environmentSchema = siteUrlSchema.extend({
-  WEATHER_CURRENT_API_URL: z
-    .string()
-    .url()
-    .default("http://localhost:8080/"),
-  WEATHER_DAILY_API_URL: z
-    .string()
-    .url()
-    .default(
-      "http://localhost:8080/daily.json?tz=America/Los_Angeles&q=min_outTemp&q=max_outTemp" +
-      "&q=avg_outTemp&q=min_outHumi&q=avg_outHumi&q=max_outHumi&q=max_gustspeed&q=avg_avgwind" +
-      "&q=avg_uvi&q=avg_solarrad&q=avg_rainofhourly&q=min_avgwind&q=max_avgwind" +
-      "&q=min_uvi&q=max_uvi&q=min_solarrad&q=max_solarrad",
-    ),
-  WEATHER_HOURLY_API_URL: z
-    .string()
-    .url()
-    .default(
-      "http://localhost:8080/hourly.json?tz=America/Los_Angeles&q=min_outTemp&q=max_outTemp&q=min_outHumi&q=max_outHumi&q=avg_avgwind&q=max_gustspeed&q=avg_rainofhourly&q=avg_outHumi&q=avg_outTemp&q=avg_uvi&q=avg_solarrad&q=min_avgwind&q=max_avgwind&q=min_uvi&q=max_uvi&q=min_solarrad&q=max_solarrad",
-    ),
-  // Published hourly to an orphan `data` branch by scripts/publish_forecast.py.
-  // Unlike the station endpoints there is one canonical location, so this
-  // defaults rather than being optional: existing deployments need no new
-  // configuration and instrumentation.ts still validates at boot.
-  WEATHER_FORECAST_API_URL: z
-    .string()
-    .url()
-    .default("https://raw.githubusercontent.com/hbmartin/open-sun/data/forecast.json"),
+  WEATHER_CURRENT_API_URL: z.string().url().default(`${DATA_BRANCH}/current.json`),
+  WEATHER_DAILY_API_URL: z.string().url().default(`${DATA_BRANCH}/daily.json`),
+  WEATHER_HOURLY_API_URL: z.string().url().default(`${DATA_BRANCH}/hourly.json`),
+  WEATHER_FORECAST_API_URL: z.string().url().default(`${DATA_BRANCH}/forecast.json`),
   LOCATION_LATITUDE: z.coerce.number().min(-90).max(90),
   LOCATION_LONGITUDE: z.coerce.number().min(-180).max(180),
   REVALIDATE_SECRET: z.string().min(1),
@@ -75,8 +66,7 @@ export function getAppUrl(
   }
 
   // Vercel's *_URL system vars contain domains, despite the suffix.
-  const vercelDomain =
-    environment.VERCEL_PROJECT_PRODUCTION_URL ?? environment.VERCEL_URL
+  const vercelDomain = environment.VERCEL_PROJECT_PRODUCTION_URL ?? environment.VERCEL_URL
   if (vercelDomain) {
     return `https://${vercelDomain}`
   }

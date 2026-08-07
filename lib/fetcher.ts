@@ -9,12 +9,12 @@ import type {
 import { getEnvironment } from "@/lib/environment"
 import { mapForecastDocument } from "@/lib/forecast-mappers"
 import { ForecastDocumentSchema } from "@/lib/forecast-schemas"
+import { calculateRanges, mapDailyApiResponse, mapHourlyApiResponse } from "@/lib/mappers"
 import {
-  calculateRanges,
-  mapDailyApiResponse,
-  mapHourlyApiResponse,
-} from "@/lib/mappers"
-import { CurrentWeatherApiResponseSchema, DailyApiResponseSchema, HourlyApiResponseSchema } from "@/lib/schemas"
+  CurrentWeatherApiResponseSchema,
+  DailyApiResponseSchema,
+  HourlyApiResponseSchema,
+} from "@/lib/schemas"
 import { getSunTimes } from "@/lib/utils"
 
 const FORECAST_TIMEOUT_MS = 5000
@@ -34,7 +34,7 @@ export async function fetchCurrentWeatherData(): Promise<InstantObservation> {
 export async function fetchLastWeekData(): Promise<WeeklyData> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), 5000)
-  
+
   const environment = getEnvironment()
   const url = environment.WEATHER_DAILY_API_URL
   const response = await fetch(url, {
@@ -52,10 +52,15 @@ export async function fetchLastWeekData(): Promise<WeeklyData> {
 export async function fetchHourlyDataRange(start_date: string): Promise<Record<string, DailyData>> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), 5000)
-  
+
   const environment = getEnvironment()
   const baseUrl = environment.WEATHER_HOURLY_API_URL
-  const url = baseUrl.includes("localhost") ? `${baseUrl}&start_date=${start_date}` : `${baseUrl}`
+  // The published document is already bounded to the days the page shows, so it
+  // takes no parameters. A live aw2sqlite endpoint does require start_date, and
+  // is always identifiable by the tz/q query string it needs anyway — keying on
+  // that rather than on the substring "localhost" keeps a LAN address or
+  // 127.0.0.1 working too.
+  const url = baseUrl.includes("?") ? `${baseUrl}&start_date=${start_date}` : baseUrl
   const response = await fetch(url, {
     signal: controller.signal,
   })

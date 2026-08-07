@@ -71,9 +71,7 @@ export function quantileAt(
     return undefined
   }
 
-  const exact = levels.find(
-    (level) => Math.abs(level.probability - probability) < LEVEL_EPSILON,
-  )
+  const exact = levels.find((level) => Math.abs(level.probability - probability) < LEVEL_EPSILON)
   if (exact) {
     return exact.value
   }
@@ -81,7 +79,7 @@ export function quantileAt(
   const first = levels[0]
   // .at(-1) widens to `| undefined` despite the emptiness guard above, and a
   // `??` fallback would add a branch that can never be taken.
-  // eslint-disable-next-line unicorn/prefer-at
+  // oxlint-disable-next-line unicorn/prefer-at
   const last = levels[levels.length - 1]
   if (probability <= first.probability) {
     return first.value

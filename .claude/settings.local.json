@@ -30,5 +30,8 @@
         ]
       }
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "paper-search-mcp"
+  ]
 }
