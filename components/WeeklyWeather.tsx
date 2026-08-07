@@ -1,5 +1,5 @@
-import type React from "react"
 import type { DailyData, DisplayMetric, WeeklyData } from "@/lib/types"
+import type React from "react"
 import { Droplets } from "lucide-react"
 import { useState } from "react"
 import HourlyContainer from "@/components/HourlyContainer"
@@ -19,9 +19,7 @@ export default function WeeklyWeather({
   lastWeekData,
   hourlyDataByDate,
 }: WeeklyWeatherProperties): React.JSX.Element {
-  const [expandedDayIndex, setExpandedDayIndex] = useState<Set<number>>(
-    new Set(),
-  )
+  const [expandedDayIndex, setExpandedDayIndex] = useState<Set<number>>(new Set())
 
   const handleDayClick = (index: number) => {
     setExpandedDayIndex((previous) => {
@@ -78,7 +76,12 @@ export default function WeeklyWeather({
                 expandedDayIndex.has(index) ? "max-h-screen" : "max-h-0"
               }`}
             >
-              <HourlyContainer date={day.date} metric={metric} dailyData={hourlyDataByDate[day.date]} timesData={day.sunTimes} />
+              <HourlyContainer
+                date={day.date}
+                metric={metric}
+                dailyData={hourlyDataByDate[day.date]}
+                timesData={day.sunTimes}
+              />
             </div>
           </div>
         ))}

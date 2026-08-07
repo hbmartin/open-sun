@@ -35,27 +35,27 @@ export default function MetricTabs<T extends string>({
   const handleTabKeyDown = (event: React.KeyboardEvent, index: number) => {
     let nextIndex: number | undefined
     switch (event.key) {
-    case "ArrowRight": {
-      nextIndex = (index + 1) % tabs.length
+      case "ArrowRight": {
+        nextIndex = (index + 1) % tabs.length
 
-    break
-    }
-    case "ArrowLeft": {
-      nextIndex = (index - 1 + tabs.length) % tabs.length
+        break
+      }
+      case "ArrowLeft": {
+        nextIndex = (index - 1 + tabs.length) % tabs.length
 
-    break
-    }
-    case "Home": {
-      nextIndex = 0
+        break
+      }
+      case "Home": {
+        nextIndex = 0
 
-    break
-    }
-    case "End": {
-      nextIndex = tabs.length - 1
+        break
+      }
+      case "End": {
+        nextIndex = tabs.length - 1
 
-    break
-    }
-    // No default
+        break
+      }
+      // No default
     }
     if (nextIndex === undefined) {
       return

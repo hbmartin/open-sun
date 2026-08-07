@@ -1,5 +1,5 @@
-import type React from "react"
 import type { DisplayMetric, HourData } from "@/lib/types"
+import type React from "react"
 import WeatherIcon from "@/components/WeatherIcon"
 import { formatHour, getRangePosition } from "@/lib/utils"
 import { mapWeatherToColor, mapWeatherToCondition } from "@/lib/weather-conditions"
@@ -38,7 +38,7 @@ export default function HourlyDetailInline({
                   style={{
                     height: "60px",
                     top: 0,
-                    background: `linear-gradient(to bottom, ${mapWeatherToColor(hour)} 50%, ${mapWeatherToColor(hourly_data[(index * 2) + 1] || hour)} 50%)`,
+                    background: `linear-gradient(to bottom, ${mapWeatherToColor(hour)} 50%, ${mapWeatherToColor(hourly_data[index * 2 + 1] || hour)} 50%)`,
                   }}
                 />
 
@@ -49,7 +49,9 @@ export default function HourlyDetailInline({
                     </div>
                     <div className="text-sm text-gray-600 dark:text-gray-400 mt-1 flex items-center gap-1">
                       <WeatherIcon condition={mapWeatherToCondition(hour)} size={15} />
-                      <span>{hour.avg_rainofhourly > 0.005 ? hour.avg_rainofhourly.toFixed(2) : 0}&quot;</span>
+                      <span>
+                        {hour.avg_rainofhourly > 0.005 ? hour.avg_rainofhourly.toFixed(2) : 0}&quot;
+                      </span>
                     </div>
                   </div>
 

@@ -25,18 +25,22 @@ describe("getEnvironment", () => {
     expect(environment.LOCATION_LATITUDE).toBe(51.5)
     expect(environment.LOCATION_LONGITUDE).toBe(-0.12)
     expect(environment.REVALIDATE_SECRET).toBe("test-secret")
-    expect(environment.WEATHER_CURRENT_API_URL).toBe("http://localhost:8080/")
-    expect(environment.WEATHER_DAILY_API_URL).toContain("daily.json")
-    expect(environment.WEATHER_HOURLY_API_URL).toContain("hourly.json")
+    // All four default to the published `data` branch: a deployed build has no
+    // route to the LAN station, so a localhost default made prerendering `/`
+    // fail with ECONNREFUSED.
+    expect(environment.WEATHER_CURRENT_API_URL).toBe(
+      "https://raw.githubusercontent.com/hbmartin/open-sun/data/current.json",
+    )
+    expect(environment.WEATHER_DAILY_API_URL).toContain("/data/daily.json")
+    expect(environment.WEATHER_HOURLY_API_URL).toContain("/data/hourly.json")
+    expect(environment.WEATHER_FORECAST_API_URL).toContain("/data/forecast.json")
   })
 
   it("prefers explicitly configured API URLs over defaults", async () => {
     vi.stubEnv("WEATHER_CURRENT_API_URL", "https://station.example.com/current")
     const { getEnvironment } = await importFreshEnvironment()
 
-    expect(getEnvironment().WEATHER_CURRENT_API_URL).toBe(
-      "https://station.example.com/current",
-    )
+    expect(getEnvironment().WEATHER_CURRENT_API_URL).toBe("https://station.example.com/current")
   })
 
   it("prefers SITE_URL over the legacy public site URL", async () => {

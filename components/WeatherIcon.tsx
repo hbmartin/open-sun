@@ -1,6 +1,16 @@
-import type React from "react"
 import type { WeatherCondition } from "@/lib/types"
-import { Cloud, CloudDrizzle, CloudRain, CloudRainWind, Moon, Sun, SunDim, SunMedium, Wind } from "lucide-react"
+import type React from "react"
+import {
+  Cloud,
+  CloudDrizzle,
+  CloudRain,
+  CloudRainWind,
+  Moon,
+  Sun,
+  SunDim,
+  SunMedium,
+  Wind,
+} from "lucide-react"
 
 const iconMap: Record<WeatherCondition, [React.ElementType, string]> = {
   cloudy: [Cloud, "text-gray-500"],

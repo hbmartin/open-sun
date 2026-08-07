@@ -1,5 +1,5 @@
-import type React from "react"
 import type { ForecastHourData, ForecastMetric } from "@/lib/types"
+import type React from "react"
 import WeatherIcon from "@/components/WeatherIcon"
 import { mapForecastToColor, mapForecastToCondition } from "@/lib/forecast-conditions"
 import { forecast_metric_precision } from "@/lib/types"
@@ -39,7 +39,7 @@ export default function ForecastHourlyDetail({
                   style={{
                     height: "60px",
                     top: 0,
-                    background: `linear-gradient(to bottom, ${mapForecastToColor(hour)} 50%, ${mapForecastToColor(hourly_data[(index * 2) + 1] || hour)} 50%)`,
+                    background: `linear-gradient(to bottom, ${mapForecastToColor(hour)} 50%, ${mapForecastToColor(hourly_data[index * 2 + 1] || hour)} 50%)`,
                   }}
                 />
 
@@ -50,7 +50,12 @@ export default function ForecastHourlyDetail({
                     </div>
                     <div className="text-sm text-gray-600 dark:text-gray-400 mt-1 flex items-center gap-1">
                       <WeatherIcon condition={mapForecastToCondition(hour)} size={15} />
-                      <span>{hour.precip !== undefined && hour.precip > 0.005 ? hour.precip.toFixed(2) : 0}&quot;</span>
+                      <span>
+                        {hour.precip !== undefined && hour.precip > 0.005
+                          ? hour.precip.toFixed(2)
+                          : 0}
+                        &quot;
+                      </span>
                     </div>
                     {/* Wind and humidity exist hourly only, so they surface here
                         rather than as tabs the day list could not populate. */}

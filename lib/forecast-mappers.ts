@@ -99,9 +99,7 @@ function hourRangesFor(hours: (ForecastHourData | undefined)[]): ForecastRanges 
   }
   const ranges = { ...emptyForecastRanges }
   for (const metric of Object.values(ForecastMetric)) {
-    const values = present
-      .map((hour) => hour[metric])
-      .filter((value) => value !== undefined)
+    const values = present.map((hour) => hour[metric]).filter((value) => value !== undefined)
     if (values.length > 0) {
       ranges[`min_${metric}`] = Math.min(...values)
       ranges[`max_${metric}`] = Math.max(...values)
@@ -177,12 +175,8 @@ export function calculateForecastRanges(days: ForecastDayData[]): ForecastRanges
   }
   const ranges = { ...emptyForecastRanges }
   for (const metric of Object.values(ForecastMetric)) {
-    const lows = days
-      .map((day) => day[`min_${metric}`])
-      .filter((value) => value !== undefined)
-    const highs = days
-      .map((day) => day[`max_${metric}`])
-      .filter((value) => value !== undefined)
+    const lows = days.map((day) => day[`min_${metric}`]).filter((value) => value !== undefined)
+    const highs = days.map((day) => day[`max_${metric}`]).filter((value) => value !== undefined)
     if (lows.length > 0) {
       ranges[`min_${metric}`] = Math.min(...lows)
     }
@@ -193,10 +187,7 @@ export function calculateForecastRanges(days: ForecastDayData[]): ForecastRanges
   return ranges
 }
 
-export function mapForecastDocument(
-  document: ForecastDocument,
-  now: Date,
-): ForecastData {
+export function mapForecastDocument(document: ForecastDocument, now: Date): ForecastData {
   // Sun times drive the day/night icon split, so they must be resolved before
   // the hourly rows that consult them.
   const sunTimesByDate = new Map(

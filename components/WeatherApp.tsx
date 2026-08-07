@@ -1,12 +1,7 @@
 "use client"
 
+import type { DailyData, ForecastFetchResult, InstantObservation, WeeklyData } from "@/lib/types"
 import type React from "react"
-import type {
-  DailyData,
-  ForecastFetchResult,
-  InstantObservation,
-  WeeklyData,
-} from "@/lib/types"
 import { Clock, Eye, Library } from "lucide-react"
 import { useId, useState } from "react"
 import CurrentWeather from "@/components/CurrentWeather"
@@ -63,9 +58,7 @@ export default function WeatherApp({
 }: WeatherAppProperties) {
   const [activeTab, setActiveTab] = useState<DisplayMetric>(DisplayMetric.TEMP)
   // Each view keeps its own metric selection, so switching back restores it.
-  const [activeForecastTab, setActiveForecastTab] = useState<ForecastMetric>(
-    ForecastMetric.TEMP,
-  )
+  const [activeForecastTab, setActiveForecastTab] = useState<ForecastMetric>(ForecastMetric.TEMP)
   const [activeNavItem, setActiveNavItem] = useState<NavItem>("History")
   const panelId = useId()
 

@@ -1,5 +1,5 @@
-import type React from "react"
 import type { ForecastDayData, ForecastMetric } from "@/lib/types"
+import type React from "react"
 import { Sunrise, Sunset } from "lucide-react"
 import ForecastHourlyDetail from "@/components/forecast-hourly-detail"
 import { formatCalendarDate, formatStationTime } from "@/lib/utils"

@@ -1,10 +1,10 @@
-import type React from "react"
 import type { TimesData } from "@/lib/suncalc"
+import type React from "react"
 import { Rss, Sunrise, Sunset } from "lucide-react"
 import { formatStationTime } from "@/lib/utils"
 
 interface SunInfoProperties {
-  currentDate: Date,
+  currentDate: Date
   timesData: TimesData
 }
 

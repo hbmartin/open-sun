@@ -1,5 +1,5 @@
-import type React from "react"
 import type { InstantObservation } from "@/lib/types"
+import type React from "react"
 
 interface CurrentWeatherProperties {
   currentWeatherData: InstantObservation
@@ -37,9 +37,7 @@ export default function CurrentWeather({
         </div>
         <div className="text-center">
           <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            {currentWeatherData.uvi === undefined
-              ? "..."
-              : Math.round(currentWeatherData.uvi)}
+            {currentWeatherData.uvi === undefined ? "..." : Math.round(currentWeatherData.uvi)}
           </div>
           <div className="text-sm text-gray-500 dark:text-gray-400">UVI</div>
         </div>

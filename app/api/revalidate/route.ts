@@ -22,8 +22,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ message: "Invalid secret" }, { status: 401, headers })
   }
   revalidatePath("/", "layout")
-  return NextResponse.json({
-    message: "Revalidated successfully (GET)",
-    timestamp: new Date().toISOString(),
-  }, { status: 200, headers })
+  return NextResponse.json(
+    {
+      message: "Revalidated successfully (GET)",
+      timestamp: new Date().toISOString(),
+    },
+    { status: 200, headers },
+  )
 }

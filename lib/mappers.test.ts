@@ -1,15 +1,9 @@
 import type { RangeObservation } from "@/lib/types"
 import { describe, expect, it } from "vitest"
-import {
-  calculateRanges,
-  mapDailyApiResponse,
-  mapHourlyApiResponse,
-} from "@/lib/mappers"
+import { calculateRanges, mapDailyApiResponse, mapHourlyApiResponse } from "@/lib/mappers"
 import { getSunTimes } from "@/lib/utils"
 
-function makeObservation(
-  overrides: Partial<RangeObservation> = {},
-): RangeObservation {
+function makeObservation(overrides: Partial<RangeObservation> = {}): RangeObservation {
   return {
     date: "2026-06-01",
     min_outTemp: 50,
@@ -132,10 +126,7 @@ describe("mapHourlyApiResponse", () => {
 
     const result = mapHourlyApiResponse(response)
 
-    expect(Object.keys(result).toSorted()).toEqual([
-      "2026-06-01",
-      "2026-06-02",
-    ])
+    expect(Object.keys(result).toSorted()).toEqual(["2026-06-01", "2026-06-02"])
     expect(result["2026-06-01"].ranges.max_outTemp).toBe(70)
     expect(result["2026-06-02"].ranges.max_outTemp).toBe(99)
   })

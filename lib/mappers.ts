@@ -1,6 +1,6 @@
-import type { z } from "zod"
 import type { DailyApiResponseSchema, HourlyApiResponseSchema } from "@/lib/schemas"
 import type { DailyData, DayData, HourData, RangeObservation, Ranges } from "@/lib/types"
+import type { z } from "zod"
 import { getSunTimes } from "@/lib/utils"
 
 const emptyRanges: Ranges = {
@@ -54,7 +54,7 @@ export function mapHourlyApiResponse(
   response: z.infer<typeof HourlyApiResponseSchema>,
 ): Record<string, DailyData> {
   const hourlyDataByDate: Record<string, DailyData> = {}
-  
+
   for (const [date, dayData] of Object.entries(response.data)) {
     const data: (HourData | undefined)[] = dayData.map((validatedItem) => {
       if (validatedItem === null) return
@@ -82,7 +82,7 @@ export function mapHourlyApiResponse(
     })
     const filteredData = data.filter((d) => d !== undefined) as HourData[]
     const ranges: Ranges = calculateRanges(filteredData)
-    
+
     hourlyDataByDate[date] = { data, ranges }
   }
 

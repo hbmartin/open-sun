@@ -66,9 +66,7 @@ describe("formatCalendarDate", () => {
 
 describe("formatStationTime", () => {
   it("formats timestamps in the weather station timezone", () => {
-    expect(formatStationTime(new Date("2026-07-12T19:30:00Z"))).toBe(
-      "12:30 PM",
-    )
+    expect(formatStationTime(new Date("2026-07-12T19:30:00Z"))).toBe("12:30 PM")
   })
 })
 
@@ -91,11 +89,7 @@ describe("getSunTimes", () => {
     expect(sunTimes.sunrise).toBeInstanceOf(Date)
     expect(sunTimes.sunset).toBeInstanceOf(Date)
     expect(sunTimes.sunrise.getTime()).toBeLessThan(sunTimes.sunset.getTime())
-    expect(sunTimes.solarNoon.getTime()).toBeGreaterThan(
-      sunTimes.sunrise.getTime(),
-    )
-    expect(sunTimes.solarNoon.getTime()).toBeLessThan(
-      sunTimes.sunset.getTime(),
-    )
+    expect(sunTimes.solarNoon.getTime()).toBeGreaterThan(sunTimes.sunrise.getTime())
+    expect(sunTimes.solarNoon.getTime()).toBeLessThan(sunTimes.sunset.getTime())
   })
 })

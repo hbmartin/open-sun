@@ -57,10 +57,7 @@ describe("getTimes", () => {
 
   it("places nadir half a day after solar noon", () => {
     const halfDayMs = 12 * 60 * 60 * 1000
-    expect(times.nadir.getTime() - times.solarNoon.getTime()).toBeCloseTo(
-      halfDayMs,
-      -3,
-    )
+    expect(times.nadir.getTime() - times.solarNoon.getTime()).toBeCloseTo(halfDayMs, -3)
   })
 })
 
@@ -86,27 +83,16 @@ describe("getMoonIllumination", () => {
 
 describe("getMoonTimes", () => {
   it("returns moon rise and set times", () => {
-    const moonTimes = getMoonTimes(
-      new Date(Date.UTC(2013, 2, 4)),
-      latitude,
-      longitude,
-      true,
-    )
+    const moonTimes = getMoonTimes(new Date(Date.UTC(2013, 2, 4)), latitude, longitude, true)
 
     expect(moonTimes.rise).toBeInstanceOf(Date)
     expect(moonTimes.set).toBeInstanceOf(Date)
     // Allow a minute of tolerance: the interpolation is approximate.
     expect(
-      Math.abs(
-        (moonTimes.rise?.getTime() ?? 0) -
-          new Date("2013-03-04T23:54:29Z").getTime(),
-      ),
+      Math.abs((moonTimes.rise?.getTime() ?? 0) - new Date("2013-03-04T23:54:29Z").getTime()),
     ).toBeLessThan(60_000)
     expect(
-      Math.abs(
-        (moonTimes.set?.getTime() ?? 0) -
-          new Date("2013-03-04T07:47:58Z").getTime(),
-      ),
+      Math.abs((moonTimes.set?.getTime() ?? 0) - new Date("2013-03-04T07:47:58Z").getTime()),
     ).toBeLessThan(60_000)
   })
 })
