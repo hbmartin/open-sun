@@ -204,6 +204,9 @@ class LeadBucketTest(unittest.TestCase):
         }
 
     def test_accepts_every_bucket_the_consumer_enum_knows(self) -> None:
+        # The 72h horizon depends on this bucket; looping over the set alone
+        # would silently shrink coverage if it were ever removed.
+        self.assertIn("48-96h", publish_forecast.KNOWN_LEAD_BUCKETS)
         for bucket in sorted(publish_forecast.KNOWN_LEAD_BUCKETS):
             with self.subTest(bucket=bucket):
                 self.assertEqual(_hourly_row(self._row(bucket))["lead_bucket"], bucket)
