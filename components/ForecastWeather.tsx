@@ -8,17 +8,7 @@ import RangedBar from "@/components/RangedBar"
 import WeatherIcon from "@/components/WeatherIcon"
 import { mapForecastToCondition } from "@/lib/forecast-conditions"
 import { forecast_metric_display_units, forecast_metric_precision } from "@/lib/types"
-import { formatMetricValue } from "@/lib/utils"
-
-function describeAge(ageHours: number): string {
-  if (ageHours < 1) {
-    return `${Math.max(1, Math.round(ageHours * 60))}m ago`
-  }
-  if (ageHours < 24) {
-    return `${Math.round(ageHours)}h ago`
-  }
-  return `${Math.round(ageHours / 24)}d ago`
-}
+import { describeAge, formatMetricValue } from "@/lib/utils"
 
 function ProvenanceLine({ forecast }: { forecast: ForecastData }): React.JSX.Element {
   const isSuspect = forecast.status === "degraded" || forecast.freshness !== "fresh"

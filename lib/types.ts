@@ -185,6 +185,37 @@ export interface ForecastDayData extends Partial<ForecastRanges> {
 
 export type ForecastFreshness = "fresh" | "stale" | "expired"
 
+export interface ForecastCount {
+  name: string
+  count: number
+}
+
+/** A junior-technician health summary of the model run, for the Info view. */
+export interface ForecastInfoData {
+  status: "ready" | "degraded"
+  statusReason?: string
+  issuedAt: string
+  ageHours: number
+  freshness: ForecastFreshness
+  /** Station observation the run anchored on; undefined when none was fresh. */
+  observationAt?: string
+  /** Promoted release cohort; empty on documents from publishers before 1.3.0. */
+  releaseIds: string[]
+  /** Fraction [0,1] of served variable slots backed by a release id. */
+  evidenceCoverage: { hourly: number; daily: number }
+  hourlyRows: number
+  dailyRows: number
+  /** Serving-method mix across all variable slots, descending by count. */
+  methodCounts: ForecastCount[]
+  /** Plain-English selection rationales, descending; empty on old documents. */
+  reasonCounts: ForecastCount[]
+  sources: string[]
+  datasetFingerprint: string
+  publisherVersion: string
+  schemaVersion: number
+  timezone: string
+}
+
 export interface ForecastData {
   issuedAt: string
   ageHours: number
@@ -195,6 +226,7 @@ export interface ForecastData {
   publisherVersion: string
   days: ForecastDayData[]
   ranges: ForecastRanges
+  info: ForecastInfoData
 }
 
 export type ForecastFetchResult =

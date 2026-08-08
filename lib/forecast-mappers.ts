@@ -1,5 +1,6 @@
 import type { ForecastDailyRow, ForecastDocument, ForecastHourlyRow } from "@/lib/forecast-schemas"
 import type {
+  ForecastCount,
   ForecastData,
   ForecastDayData,
   ForecastFreshness,
@@ -185,6 +186,30 @@ function minimumOf(values: (number | undefined)[]): number | undefined {
   return present.length === 0 ? undefined : Math.min(...present)
 }
 
+/** Tallies of each distinct value across per-row string maps, descending. */
+function countsOf(maps: Record<string, string>[]): ForecastCount[] {
+  const counts = new Map<string, number>()
+  for (const map of maps) {
+    for (const value of Object.values(map)) {
+      counts.set(value, (counts.get(value) ?? 0) + 1)
+    }
+  }
+  return [...counts.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .toSorted((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+}
+
+/** The fraction of served variable slots backed by a release id. */
+function coverageOf(rows: { values: object; release_ids: Record<string, string> }[]): number {
+  let slots = 0
+  let backed = 0
+  for (const row of rows) {
+    slots += Object.keys(row.values).length
+    backed += Object.keys(row.release_ids).length
+  }
+  return slots === 0 ? 0 : backed / slots
+}
+
 export function calculateForecastRanges(days: ForecastDayData[]): ForecastRanges {
   if (days.length === 0) {
     return { ...emptyForecastRanges }
@@ -228,6 +253,7 @@ export function mapForecastDocument(document: ForecastDocument, now: Date): Fore
 
   const days = document.daily.map((row) => mapDailyRow(row, hoursByDate))
   const { ageHours, freshness } = getForecastFreshness(document.issued_at, now)
+  const allRows = [...document.hourly, ...document.daily]
 
   return {
     issuedAt: document.issued_at,
@@ -239,5 +265,27 @@ export function mapForecastDocument(document: ForecastDocument, now: Date): Fore
     publisherVersion: document.publisher_version,
     days,
     ranges: calculateForecastRanges(days),
+    info: {
+      status: document.status,
+      statusReason: document.status_reason ?? undefined,
+      issuedAt: document.issued_at,
+      ageHours,
+      freshness,
+      observationAt: document.observation_at ?? undefined,
+      releaseIds: document.release_ids,
+      evidenceCoverage: {
+        hourly: coverageOf(document.hourly),
+        daily: coverageOf(document.daily),
+      },
+      hourlyRows: document.hourly.length,
+      dailyRows: document.daily.length,
+      methodCounts: countsOf(allRows.map((row) => row.methods)),
+      reasonCounts: countsOf(allRows.map((row) => row.selection_reasons)),
+      sources: document.sources,
+      datasetFingerprint: document.dataset_fingerprint,
+      publisherVersion: document.publisher_version,
+      schemaVersion: document.schema_version,
+      timezone: document.timezone,
+    },
   }
 }

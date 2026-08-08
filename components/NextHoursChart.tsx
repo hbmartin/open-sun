@@ -18,6 +18,12 @@ const LABEL_STEP = 3
 /** Day-part runs shorter than this have no room for their header text. */
 const MIN_LABELED_RUN = 3
 
+/** Tick offsets aligned with the labeled dots: 0, 3, …, 21. */
+const HOUR_TICKS = Array.from(
+  { length: WINDOW_HOURS / LABEL_STEP },
+  (_, index) => index * LABEL_STEP,
+)
+
 const metric_chart_names: Record<ForecastMetric, string> = {
   temp: "temperature",
   pop: "rain chance",
@@ -243,7 +249,7 @@ export default function NextHoursChart({
               )
             })}
 
-            {[0, 6, 12, 18].map((offset) => (
+            {HOUR_TICKS.map((offset) => (
               <text
                 key={offset}
                 x={Math.min(WIDTH - 14, Math.max(14, xOf(offset)))}

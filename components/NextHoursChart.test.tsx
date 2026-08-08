@@ -87,6 +87,15 @@ describe("NextHoursChart", () => {
     expect(render(makeModel({ summary: undefined }))).not.toContain("Clear skies")
   })
 
+  it("draws a time tick under every labeled dot", () => {
+    const markup = render(makeModel())
+    // The tick row is the only fontSize-9 text in the chart.
+    expect(markup.match(/font-size="9"/gu)).toHaveLength(8)
+    // startHour 9: offset 6 is 3 PM, offset 21 is 6 AM.
+    expect(markup).toContain(">3 PM</text>")
+    expect(markup).toContain(">6 AM</text>")
+  })
+
   it("describes every interval, value and band to screen readers", () => {
     const banded = makePoints().map((point) =>
       Object.assign(point, {

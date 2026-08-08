@@ -68,11 +68,14 @@ const ForecastHourlyRowSchema = z.object({
   valid_time: utcTimestamp,
   // Fractional: the first row is typically ~0.4h out, not 0.
   lead_hours: z.number().min(0),
-  lead_bucket: z.enum(["0-1h", "1-3h", "3-6h", "6-12h", "12-24h", "24-48h", "48-96h"]),
+  lead_bucket: z.enum(["0-1h", "1-3h", "3-6h", "6-12h", "12-24h", "24-48h", "48-96h", "96-168h"]),
   values: ForecastHourlyValuesSchema,
   methods: PerVariableStringSchema.default({}),
   release_ids: PerVariableStringSchema.default({}),
   quantiles: PerVariableQuantilesSchema.default({}),
+  // Plain-English per-variable selection rationale; absent on documents
+  // published before 1.3.0, so it must default rather than require.
+  selection_reasons: PerVariableStringSchema.default({}),
 })
 
 const ForecastDailyRowSchema = z.object({
@@ -82,6 +85,8 @@ const ForecastDailyRowSchema = z.object({
   methods: PerVariableStringSchema.default({}),
   release_ids: PerVariableStringSchema.default({}),
   quantiles: PerVariableQuantilesSchema.default({}),
+  // Same publisher-1.3.0 provenance note as the hourly twin above.
+  selection_reasons: PerVariableStringSchema.default({}),
 })
 
 export const ForecastDocumentSchema = z.object({
@@ -98,6 +103,8 @@ export const ForecastDocumentSchema = z.object({
   longitude: z.number().min(-180).max(180),
   dataset_fingerprint: z.string().min(1),
   sources: z.array(z.string()).default([]),
+  // The promoted release cohort predict served from; absent before 1.3.0.
+  release_ids: z.array(z.string()).default([]),
   status: z.enum(["ready", "degraded"]),
   status_reason: z.string().nullable(),
   units: ForecastUnitsSchema,
