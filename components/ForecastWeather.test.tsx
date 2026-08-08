@@ -2,7 +2,7 @@ import type { ForecastFetchResult } from "@/lib/types"
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 import ForecastWeather from "@/components/ForecastWeather"
-import { parsedForecastDocument } from "@/lib/__fixtures__/forecast"
+import { makeDailyRow, parsedForecastDocument } from "@/lib/__fixtures__/forecast"
 import { mapForecastDocument } from "@/lib/forecast-mappers"
 import { ForecastMetric } from "@/lib/types"
 
@@ -70,5 +70,17 @@ describe("ForecastWeather", () => {
     const markup = render(ok(), ForecastMetric.POP)
     expect(markup).not.toContain("range-bar-band")
     expect(markup).toContain("0%")
+  })
+
+  it("renders a day beyond the hourly horizon inert and grayed", () => {
+    const markup = render(
+      ok({
+        daily: [makeDailyRow(), makeDailyRow({ date_local: "2026-08-12", lead_days: 7 })],
+      }),
+    )
+    // One expandable day, one inert one: a single button, a single hourly panel.
+    expect(markup.match(/<button/gu)).toHaveLength(1)
+    expect(markup.match(/forecast-hourly-/gu)).toHaveLength(2)
+    expect(markup).toContain("text-gray-400 dark:text-gray-600")
   })
 })

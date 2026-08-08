@@ -44,7 +44,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-PUBLISHER_VERSION = "1.1.1"
+PUBLISHER_VERSION = "1.2.0"
 CONTRACT_VERSION = 1
 SOURCE_SCHEMA_VERSION = 5
 
@@ -69,7 +69,7 @@ PUSH_TIMEOUT_S = 90
 # Bucket labels the consumer's zod enum knows about. An unrecognised bucket means
 # the pipeline's horizon changed; refuse rather than publish a document the
 # consumer would reject wholesale (a stale forecast beats a blank one).
-KNOWN_LEAD_BUCKETS = frozenset({"0-1h", "1-3h", "3-6h", "6-12h", "12-24h", "24-48h"})
+KNOWN_LEAD_BUCKETS = frozenset({"0-1h", "1-3h", "3-6h", "6-12h", "12-24h", "24-48h", "48-96h"})
 
 
 # Diagnostics normally go to stdout so launchd files them under

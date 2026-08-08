@@ -146,6 +146,34 @@ describe("mapForecastDocument", () => {
       const forecast = mapDocument({ daily: [makeDailyRow({ values })] })
       expect(forecast.days[0].max_temp).toBeUndefined()
     })
+
+    it("derives daily humidity and wind bounds from the hourly rows", () => {
+      const forecast = mapDocument({
+        hourly: [
+          makeHourlyRow(),
+          makeHourlyRow({
+            valid_time: "2026-08-05T16:00:00+00:00",
+            values: { ...makeHourlyRow().values, humidity_pct: 40, wind_speed_mph: 12 },
+          }),
+        ],
+      })
+      const day = forecast.days[0]
+      expect(day.min_humidity).toBe(18.17)
+      expect(day.max_humidity).toBe(40)
+      expect(day.min_wind).toBe(0.32)
+      expect(day.max_wind).toBe(12)
+    })
+
+    it("leaves humidity and wind bounds undefined beyond the hourly horizon", () => {
+      const forecast = mapDocument({
+        daily: [makeDailyRow(), makeDailyRow({ date_local: "2026-08-12", lead_days: 7 })],
+      })
+      const day = forecast.days[1]
+      expect(day.min_humidity).toBeUndefined()
+      expect(day.max_humidity).toBeUndefined()
+      expect(day.min_wind).toBeUndefined()
+      expect(day.max_wind).toBeUndefined()
+    })
   })
 
   describe("evidence", () => {
@@ -248,6 +276,10 @@ describe("calculateForecastRanges", () => {
       max_pop: 0,
       min_precip: 0,
       max_precip: 0,
+      min_humidity: 0,
+      max_humidity: 0,
+      min_wind: 0,
+      max_wind: 0,
     })
   })
 

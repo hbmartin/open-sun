@@ -68,7 +68,7 @@ const ForecastHourlyRowSchema = z.object({
   valid_time: utcTimestamp,
   // Fractional: the first row is typically ~0.4h out, not 0.
   lead_hours: z.number().min(0),
-  lead_bucket: z.enum(["0-1h", "1-3h", "3-6h", "6-12h", "12-24h", "24-48h"]),
+  lead_bucket: z.enum(["0-1h", "1-3h", "3-6h", "6-12h", "12-24h", "24-48h", "48-96h"]),
   values: ForecastHourlyValuesSchema,
   methods: PerVariableStringSchema.default({}),
   release_ids: PerVariableStringSchema.default({}),

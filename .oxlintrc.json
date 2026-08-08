@@ -216,6 +216,12 @@
         "no-negated-condition": "off",
         "no-else-return": "off"
       }
+    },
+    {
+      "files": ["components/NextHoursChart.tsx"],
+      "rules": {
+        "jsx-a11y/prefer-tag-over-role": "off"
+      }
     }
   ]
 }

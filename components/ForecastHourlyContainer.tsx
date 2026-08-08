@@ -12,11 +12,11 @@ export default function ForecastHourlyContainer({
   metric: ForecastMetric
 }): React.JSX.Element {
   if (day.hours.every((hour) => hour === undefined)) {
-    // Most days hit this: the document carries 10 daily rows but only 48 hours.
-    // Saying so beats a generic error for what is normal behaviour.
+    // Days beyond the published hourly horizon hit this. The day list renders
+    // those rows inert, so this is a safety net rather than the normal path.
     return (
       <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-        Hourly detail is only available for the next 48 hours.
+        Hourly detail is only available for the next 3 days.
       </div>
     )
   }

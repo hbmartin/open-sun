@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any
 
 import publish_forecast
-from publish_forecast import choose_source, remember_good
+from publish_forecast import RefusedError, _hourly_row, choose_source, remember_good
 
 NOW = datetime(2026, 8, 8, 13, 0, tzinfo=UTC)
 
@@ -191,6 +191,26 @@ class MalformedCandidateTest(HoldTestCase):
 
     def test_missing_candidate_publishes_the_candidate(self) -> None:
         self.assertEqual(self.choose(), self.candidate)
+
+
+class LeadBucketTest(unittest.TestCase):
+    @staticmethod
+    def _row(bucket: str) -> dict[str, Any]:
+        return {
+            "valid_time": "2026-08-08T12:00:00+00:00",
+            "lead_hours": 60.0,
+            "lead_bucket": bucket,
+            "values": {"temp_c": 21.0},
+        }
+
+    def test_accepts_every_bucket_the_consumer_enum_knows(self) -> None:
+        for bucket in sorted(publish_forecast.KNOWN_LEAD_BUCKETS):
+            with self.subTest(bucket=bucket):
+                self.assertEqual(_hourly_row(self._row(bucket))["lead_bucket"], bucket)
+
+    def test_refuses_a_bucket_beyond_the_published_horizon(self) -> None:
+        with self.assertRaisesRegex(RefusedError, "unknown lead_bucket '96-168h'"):
+            _hourly_row(self._row("96-168h"))
 
 
 if __name__ == "__main__":

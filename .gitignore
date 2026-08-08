@@ -68,3 +68,4 @@ coverage/
 
 # Python bytecode from scripts/
 __pycache__/
+.env*.local

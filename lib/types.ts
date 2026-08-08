@@ -113,27 +113,33 @@ export const metric_display_units: Record<DisplayMetric, string> = {
  */
 
 /**
- * The three variables the published document carries at BOTH daily and hourly
- * resolution, so one tab selection drives the day list and the expanded hourly
- * panel with no empty states. Hourly-only wind, humidity and dew point surface
- * inside the expanded rows instead.
+ * Temperature, rain chance and rain amount arrive at both daily and hourly
+ * resolution. Humidity and wind exist only on the hourly rows, so their daily
+ * min/max are derived from whatever hourly coverage a day has — days beyond
+ * the hourly horizon carry none and render as unclickable rows.
  */
 export enum ForecastMetric {
   TEMP = "temp",
   POP = "pop",
   PRECIP = "precip",
+  HUMIDITY = "humidity",
+  WIND = "wind",
 }
 
 export const forecast_metric_display_units: Record<ForecastMetric, string> = {
   [ForecastMetric.TEMP]: "°",
   [ForecastMetric.POP]: "%",
   [ForecastMetric.PRECIP]: '"',
+  [ForecastMetric.HUMIDITY]: "%",
+  [ForecastMetric.WIND]: "",
 }
 
 export const forecast_metric_precision: Record<ForecastMetric, number> = {
   [ForecastMetric.TEMP]: 0,
   [ForecastMetric.POP]: 0,
   [ForecastMetric.PRECIP]: 2,
+  [ForecastMetric.HUMIDITY]: 0,
+  [ForecastMetric.WIND]: 0,
 }
 
 export type ForecastRangeKey = `min_${ForecastMetric}` | `max_${ForecastMetric}`
@@ -172,7 +178,7 @@ export interface ForecastDayData extends Partial<ForecastRanges> {
   bands: Partial<Record<ForecastMetric, QuantileBand>>
   methods: Partial<Record<ForecastMetric, string>>
   sunTimes: TimesData
-  /** Indexed by station-local hour; empty beyond the 48-hour horizon. */
+  /** Indexed by station-local hour; empty beyond the published hourly horizon. */
   hours: (ForecastHourData | undefined)[]
   hourRanges: ForecastRanges
 }
