@@ -133,65 +133,84 @@ export default function ForecastWeather({
           const low = day[`min_${metric}`]
           const high = day[`max_${metric}`]
           const band = day.bands[metric]
+          const hasHours = day.hours.some((hour) => hour !== undefined)
+
+          let dayLabelClass = "text-gray-400 dark:text-gray-600"
+          if (hasHours) {
+            dayLabelClass = day.hasEvidence
+              ? "text-gray-900 dark:text-gray-100"
+              : "text-gray-400 dark:text-gray-500"
+          }
+
+          const rowContent = (
+            <>
+              <div className="flex flex-col w-14">
+                <div className={`text-base font-semibold text-left ${dayLabelClass}`}>
+                  {index === 0 ? "TDY" : day.day}
+                </div>
+                <div className="flex space-x-1">
+                  <Droplets size={14} className="text-blue-400" />
+                  <span className="text-xs text-blue-500 dark:text-blue-400 font-medium">
+                    {day.pop === undefined ? "—" : `${Math.round(day.pop)}%`}
+                  </span>
+                </div>
+              </div>
+              <WeatherIcon
+                condition={mapForecastToCondition({
+                  pop: day.pop,
+                  precip: day.precipSum,
+                  humidity: day.humidity,
+                  wind: day.wind,
+                  isDaytime: true,
+                })}
+                size={30}
+              />
+              <DayValue
+                low={low}
+                high={high}
+                ranges={forecast.forecast.ranges}
+                metric={metric}
+                unit={unit}
+                precision={precision}
+                band={band}
+              />
+            </>
+          )
+
+          const rowClass =
+            "w-full flex items-center px-4 py-3 border-b border-gray-100 dark:border-gray-800 transition-colors"
 
           return (
             <div key={day.date}>
-              <button
-                type="button"
-                onClick={() => handleDayClick(index)}
-                aria-expanded={expandedDayIndex.has(index)}
-                aria-controls={`forecast-hourly-${day.date}`}
-                aria-label={`Toggle hourly detail for ${index === 0 ? "today" : day.day}${
-                  day.hasEvidence ? "" : ", unvalidated"
-                }`}
-                className="w-full flex items-center px-4 py-3 border-b border-gray-100 dark:border-gray-800 transition-colors"
-              >
-                <div className="flex flex-col w-14">
-                  <div
-                    className={`text-base font-semibold text-left ${
-                      day.hasEvidence
-                        ? "text-gray-900 dark:text-gray-100"
-                        : "text-gray-400 dark:text-gray-500"
-                    }`}
-                  >
-                    {index === 0 ? "TDY" : day.day}
-                  </div>
-                  <div className="flex space-x-1">
-                    <Droplets size={14} className="text-blue-400" />
-                    <span className="text-xs text-blue-500 dark:text-blue-400 font-medium">
-                      {day.pop === undefined ? "—" : `${Math.round(day.pop)}%`}
-                    </span>
-                  </div>
-                </div>
-                <WeatherIcon
-                  condition={mapForecastToCondition({
-                    pop: day.pop,
-                    precip: day.precipSum,
-                    humidity: day.humidity,
-                    wind: day.wind,
-                    isDaytime: true,
-                  })}
-                  size={30}
-                />
-                <DayValue
-                  low={low}
-                  high={high}
-                  ranges={forecast.forecast.ranges}
-                  metric={metric}
-                  unit={unit}
-                  precision={precision}
-                  band={band}
-                />
-              </button>
+              {hasHours ? (
+                <button
+                  type="button"
+                  onClick={() => handleDayClick(index)}
+                  aria-expanded={expandedDayIndex.has(index)}
+                  aria-controls={`forecast-hourly-${day.date}`}
+                  aria-label={`Toggle hourly detail for ${index === 0 ? "today" : day.day}${
+                    day.hasEvidence ? "" : ", unvalidated"
+                  }`}
+                  className={rowClass}
+                >
+                  {rowContent}
+                </button>
+              ) : (
+                // No hourly rows means expanding has nothing to show, so the
+                // row is inert and its day label grays out to say so.
+                <div className={rowClass}>{rowContent}</div>
+              )}
 
-              <div
-                id={`forecast-hourly-${day.date}`}
-                className={`overflow-hidden transition-all duration-300 ease-out ${
-                  expandedDayIndex.has(index) ? "max-h-screen" : "max-h-0"
-                }`}
-              >
-                <ForecastHourlyContainer day={day} metric={metric} />
-              </div>
+              {hasHours && (
+                <div
+                  id={`forecast-hourly-${day.date}`}
+                  className={`overflow-hidden transition-all duration-300 ease-out ${
+                    expandedDayIndex.has(index) ? "max-h-screen" : "max-h-0"
+                  }`}
+                >
+                  <ForecastHourlyContainer day={day} metric={metric} />
+                </div>
+              )}
             </div>
           )
         })}

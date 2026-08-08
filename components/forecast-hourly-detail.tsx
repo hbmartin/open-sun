@@ -57,8 +57,8 @@ export default function ForecastHourlyDetail({
                         &quot;
                       </span>
                     </div>
-                    {/* Wind and humidity exist hourly only, so they surface here
-                        rather than as tabs the day list could not populate. */}
+                    {/* Wind and humidity accompany every hour regardless of the
+                        selected metric, matching the precip line above. */}
                     <div className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">
                       {hour.wind === undefined ? "" : `${Math.round(hour.wind)} mph`}
                       {hour.humidity === undefined ? "" : ` · ${Math.round(hour.humidity)}%`}

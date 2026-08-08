@@ -23,6 +23,10 @@ const emptyForecastRanges: ForecastRanges = {
   max_pop: 0,
   min_precip: 0,
   max_precip: 0,
+  min_humidity: 0,
+  max_humidity: 0,
+  min_wind: 0,
+  max_wind: 0,
 }
 
 /** Probability of precipitation arrives as a fraction and renders as a percent. */
@@ -138,6 +142,13 @@ function mapDailyRow(
     max_precip: precipBand ? precipBand.high : precipSum,
     pop,
     precipSum,
+    // The wire carries no daily humidity or wind, so their bounds come from
+    // whatever hourly coverage the day has; absent coverage leaves them
+    // undefined and the row renders "No value".
+    min_humidity: minimumOf(present.map((hour) => hour.humidity)),
+    max_humidity: maximumOf(present.map((hour) => hour.humidity)),
+    min_wind: minimumOf(present.map((hour) => hour.wind)),
+    max_wind: maximumOf(present.map((hour) => hour.wind)),
     // Icon inputs only: a day-representative humidity and the day's peak wind.
     humidity: present.length > 0 ? averageOf(present.map((hour) => hour.humidity)) : undefined,
     wind: present.length > 0 ? maximumOf(present.map((hour) => hour.wind)) : undefined,
@@ -167,6 +178,11 @@ function averageOf(values: (number | undefined)[]): number | undefined {
 function maximumOf(values: (number | undefined)[]): number | undefined {
   const present = values.filter((value) => value !== undefined)
   return present.length === 0 ? undefined : Math.max(...present)
+}
+
+function minimumOf(values: (number | undefined)[]): number | undefined {
+  const present = values.filter((value) => value !== undefined)
+  return present.length === 0 ? undefined : Math.min(...present)
 }
 
 export function calculateForecastRanges(days: ForecastDayData[]): ForecastRanges {

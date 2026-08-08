@@ -7,6 +7,7 @@ import { useId, useState } from "react"
 import CurrentWeather from "@/components/CurrentWeather"
 import ForecastWeather from "@/components/ForecastWeather"
 import MetricTabs from "@/components/MetricTabs"
+import NextHours from "@/components/NextHours"
 import SunInfo from "@/components/SunInfo"
 import ThemeToggle from "@/components/ThemeToggle"
 import WeeklyWeather from "@/components/WeeklyWeather"
@@ -20,16 +21,18 @@ const tab_names: Record<DisplayMetric, string> = {
   [DisplayMetric.SOLAR]: "SOLAR RAD",
 }
 
-// The forecast carries no UV index or solar radiation, and its daily rows have
-// no wind or humidity, so it gets the three variables it can populate at both
-// resolutions rather than a subset of the history tabs that would render empty.
+// The forecast carries no UV index or solar radiation. Humidity and wind are
+// hourly-only on the wire, so their day rows populate only where hourly
+// coverage exists and gray out beyond it.
 const forecast_tab_names: Record<ForecastMetric, string> = {
   [ForecastMetric.TEMP]: "TEMP (°F)",
-  [ForecastMetric.POP]: "RAIN CHANCE",
+  [ForecastMetric.POP]: "RAIN %",
   [ForecastMetric.PRECIP]: "RAIN (IN)",
+  [ForecastMetric.HUMIDITY]: "HUMID (%)",
+  [ForecastMetric.WIND]: "WIND (MPH)",
 }
 
-const navItems = ["History", "Forecast", "Notifications"] as const
+const navItems = ["Forecast", "History", "Notifications"] as const
 type NavItem = (typeof navItems)[number]
 
 const iconMap: Record<NavItem, React.ElementType> = {
@@ -59,7 +62,7 @@ export default function WeatherApp({
   const [activeTab, setActiveTab] = useState<DisplayMetric>(DisplayMetric.TEMP)
   // Each view keeps its own metric selection, so switching back restores it.
   const [activeForecastTab, setActiveForecastTab] = useState<ForecastMetric>(ForecastMetric.TEMP)
-  const [activeNavItem, setActiveNavItem] = useState<NavItem>("History")
+  const [activeNavItem, setActiveNavItem] = useState<NavItem>("Forecast")
   const panelId = useId()
 
   const isForecast = activeNavItem === "Forecast"
@@ -115,7 +118,11 @@ export default function WeatherApp({
         />
       )}
 
-      <CurrentWeather currentWeatherData={currentWeatherData} />
+      {isForecast ? (
+        <NextHours forecast={forecast} metric={activeForecastTab} initialNow={currentDate} />
+      ) : (
+        <CurrentWeather currentWeatherData={currentWeatherData} />
+      )}
       <SunInfo currentDate={currentDate} timesData={currentWeatherData.sunTimes} />
 
       <div

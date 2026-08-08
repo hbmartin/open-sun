@@ -44,7 +44,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-PUBLISHER_VERSION = "1.0.0"
+PUBLISHER_VERSION = "1.2.0"
 CONTRACT_VERSION = 1
 SOURCE_SCHEMA_VERSION = 5
 
@@ -69,7 +69,7 @@ PUSH_TIMEOUT_S = 90
 # Bucket labels the consumer's zod enum knows about. An unrecognised bucket means
 # the pipeline's horizon changed; refuse rather than publish a document the
 # consumer would reject wholesale (a stale forecast beats a blank one).
-KNOWN_LEAD_BUCKETS = frozenset({"0-1h", "1-3h", "3-6h", "6-12h", "12-24h", "24-48h"})
+KNOWN_LEAD_BUCKETS = frozenset({"0-1h", "1-3h", "3-6h", "6-12h", "12-24h", "24-48h", "48-96h"})
 
 
 # Diagnostics normally go to stdout so launchd files them under
@@ -80,6 +80,90 @@ _log_stream = sys.stdout
 
 def _log(message: str) -> None:
     print(message, file=_log_stream, flush=True)
+
+
+HELD_GOOD = Path.home() / (
+    "Library/Application Support/grounded-weather-forecast/last-good-forecast.json"
+)
+HOLD_MAX_AGE_SECONDS = 6 * 3600
+
+# predict stamps issued_at and the publisher reads it back minutes later on the
+# same machine, so a small negative age means the clock stepped backwards (an
+# NTP correction) rather than a genuinely future document. Tolerating that keeps
+# a two-second step from silently disabling the hold; tolerating more would let
+# a corrupted timestamp pin a stale forecast for HOLD_MAX_AGE_SECONDS past the
+# point it went stale.
+CLOCK_SKEW_TOLERANCE_SECONDS = 300
+
+
+def remember_good(source: Path, held: Path = HELD_GOOD) -> None:
+    """Keep a copy of the newest ready document for degraded-window holds."""
+    held.parent.mkdir(parents=True, exist_ok=True)
+    partial = held.with_suffix(".partial")
+    shutil.copyfile(source, partial)
+    partial.replace(held)
+
+
+def choose_source(
+    candidate: Path,
+    held: Path = HELD_GOOD,
+    *,
+    max_age_seconds: float = HOLD_MAX_AGE_SECONDS,
+    now: datetime | None = None,
+) -> Path:
+    """The document to publish: hold the last ready one through degraded windows.
+
+    A ``degraded`` document is an honest fallback (raw provider means, no
+    promoted methods, no calibration), and every code-identity change makes
+    predict emit one until its restore cycle finishes — a planned, hour-scale
+    window. Publishing it swaps the public forecast's character for that hour
+    (the 2026-08-07 phantom-rain report was exactly this). Holding the last
+    ready document is better until it is genuinely stale, at which point
+    degraded-but-current beats ready-but-old. A held document dated further than
+    CLOCK_SKEW_TOLERANCE_SECONDS into the future is refused too: its age is not
+    trustworthy, so it cannot be judged stale. Any read or parse problem
+    publishes the candidate unchanged: this guard must never block a publish.
+    """
+    try:
+        candidate_doc = json.loads(candidate.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return candidate
+    if not isinstance(candidate_doc, dict):
+        # Valid JSON that is not an object: load_document refuses it downstream
+        # with a clean message and exit 2. Returning it here rather than letting
+        # .get() raise AttributeError is what keeps that refusal clean.
+        return candidate
+    status = candidate_doc.get("status")
+    if status == "ready":
+        try:
+            remember_good(candidate, held)
+        except OSError as exc:
+            _log(f"could not remember the ready document: {exc}")
+        return candidate
+    try:
+        held_doc = json.loads(held.read_text(encoding="utf-8"))
+        issued = datetime.fromisoformat(str(held_doc["issued_at"]))
+    except (OSError, ValueError, KeyError, TypeError):
+        _log(f"status={status}; no held ready document — publishing the candidate")
+        return candidate
+    if issued.tzinfo is None:
+        issued = issued.replace(tzinfo=UTC)
+    age = ((now or datetime.now(UTC)) - issued).total_seconds()
+    within_hold_window = -CLOCK_SKEW_TOLERANCE_SECONDS <= age <= max_age_seconds
+    if held_doc.get("status") == "ready" and within_hold_window:
+        _log(
+            f"status={status}; holding last ready document issued "
+            f"{held_doc['issued_at']} ({age / 60:.0f}m old)"
+        )
+        return held
+    if held_doc.get("status") != "ready":
+        reason = f"held document is {held_doc.get('status')!r}, not ready"
+    elif age < 0:
+        reason = f"held document is dated {-age / 60:.0f}m in the future"
+    else:
+        reason = f"held document too old ({age / 3600:.1f}h)"
+    _log(f"status={status}; {reason} — publishing the candidate honestly")
+    return candidate
 
 
 class RefusedError(Exception):
