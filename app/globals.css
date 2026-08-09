@@ -160,28 +160,11 @@ body {
   background-color: #a3a3a3;
 }
 /* Forecast uncertainty intervals: nested 90/60/30% coverage bands, wider =
-   fainter, one solid ladder shared by the range-bar overlays (background) and
-   the chart polygons (fill). Solid steps rather than translucent stacking so
-   adjacent bands stay clearly distinguishable; drawn widest-first, so paint
-   order puts the narrow bands on top. */
-.range-bar-band-90 {
-  background-color: #ececec;
-}
-.range-bar-band-60 {
-  background-color: #d4d4d4;
-}
-.range-bar-band-30 {
-  background-color: #b3b3b3;
-}
-.dark .range-bar-band-90 {
-  background-color: #383838;
-}
-.dark .range-bar-band-60 {
-  background-color: #525252;
-}
-.dark .range-bar-band-30 {
-  background-color: #6e6e6e;
-}
+   fainter. Solid steps rather than translucent stacking so adjacent bands stay
+   clearly distinguishable; drawn widest-first, so paint order puts the narrow
+   bands on top. The Next 24 Hours chart is the only consumer — nesting three
+   intervals needs horizontal room, and in a daily range-bar row they collapsed
+   into a gray disc behind the high label. */
 .band-fill-90 {
   fill: #ececec;
 }

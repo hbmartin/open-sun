@@ -134,9 +134,9 @@ function mapDailyRow(
   const hours = hoursByDate.get(row.date_local) ?? []
   const present = hours.filter((hour) => hour !== undefined)
 
-  // POP and precipitation have no daily min/max, so the 60% band supplies the
-  // displayed spread (the wider bands render as overlays around it) and the
-  // point value stands in for both ends when there is no grid.
+  // POP and precipitation have no daily min/max, so the 60% band is the row's
+  // displayed spread outright, and the point value stands in for both ends when
+  // there is no grid.
   const popLow = likelyPop ? likelyPop.low : pop
   const popHigh = likelyPop ? likelyPop.high : pop
 
