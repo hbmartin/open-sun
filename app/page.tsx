@@ -35,7 +35,7 @@ export default async function Page() {
       lastWeekData={lastWeekData}
       hourlyDataByDate={hourlyDataByDate}
       currentDate={currentDate}
-      // Anchored on the same instant NextHours gets as initialNow, so the sun
+      // Anchored on the same instant that seeds WeatherApp's clock, so the sun
       // strip and the chart's Now line never disagree about which day it is.
       twilight={buildTwilightEvents(currentDate)}
       forecast={forecast}
