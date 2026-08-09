@@ -1,8 +1,11 @@
+import type { MoonEvent } from "@/lib/moon"
 import type { TwilightEvent } from "@/lib/twilight"
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
+import MoonEventIcon from "@/components/MoonEventIcon"
 import SunInfo from "@/components/SunInfo"
 import TwilightIcon from "@/components/TwilightIcon"
+import { buildMoonEvents, selectNextMoonEvents } from "@/lib/moon"
 import { buildTwilightEvents, selectNextTwilight } from "@/lib/twilight"
 import { formatStationTime } from "@/lib/utils"
 
@@ -10,19 +13,49 @@ import { formatStationTime } from "@/lib/utils"
 // dusk pair and wraps into tomorrow morning.
 const NOW = new Date("2026-08-05T16:00:00Z")
 const EVENTS = buildTwilightEvents(NOW)
+const MOON = buildMoonEvents(NOW)
 
-function render(twilight: readonly TwilightEvent[], now: Date = NOW): string {
-  return renderToStaticMarkup(<SunInfo twilight={twilight} now={now} />)
+function render(
+  twilight: readonly TwilightEvent[],
+  now: Date = NOW,
+  moon: readonly MoonEvent[] = MOON,
+): string {
+  return renderToStaticMarkup(<SunInfo twilight={twilight} moon={moon} now={now} />)
+}
+
+function timesIn(markup: string): string[] {
+  return [...markup.matchAll(/<time[^>]*>([^<]+)<\/time>/gu)].map((match) => match[1]!)
 }
 
 describe("SunInfo", () => {
-  it("shows the next four twilight times in order", () => {
+  it("shows four twilight times then the next moonrise and moonset", () => {
+    const times = timesIn(render(EVENTS))
+    expect(times).toHaveLength(6)
+    expect(times).toEqual([
+      ...selectNextTwilight(EVENTS, NOW).map((event) => formatStationTime(event.at)),
+      ...selectNextMoonEvents(MOON, NOW).map((event) => formatStationTime(event.at)),
+    ])
+  })
+
+  it("gives every cell a column, so six fit on one row", () => {
     const markup = render(EVENTS)
-    const times = [...markup.matchAll(/<time[^>]*>([^<]+)<\/time>/gu)].map((match) => match[1])
-    expect(times).toHaveLength(4)
-    expect(times).toEqual(
-      selectNextTwilight(EVENTS, NOW).map((event) => formatStationTime(event.at)),
-    )
+    expect(markup).toContain("grid-cols-6")
+  })
+
+  it("sits in a card, like every other block on the page", () => {
+    const markup = render(EVENTS)
+    expect(markup).toContain("bg-white")
+    expect(markup).toContain("dark:bg-gray-900")
+    expect(markup).toContain("rounded-lg")
+    expect(markup).toContain("shadow-sm")
+  })
+
+  it("stacks the icon above a bold time", () => {
+    const markup = render(EVENTS)
+    expect(markup).toContain("flex-col items-center")
+    expect(markup).toContain("font-semibold")
+    // Tabular figures are why the strip does not shuffle on the minute tick.
+    expect(markup).toContain("tabular-nums")
   })
 
   it("formats times in the station's zone, not UTC", () => {
@@ -38,7 +71,9 @@ describe("SunInfo", () => {
     expect(markup).toContain("Astronomical dusk")
     expect(markup).toContain("Astronomical dawn")
     expect(markup).toContain("Civil dawn")
-    expect(markup).toContain('aria-label="Next twilight times"')
+    expect(markup).toContain("Moonrise")
+    expect(markup).toContain("Moonset")
+    expect(markup).toContain('aria-label="Next sun and moon times"')
   })
 
   it("tints dawn orange and dusk purple, fading the astronomical pair", () => {
@@ -48,6 +83,12 @@ describe("SunInfo", () => {
     expect(markup.match(/opacity-60/gu)).toHaveLength(2)
   })
 
+  it("keeps the moon off the morning/evening hue axis", () => {
+    // Moonrise walks through every hour of the day across a month, so borrowing
+    // the dawn orange or the dusk purple would state something false.
+    expect(render(EVENTS)).toContain("text-indigo-500")
+  })
+
   it("leaks neither NaN nor an invalid date", () => {
     const markup = render(EVENTS)
     expect(markup).not.toContain("NaN")
@@ -55,13 +96,23 @@ describe("SunInfo", () => {
     expect(markup).not.toContain("undefined")
   })
 
-  it("renders what is left when the window runs short", () => {
+  it("renders what is left when the windows run short", () => {
+    // Late on the third day: two twilight cells left, and one moon event -- the
+    // next moonrise is already past the end of the precomputed window.
     const markup = render(EVENTS, EVENTS.at(-3)!.at)
-    expect([...markup.matchAll(/<time/gu)]).toHaveLength(2)
+    expect(timesIn(markup)).toHaveLength(3)
+    expect(markup).toContain("Moonset")
+    expect(markup).not.toContain("Moonrise")
   })
 
-  it("renders nothing once the window is exhausted", () => {
-    expect(render(EVENTS, EVENTS.at(-1)!.at)).toBe("")
+  it("keeps the card alive on the moon alone once the sun window is spent", () => {
+    const markup = render(EVENTS, EVENTS.at(-1)!.at, buildMoonEvents(EVENTS.at(-1)!.at))
+    expect(timesIn(markup)).toHaveLength(2)
+    expect(markup).toContain("Moonrise")
+  })
+
+  it("renders nothing once both windows are exhausted", () => {
+    expect(render(EVENTS, EVENTS.at(-1)!.at, [])).toBe("")
   })
 })
 
@@ -103,5 +154,41 @@ describe("TwilightIcon", () => {
 
   it("hides the glyph from assistive tech", () => {
     expect(renderToStaticMarkup(<TwilightIcon kind="civilDusk" />)).toContain('aria-hidden="true"')
+  })
+})
+
+describe("MoonEventIcon", () => {
+  const paths = (kind: MoonEvent["kind"]) =>
+    [...renderToStaticMarkup(<MoonEventIcon kind={kind} />).matchAll(/d="([^"]+)"/gu)].map(
+      (match) => match[1],
+    )
+
+  it("borrows the twilight horizon and arrow exactly", () => {
+    // Sharing the frame is what makes the six-cell strip read as one row.
+    expect(paths("moonrise")[0]).toBe("M2 21h20")
+    expect(paths("moonrise")[2]).toBe("M12 3v8")
+    expect(paths("moonrise")[3]).toBe("m9 6 3-3 3 3")
+    expect(paths("moonset")[3]).toBe("m9 8 3 3 3-3")
+  })
+
+  it("puts a crescent where the sun's cap goes, tangent to the horizon", () => {
+    // Ends at y=21 on the rule, and its top at y=14 clears the shaft's y=11.
+    expect(paths("moonrise")[1]).toBe("M12 14a2.5 2.5 0 0 0 3.5 3.5 3.5 3.5 0 1 1-3.5-3.5Z")
+    expect(paths("moonset")[1]).toBe(paths("moonrise")[1])
+  })
+
+  it("differs from the sun glyphs by exactly one path", () => {
+    const moon = paths("moonrise")
+    const sun = [
+      ...renderToStaticMarkup(<TwilightIcon kind="civilDawn" />).matchAll(/d="([^"]+)"/gu),
+    ]
+      .map((match) => match[1])
+      .slice(0, 4)
+    expect(moon).toHaveLength(4)
+    expect(moon.filter((path, index) => path !== sun[index])).toHaveLength(1)
+  })
+
+  it("hides the glyph from assistive tech", () => {
+    expect(renderToStaticMarkup(<MoonEventIcon kind="moonset" />)).toContain('aria-hidden="true"')
   })
 })

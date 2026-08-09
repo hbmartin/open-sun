@@ -265,24 +265,18 @@ export default function NextHoursChart({
                     ),
                   )}
 
+                  {/* No caption: the dashed rule is the only vertical line on the
+                      chart, so it reads as "now" unaided. y1 was 12 purely to
+                      clear the label that used to sit above it. */}
                   <line
                     x1={nowX}
                     x2={nowX}
-                    y1={12}
+                    y1={4}
                     y2={PLOT_BOTTOM}
                     strokeWidth={1}
                     strokeDasharray="2 3"
                     className="stroke-gray-400 dark:stroke-gray-500"
                   />
-                  <text
-                    x={Math.min(chartWidth - 14, Math.max(14, nowX))}
-                    y={8}
-                    textAnchor="middle"
-                    fontSize={10}
-                    className="fill-gray-500 dark:fill-gray-400"
-                  >
-                    Now
-                  </text>
 
                   {labeled.map((point) => {
                     const value = point.value as number

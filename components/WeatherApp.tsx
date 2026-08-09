@@ -1,16 +1,20 @@
 "use client"
 
+import type { MoonEvent } from "@/lib/moon"
 import type { TwilightEvent } from "@/lib/twilight"
 import type { DailyData, ForecastFetchResult, InstantObservation, WeeklyData } from "@/lib/types"
 import type React from "react"
 import { Eye, Info, Library } from "lucide-react"
-import { useId, useState } from "react"
+import { useId, useRef, useState } from "react"
+import Almanac from "@/components/Almanac"
 import CurrentWeather from "@/components/CurrentWeather"
 import ForecastInfo from "@/components/ForecastInfo"
 import ForecastWeather from "@/components/ForecastWeather"
 import MetricTabs from "@/components/MetricTabs"
 import NextHours from "@/components/NextHours"
+import ScrollToTop from "@/components/ScrollToTop"
 import SunInfo from "@/components/SunInfo"
+import { useForegroundRefresh } from "@/components/use-foreground-refresh"
 import { useNow } from "@/components/use-now"
 import WeeklyWeather from "@/components/WeeklyWeather"
 import { DisplayMetric, ForecastMetric } from "@/lib/types"
@@ -52,6 +56,7 @@ interface WeatherAppProperties {
   hourlyDataByDate: Partial<Record<string, DailyData>>
   currentDate: Date
   twilight: TwilightEvent[]
+  moon: MoonEvent[]
   forecast: ForecastFetchResult
 }
 
@@ -61,6 +66,7 @@ export default function WeatherApp({
   hourlyDataByDate,
   currentDate,
   twilight,
+  moon,
   forecast,
 }: WeatherAppProperties) {
   const [activeTab, setActiveTab] = useState<DisplayMetric>(DisplayMetric.TEMP)
@@ -71,6 +77,11 @@ export default function WeatherApp({
   // One clock for the whole screen: the chart's Now line and the twilight strip
   // read the same instant, so they cannot tick a minute apart.
   const now = useNow(currentDate)
+  // The scroll-to-top button watches this block rather than a scroll offset;
+  // wrapping here rather than inside NextHoursChart keeps the History view,
+  // whose first block is CurrentWeather, behaving identically.
+  const leadRef = useRef<HTMLDivElement>(null)
+  useForegroundRefresh()
 
   const isForecast = activeNavItem === "Forecast"
   const isInfo = activeNavItem === "Info"
@@ -120,13 +131,19 @@ export default function WeatherApp({
           />
         ))}
 
-      {!isInfo &&
-        (isForecast ? (
-          <NextHours forecast={forecast} metric={activeForecastTab} now={now} />
-        ) : (
-          <CurrentWeather currentWeatherData={currentWeatherData} />
-        ))}
-      {!isInfo && <SunInfo twilight={twilight} now={now} />}
+      {/* Above the chart: the sun and moon times frame the hours that follow,
+          and a strip of six short times reads faster than the chart does. */}
+      {!isInfo && <SunInfo twilight={twilight} moon={moon} now={now} />}
+
+      {!isInfo && (
+        <div ref={leadRef}>
+          {isForecast ? (
+            <NextHours forecast={forecast} metric={activeForecastTab} now={now} />
+          ) : (
+            <CurrentWeather currentWeatherData={currentWeatherData} />
+          )}
+        </div>
+      )}
 
       {isInfo ? (
         <ForecastInfo forecast={forecast} />
@@ -139,6 +156,18 @@ export default function WeatherApp({
           {renderPanel()}
         </div>
       )}
+
+      {isForecast && (
+        <Almanac
+          moon={moon}
+          now={now}
+          currentWeatherData={currentWeatherData}
+          lastWeekData={lastWeekData}
+          forecast={forecast}
+        />
+      )}
+
+      {!isInfo && <ScrollToTop watch={leadRef} />}
 
       <nav
         aria-label="Views"
