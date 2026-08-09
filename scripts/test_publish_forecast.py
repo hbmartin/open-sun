@@ -250,6 +250,31 @@ class SelectionReasonsTest(unittest.TestCase):
         with self.assertRaisesRegex(RefusedError, "unknown hourly variable"):
             _hourly_row(row)
 
+    def test_a_non_object_reasons_map_is_refused(self) -> None:
+        # Falsy non-objects included: only None may stand in for an absent map.
+        for bad in ("lowest MAE", [], 0):
+            with self.subTest(bad=bad):
+                row = LeadBucketTest._row("0-1h")
+                row["selection_reasons"] = bad
+                with self.assertRaisesRegex(RefusedError, "expected an object"):
+                    _hourly_row(row)
+
+    def test_a_non_string_hourly_reason_is_refused(self) -> None:
+        row = LeadBucketTest._row("0-1h")
+        row["selection_reasons"] = {"temp_c": 7}
+        with self.assertRaisesRegex(RefusedError, "hourly metadata for 'temp_c' is not a string"):
+            _hourly_row(row)
+
+    def test_a_non_string_daily_reason_is_refused(self) -> None:
+        row: dict[str, Any] = {
+            "date_local": "2026-08-08",
+            "lead_days": 0,
+            "values": {"temp_max_c": 35.0},
+            "selection_reasons": {"temp_max_c": None},
+        }
+        with self.assertRaisesRegex(RefusedError, "daily metadata for 'temp_max_c' is not a string"):
+            _daily_row(row)
+
 
 class ReleaseCohortTest(unittest.TestCase):
     @staticmethod

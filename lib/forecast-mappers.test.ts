@@ -319,6 +319,24 @@ describe("mapForecastDocument", () => {
       ])
     })
 
+    it("keeps hourly rows outside the daily horizon out of the aggregates", () => {
+      const info = mapDocument({
+        hourly: [
+          makeHourlyRow(),
+          makeHourlyRow({
+            valid_time: "2026-09-01T15:00:00+00:00",
+            methods: { temp_f: "orphan_method" },
+            selection_reasons: { temp_f: "orphan reason" },
+            release_ids: {},
+          }),
+        ],
+      }).info
+      expect(info.methodCounts.map((count) => count.name)).not.toContain("orphan_method")
+      expect(info.reasonCounts.map((count) => count.name)).not.toContain("orphan reason")
+      // Coverage spans only the in-horizon row's slots: 1 backed of 8.
+      expect(info.evidenceCoverage.hourly).toBeCloseTo(0.125, 10)
+    })
+
     it("stays empty on documents published before 1.3.0", () => {
       const { selection_reasons: _hourly, ...hourlyRow } = makeHourlyRow()
       const { selection_reasons: _daily, ...dailyRow } = makeDailyRow()
