@@ -52,7 +52,7 @@ const emptyWeek: WeeklyData = {
 }
 
 describe("WeatherApp", () => {
-  it("offers Forecast, History and Info views, defaulting to Forecast", () => {
+  it("offers Forecast, Map, History and Info views, defaulting to Forecast", () => {
     const markup = renderToStaticMarkup(
       <WeatherApp
         currentWeatherData={observation}
@@ -65,7 +65,10 @@ describe("WeatherApp", () => {
       />,
     )
     expect(markup).toContain(">Info<")
+    expect(markup).toContain(">Map<")
     expect(markup).not.toContain("Notifications")
+    // The map view is not the initial one, so its iframe stays unmounted.
+    expect(markup).not.toContain("embed.ventusky.com")
     // Forecast is the initial view: its tablist and panel render.
     expect(markup).toContain('role="tabpanel"')
     expect(markup).toContain("Next 10 Days")

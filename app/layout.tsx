@@ -10,7 +10,7 @@ function getMetadataBase() {
 
 export const metadata: Metadata = {
   metadataBase: getMetadataBase(),
-  title: "Lassen - Open Sun",
+  title: "Weather Forecast: North of the Ridge",
   description:
     "Weather station readings and a grounded ten-day forecast for Lassen, with uncertainty bands and sun and moon times.",
   // The home-screen icon itself comes from app/apple-icon.png by file

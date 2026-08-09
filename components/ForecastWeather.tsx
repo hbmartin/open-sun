@@ -7,11 +7,13 @@ import RangedBar from "@/components/RangedBar"
 import WeatherIcon from "@/components/WeatherIcon"
 import { mapForecastToCondition } from "@/lib/forecast-conditions"
 import { forecast_metric_display_units, forecast_metric_precision } from "@/lib/types"
-import { describeAge, formatMetricValue } from "@/lib/utils"
+import { formatMetricValue, formatStationDateTime } from "@/lib/utils"
 
 function ProvenanceLine({ forecast }: { forecast: ForecastData }): React.JSX.Element {
   const isSuspect = forecast.status === "degraded" || forecast.freshness !== "fresh"
-  const parts = [`Issued ${describeAge(forecast.ageHours)}`, `${forecast.sources.length} sources`]
+  // An absolute stamp rather than an age: this renders once per ISR revalidation
+  // and would otherwise sit here claiming "5m ago" for the rest of the hour.
+  const parts = [`Last updated: ${formatStationDateTime(new Date(forecast.issuedAt))}`]
   if (forecast.status === "degraded") {
     parts.push(`degraded: ${forecast.statusReason ?? "no backtest evidence"}`)
   } else if (forecast.freshness === "expired") {

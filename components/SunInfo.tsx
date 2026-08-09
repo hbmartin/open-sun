@@ -60,25 +60,35 @@ export default function SunInfo({
     return undefined
   }
 
+  // One timeline rather than a sun run followed by a moon run: the strip reads
+  // left to right as what happens next, whichever body it belongs to. Each
+  // selector already returns its own events in order, so this only interleaves.
+  const cells = [
+    ...nextTwilight.map((event) => ({
+      at: event.at,
+      label: TWILIGHT_LABELS[event.kind],
+      icon: <TwilightIcon kind={event.kind} />,
+    })),
+    ...nextMoon.map((event) => ({
+      at: event.at,
+      label: MOON_LABELS[event.kind],
+      icon: <MoonEventIcon kind={event.kind} />,
+    })),
+  ].toSorted((first, second) => first.at.getTime() - second.at.getTime())
+
   return (
     <ul
       aria-label="Next sun and moon times"
       className="grid grid-cols-6 gap-1 mx-4 mb-4 px-2 py-3 bg-white dark:bg-gray-900 rounded-lg shadow-sm"
     >
-      {nextTwilight.map((event) => (
+      {cells.map((cell) => (
+        // Keyed on the label too: a moon event and a twilight boundary can land
+        // on the same minute, and the instant alone would collide.
         <Cell
-          key={event.at.toISOString()}
-          at={event.at}
-          label={TWILIGHT_LABELS[event.kind]}
-          icon={<TwilightIcon kind={event.kind} />}
-        />
-      ))}
-      {nextMoon.map((event) => (
-        <Cell
-          key={event.at.toISOString()}
-          at={event.at}
-          label={MOON_LABELS[event.kind]}
-          icon={<MoonEventIcon kind={event.kind} />}
+          key={`${cell.label}-${cell.at.toISOString()}`}
+          at={cell.at}
+          label={cell.label}
+          icon={cell.icon}
         />
       ))}
     </ul>

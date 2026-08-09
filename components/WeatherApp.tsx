@@ -4,7 +4,7 @@ import type { MoonEvent } from "@/lib/moon"
 import type { TwilightEvent } from "@/lib/twilight"
 import type { DailyData, ForecastFetchResult, InstantObservation, WeeklyData } from "@/lib/types"
 import type React from "react"
-import { Eye, Info, Library } from "lucide-react"
+import { Eye, Info, Library, Map as MapIcon } from "lucide-react"
 import { useId, useRef, useState } from "react"
 import Almanac from "@/components/Almanac"
 import CurrentWeather from "@/components/CurrentWeather"
@@ -16,6 +16,7 @@ import ScrollToTop from "@/components/ScrollToTop"
 import SunInfo from "@/components/SunInfo"
 import { useForegroundRefresh } from "@/components/use-foreground-refresh"
 import { useNow } from "@/components/use-now"
+import WeatherMap from "@/components/WeatherMap"
 import WeeklyWeather from "@/components/WeeklyWeather"
 import { DisplayMetric, ForecastMetric } from "@/lib/types"
 
@@ -38,11 +39,12 @@ const forecast_tab_names: Record<ForecastMetric, string> = {
   [ForecastMetric.WIND]: "WIND (MPH)",
 }
 
-const navItems = ["Forecast", "History", "Info"] as const
+const navItems = ["Forecast", "Map", "History", "Info"] as const
 type NavItem = (typeof navItems)[number]
 
 const iconMap: Record<NavItem, React.ElementType> = {
   Forecast: Eye,
+  Map: MapIcon,
   History: Library,
   Info,
 }
@@ -85,6 +87,9 @@ export default function WeatherApp({
 
   const isForecast = activeNavItem === "Forecast"
   const isInfo = activeNavItem === "Info"
+  const isMap = activeNavItem === "Map"
+  // The Info and Map views own the whole screen: no metrics, no chart, no strip.
+  const hasChrome = !isInfo && !isMap
 
   const renderPanel = () => {
     if (isForecast) {
@@ -103,12 +108,12 @@ export default function WeatherApp({
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 max-w-sm md:max-w-2xl mx-auto relative pt-3">
       {/* The visible wordmark is gone, but this is the document's only level-one
           heading and every panel below hangs an h2 off it. */}
-      <h1 className="sr-only">Open Sun</h1>
+      <h1 className="sr-only">Weather Forecast: North of the Ridge</h1>
 
       {/* Keyed by view: the tablist's ref array is positional, so a five-tab
-          set must not be reconciled onto a three-tab one. The Info view has no
-          metrics, chart or sun strip — it unmounts the whole chrome. */}
-      {!isInfo &&
+          set must not be reconciled onto a three-tab one. The Info and Map views
+          have no metrics, chart or sun strip — they unmount the whole chrome. */}
+      {hasChrome &&
         (isForecast ? (
           <MetricTabs
             key="forecast"
@@ -133,9 +138,9 @@ export default function WeatherApp({
 
       {/* Above the chart: the sun and moon times frame the hours that follow,
           and a strip of six short times reads faster than the chart does. */}
-      {!isInfo && <SunInfo twilight={twilight} moon={moon} now={now} />}
+      {hasChrome && <SunInfo twilight={twilight} moon={moon} now={now} />}
 
-      {!isInfo && (
+      {hasChrome && (
         <div ref={leadRef}>
           {isForecast ? (
             <NextHours forecast={forecast} metric={activeForecastTab} now={now} />
@@ -145,9 +150,11 @@ export default function WeatherApp({
         </div>
       )}
 
-      {isInfo ? (
-        <ForecastInfo forecast={forecast} />
-      ) : (
+      {isMap && <WeatherMap />}
+
+      {isInfo && <ForecastInfo forecast={forecast} />}
+
+      {hasChrome && (
         <div
           id={panelId}
           role="tabpanel"
@@ -167,13 +174,13 @@ export default function WeatherApp({
         />
       )}
 
-      {!isInfo && <ScrollToTop watch={leadRef} />}
+      {hasChrome && <ScrollToTop watch={leadRef} />}
 
       <nav
         aria-label="Views"
         className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-sm md:max-w-2xl bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800"
       >
-        <div className="flex justify-around py-2">
+        <div className="flex justify-around py-1">
           {navItems.map((item) => {
             const IconComponent = iconMap[item]
             const isActive = activeNavItem === item
@@ -184,7 +191,7 @@ export default function WeatherApp({
                 key={item}
                 aria-current={isActive ? "page" : undefined}
                 onClick={() => setActiveNavItem(item)}
-                className={`flex flex-col items-center py-2 px-4 transition-colors ${
+                className={`flex flex-col items-center py-1 px-4 transition-colors ${
                   isActive
                     ? "text-blue-500"
                     : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
@@ -198,8 +205,9 @@ export default function WeatherApp({
         </div>
       </nav>
 
-      {/* Bottom padding to account for fixed navigation */}
-      <div className="h-16" />
+      {/* Bottom padding to account for fixed navigation. The map is already
+          sized around the nav, so a spacer under it would only add scroll. */}
+      {!isMap && <div className="h-16" />}
     </div>
   )
 }

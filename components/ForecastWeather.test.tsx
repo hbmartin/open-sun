@@ -34,8 +34,11 @@ describe("ForecastWeather", () => {
     expect(markup).toContain("HTTP 404")
   })
 
-  it("shows how old the forecast is", () => {
-    expect(render(ok())).toContain("Issued")
+  it("stamps when the forecast was last updated, in the station's zone", () => {
+    const markup = render(ok())
+    // The fixture is issued at 15:36Z, which is a morning at the station.
+    expect(markup).toContain("Last updated: Aug 5, 2026, 8:36 AM PDT")
+    expect(markup).not.toContain("sources")
   })
 
   it("names the reason when the document is degraded", () => {
