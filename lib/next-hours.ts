@@ -1,3 +1,4 @@
+import type { QuantileBand } from "@/lib/quantiles"
 import type { ForecastDayData, ForecastMetric, WeatherCondition } from "@/lib/types"
 import { mapForecastToCondition } from "@/lib/forecast-conditions"
 import { STATION_TIME_ZONE, formatStationTime, getStationDate, getStationHour } from "@/lib/utils"
@@ -19,8 +20,8 @@ export interface NextHoursPoint {
   hour: string
   /** The selected metric's value; undefined breaks the line. */
   value?: number
-  bandLow?: number
-  bandHigh?: number
+  /** Nested uncertainty bands, widest first; empty when the hour has none. */
+  bands: QuantileBand[]
   condition: WeatherCondition
   /** Percent. */
   pop?: number
@@ -194,13 +195,11 @@ export function buildNextHours(
     if (hour === undefined) {
       continue
     }
-    const band = hour.bands[metric]
     points.push({
       offset,
       hour: hour.hour,
       value: hour[metric],
-      bandLow: band?.low,
-      bandHigh: band?.high,
+      bands: hour.bands[metric] ?? [],
       condition: mapForecastToCondition(hour),
       pop: hour.pop,
     })
@@ -212,7 +211,9 @@ export function buildNextHours(
   }
 
   const extents = points.flatMap((point) =>
-    [point.value, point.bandLow, point.bandHigh].filter((value) => value !== undefined),
+    [point.value, ...point.bands.flatMap((band) => [band.low, band.high])].filter(
+      (value) => value !== undefined,
+    ),
   )
   let domainMin = Math.min(...extents)
   let domainMax = Math.max(...extents)

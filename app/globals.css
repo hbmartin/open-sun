@@ -156,10 +156,24 @@ body {
 .dark .range-bar {
   background-color: #a3a3a3;
 }
-/* Forecast uncertainty interval, drawn behind the range bar. */
-.range-bar-band {
+/* Forecast uncertainty intervals behind the range bar: nested 90/60/30%
+   coverage bands, wider = fainter. Drawn widest-first, so DOM order stacks
+   the narrow bands on top. */
+.range-bar-band-90 {
+  background-color: #ececec;
+}
+.range-bar-band-60 {
   background-color: #d4d4d4;
 }
-.dark .range-bar-band {
+.range-bar-band-30 {
+  background-color: #b3b3b3;
+}
+.dark .range-bar-band-90 {
+  background-color: #383838;
+}
+.dark .range-bar-band-60 {
   background-color: #525252;
+}
+.dark .range-bar-band-30 {
+  background-color: #6e6e6e;
 }
