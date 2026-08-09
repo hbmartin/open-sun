@@ -1,4 +1,5 @@
 import type { ForecastDailyRow, ForecastDocument, ForecastHourlyRow } from "@/lib/forecast-schemas"
+import type { QuantileBand } from "@/lib/quantiles"
 import type {
   ForecastCount,
   ForecastData,
@@ -8,7 +9,7 @@ import type {
   ForecastRanges,
 } from "@/lib/types"
 import { getAbbreviatedDay } from "@/lib/mappers"
-import { quantileBand } from "@/lib/quantiles"
+import { likelyBand, quantileBands } from "@/lib/quantiles"
 import { ForecastMetric } from "@/lib/types"
 import { getStationDate, getStationHour, getStationSunTimes } from "@/lib/utils"
 
@@ -33,6 +34,11 @@ const emptyForecastRanges: ForecastRanges = {
 /** Probability of precipitation arrives as a fraction and renders as a percent. */
 function toPercent(value: number | null | undefined): number | undefined {
   return value === null || value === undefined ? undefined : value * 100
+}
+
+/** POP is a fraction on the wire, a percent in the UI; bands must scale too. */
+function scaleBands(bands: QuantileBand[], factor: number): QuantileBand[] {
+  return bands.map((band) => ({ ...band, low: band.low * factor, high: band.high * factor }))
 }
 
 function toValue(value: number | null | undefined): number | undefined {
@@ -86,8 +92,9 @@ function mapHourlyRow(row: ForecastHourlyRow, sunrise: Date, sunset: Date): Fore
     gust: toValue(row.values.wind_gust_mph),
     pressure: toValue(row.values.pressure_sea_inhg),
     bands: {
-      [ForecastMetric.TEMP]: quantileBand(row.quantiles["temp_f"]),
-      [ForecastMetric.PRECIP]: quantileBand(row.quantiles["precip_in"]),
+      [ForecastMetric.TEMP]: quantileBands(row.quantiles["temp_f"]),
+      [ForecastMetric.POP]: scaleBands(quantileBands(row.quantiles["pop"]), 100),
+      [ForecastMetric.PRECIP]: quantileBands(row.quantiles["precip_in"]),
     },
     methods: {
       [ForecastMetric.TEMP]: row.methods["temp_f"],
@@ -119,16 +126,19 @@ function mapDailyRow(
 ): ForecastDayData {
   const pop = toPercent(row.values.pop)
   const precipSum = toValue(row.values.precip_sum_in)
-  const temperatureBand = quantileBand(row.quantiles["temp_max_f"])
-  const popBand = quantileBand(row.quantiles["pop"])
-  const precipBand = quantileBand(row.quantiles["precip_sum_in"])
+  const temperatureBands = quantileBands(row.quantiles["temp_max_f"])
+  const popBands = scaleBands(quantileBands(row.quantiles["pop"]), 100)
+  const precipBands = quantileBands(row.quantiles["precip_sum_in"])
+  const likelyPop = likelyBand(popBands)
+  const likelyPrecip = likelyBand(precipBands)
   const hours = hoursByDate.get(row.date_local) ?? []
   const present = hours.filter((hour) => hour !== undefined)
 
-  // POP and precipitation have no daily min/max, so the band supplies the
-  // spread and the point value stands in for both ends when it does not.
-  const popLow = popBand ? popBand.low * 100 : pop
-  const popHigh = popBand ? popBand.high * 100 : pop
+  // POP and precipitation have no daily min/max, so the 60% band supplies the
+  // displayed spread (the wider bands render as overlays around it) and the
+  // point value stands in for both ends when there is no grid.
+  const popLow = likelyPop ? likelyPop.low : pop
+  const popHigh = likelyPop ? likelyPop.high : pop
 
   return {
     date: row.date_local,
@@ -139,8 +149,8 @@ function mapDailyRow(
     max_temp: toValue(row.values.temp_max_f),
     min_pop: popLow,
     max_pop: popHigh,
-    min_precip: precipBand ? precipBand.low : precipSum,
-    max_precip: precipBand ? precipBand.high : precipSum,
+    min_precip: likelyPrecip ? likelyPrecip.low : precipSum,
+    max_precip: likelyPrecip ? likelyPrecip.high : precipSum,
     pop,
     precipSum,
     // The wire carries no daily humidity or wind, so their bounds come from
@@ -154,8 +164,9 @@ function mapDailyRow(
     humidity: present.length > 0 ? averageOf(present.map((hour) => hour.humidity)) : undefined,
     wind: present.length > 0 ? maximumOf(present.map((hour) => hour.wind)) : undefined,
     bands: {
-      [ForecastMetric.TEMP]: temperatureBand,
-      [ForecastMetric.PRECIP]: precipBand,
+      [ForecastMetric.TEMP]: temperatureBands,
+      [ForecastMetric.POP]: popBands,
+      [ForecastMetric.PRECIP]: precipBands,
     },
     methods: {
       [ForecastMetric.TEMP]: row.methods["temp_max_f"],

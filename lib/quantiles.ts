@@ -18,11 +18,16 @@ export interface QuantileBand {
 }
 
 /**
- * 80% coverage resolves to p10/p90, which are exact members of BOTH known
- * grids, so the rendered band never depends on interpolation. p50/p25/p75 would
- * each interpolate on one grid or the other.
+ * Coverages of the nested uncertainty bands, widest first. The order is the
+ * paint-order contract: consumers draw index 0 first so narrower bands stack
+ * on top of wider ones. 90% (p05/p95) is an exact member of both known grids;
+ * 60% (p20/p80) and 30% (p35/p65) are exact on the 19-level native grid and
+ * interpolate on the six-level dressed grid, which is accepted.
  */
-export const FORECAST_BAND_COVERAGE = 0.8
+export const FORECAST_BAND_COVERAGES = [0.9, 0.6, 0.3] as const
+
+/** The coverage whose bounds read as the "likely" range in labels and prose. */
+export const FORECAST_LIKELY_COVERAGE = 0.6
 
 interface Level {
   probability: number
@@ -114,7 +119,7 @@ export function quantileAt(
  */
 export function quantileBand(
   quantiles: QuantileMap | undefined,
-  coverage: number = FORECAST_BAND_COVERAGE,
+  coverage: number,
 ): QuantileBand | undefined {
   const tail = (1 - coverage) / 2
   const low = quantileAt(quantiles, tail)
@@ -125,4 +130,28 @@ export function quantileBand(
   // Quantile crossing is real in dressed ensembles; order the band rather than
   // rendering it inside out.
   return low <= high ? { low, high, coverage } : { low: high, high: low, coverage }
+}
+
+/**
+ * The nested forecast bands, widest first per FORECAST_BAND_COVERAGES.
+ *
+ * Returns an empty array when the variable carries no usable grid. Because
+ * quantileAt clamps rather than failing, a usable grid always yields all
+ * three bands — consumers see all-or-nothing.
+ */
+export function quantileBands(quantiles: QuantileMap | undefined): QuantileBand[] {
+  const bands: QuantileBand[] = []
+  for (const coverage of FORECAST_BAND_COVERAGES) {
+    const band = quantileBand(quantiles, coverage)
+    if (band) {
+      bands.push(band)
+    }
+  }
+  return bands
+}
+
+/** The band whose bounds stand in for the displayed "likely" range. */
+export function likelyBand(bands: QuantileBand[]): QuantileBand | undefined {
+  // Exact equality is safe: both sides originate from the same constant.
+  return bands.find((band) => band.coverage === FORECAST_LIKELY_COVERAGE)
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { FORECAST_BAND_COVERAGE, quantileAt, quantileBand } from "@/lib/quantiles"
+import { likelyBand, quantileAt, quantileBand, quantileBands } from "@/lib/quantiles"
 
 // The two grids the publisher actually emits.
 const dressedGrid = {
@@ -82,36 +82,75 @@ describe("quantileAt", () => {
 
 describe("quantileBand", () => {
   it("returns undefined for an empty map", () => {
-    expect(quantileBand({})).toBeUndefined()
+    expect(quantileBand({}, 0.8)).toBeUndefined()
   })
 
   it("reads p10/p90 exactly off the dressed grid", () => {
-    expect(quantileBand(dressedGrid)).toEqual({
+    expect(quantileBand(dressedGrid, 0.8)).toEqual({
       low: 79.14,
       high: 85.72,
-      coverage: FORECAST_BAND_COVERAGE,
+      coverage: 0.8,
     })
   })
 
   it("reads p10/p90 exactly off the native grid", () => {
-    expect(quantileBand(nativeGrid)).toEqual({
+    expect(quantileBand(nativeGrid, 0.8)).toEqual({
       low: 2,
       high: 18,
-      coverage: FORECAST_BAND_COVERAGE,
+      coverage: 0.8,
     })
   })
 
   it("orders a crossed band rather than rendering it inside out", () => {
     const crossed = { "0.1": 90, "0.9": 10 }
-    expect(quantileBand(crossed)).toEqual({
+    expect(quantileBand(crossed, 0.8)).toEqual({
       low: 10,
       high: 90,
-      coverage: FORECAST_BAND_COVERAGE,
+      coverage: 0.8,
     })
   })
+})
 
-  it("honours an explicit coverage", () => {
-    const band = quantileBand(dressedGrid, 0.9)
-    expect(band).toEqual({ low: 77.96, high: 87.52, coverage: 0.9 })
+describe("quantileBands", () => {
+  it("returns an empty array for an undefined map", () => {
+    // oxlint-disable-next-line unicorn/no-useless-undefined
+    expect(quantileBands(undefined)).toEqual([])
+  })
+
+  it("returns an empty array for an empty map", () => {
+    expect(quantileBands({})).toEqual([])
+  })
+
+  it("reads all three coverages off the dressed grid, widest first", () => {
+    const bands = quantileBands(dressedGrid)
+    expect(bands.map((band) => band.coverage)).toEqual([0.9, 0.6, 0.3])
+    // 90% (p05/p95) is exact on this grid.
+    expect(bands[0]).toEqual({ low: 77.96, high: 87.52, coverage: 0.9 })
+    // 60% (p20/p80) interpolates: p20 two thirds of 0.1→0.25, p80 one third of
+    // 0.75→0.9.
+    expect(bands[1].low).toBeCloseTo(80.113_33, 4)
+    expect(bands[1].high).toBeCloseTo(84.52, 6)
+    // 30% (p35/p65) interpolates 0.25→0.75 at fractions 0.2 and 0.8.
+    expect(bands[2].low).toBeCloseTo(81.264, 6)
+    expect(bands[2].high).toBeCloseTo(83.256, 6)
+  })
+
+  it("reads all three coverages exactly off the native grid", () => {
+    expect(quantileBands(nativeGrid)).toEqual([
+      { low: 1, high: 19, coverage: 0.9 },
+      { low: 4, high: 16, coverage: 0.6 },
+      { low: 7, high: 13, coverage: 0.3 },
+    ])
+  })
+})
+
+describe("likelyBand", () => {
+  it("returns the 60% band", () => {
+    const bands = quantileBands(nativeGrid)
+    expect(likelyBand(bands)).toEqual({ low: 4, high: 16, coverage: 0.6 })
+  })
+
+  it("returns undefined for an empty array", () => {
+    expect(likelyBand([])).toBeUndefined()
   })
 })

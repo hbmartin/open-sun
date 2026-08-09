@@ -1,32 +1,41 @@
+import type { QuantileBand } from "@/lib/quantiles"
 import type React from "react"
 import { formatMetricValue, getRangePosition } from "@/lib/utils"
 
-/** The uncertainty interval, drawn behind the range bar. */
-function BandOverlay({
-  low,
-  high,
+const band_coverage_classes: Record<number, string> = {
+  0.9: "range-bar-band-90",
+  0.6: "range-bar-band-60",
+  0.3: "range-bar-band-30",
+}
+
+const no_bands: QuantileBand[] = []
+
+/** The nested uncertainty intervals, drawn behind the range bar. */
+function BandOverlays({
+  bands,
   minimum,
   maximum,
 }: {
-  low?: number
-  high?: number
+  bands: QuantileBand[]
   minimum: number
   maximum: number
-}): React.JSX.Element | undefined {
-  if (low === undefined || high === undefined) {
-    return undefined
-  }
-  const lowPercent = getRangePosition(low, minimum, maximum)
-  const highPercent = getRangePosition(high, minimum, maximum)
-  return (
-    <div
-      className="absolute h-full range-bar-band rounded-full transition-all duration-300 ease-out"
-      style={{
-        left: `${lowPercent}%`,
-        width: `${highPercent - lowPercent}%`,
-      }}
-    />
-  )
+}): React.JSX.Element[] {
+  // Bands arrive widest first, so DOM order paints narrower bands on top.
+  return bands.map((band) => {
+    const lowPercent = getRangePosition(band.low, minimum, maximum)
+    const highPercent = getRangePosition(band.high, minimum, maximum)
+    const colorClass = band_coverage_classes[band.coverage] ?? "range-bar-band-60"
+    return (
+      <div
+        key={band.coverage}
+        className={`absolute h-full ${colorClass} rounded-full transition-all duration-300 ease-out`}
+        style={{
+          left: `${lowPercent}%`,
+          width: `${highPercent - lowPercent}%`,
+        }}
+      />
+    )
+  })
 }
 
 export default function RangedBar({
@@ -36,8 +45,7 @@ export default function RangedBar({
   maxTemp,
   unit,
   precision = 0,
-  bandLow,
-  bandHigh,
+  bands = no_bands,
 }: {
   low: number
   high: number
@@ -46,9 +54,8 @@ export default function RangedBar({
   unit: string
   /** Decimal places for the end labels; precipitation needs more than zero. */
   precision?: number
-  /** Optional uncertainty interval, drawn behind the bar. */
-  bandLow?: number
-  bandHigh?: number
+  /** Optional uncertainty intervals, widest first, drawn behind the bar. */
+  bands?: QuantileBand[]
 }): React.JSX.Element {
   const lowPercent = getRangePosition(low, minTemp, maxTemp)
   const highPercent = getRangePosition(high, minTemp, maxTemp)
@@ -65,7 +72,7 @@ export default function RangedBar({
         {formatMetricValue(low, precision)}
         {unit}
       </span>
-      <BandOverlay low={bandLow} high={bandHigh} minimum={minTemp} maximum={maxTemp} />
+      <BandOverlays bands={bands} minimum={minTemp} maximum={maxTemp} />
       <div
         className="absolute h-full range-bar rounded-full transition-all duration-300 ease-out"
         style={{

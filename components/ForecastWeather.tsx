@@ -37,7 +37,7 @@ function DayValue({
   metric,
   unit,
   precision,
-  band,
+  bands,
 }: {
   low: number | undefined
   high: number | undefined
@@ -45,7 +45,7 @@ function DayValue({
   metric: ForecastMetric
   unit: string
   precision: number
-  band: QuantileBand | undefined
+  bands: QuantileBand[] | undefined
 }): React.JSX.Element {
   if (low === undefined || high === undefined) {
     return (
@@ -71,8 +71,7 @@ function DayValue({
       maxTemp={ranges[`max_${metric}`]}
       unit={unit}
       precision={precision}
-      bandLow={band?.low}
-      bandHigh={band?.high}
+      bands={bands}
     />
   )
 }
@@ -122,7 +121,7 @@ export default function ForecastWeather({
         {forecast.forecast.days.map((day, index) => {
           const low = day[`min_${metric}`]
           const high = day[`max_${metric}`]
-          const band = day.bands[metric]
+          const bands = day.bands[metric]
           const hasHours = day.hours.some((hour) => hour !== undefined)
 
           let dayLabelClass = "text-gray-400 dark:text-gray-600"
@@ -162,7 +161,7 @@ export default function ForecastWeather({
                 metric={metric}
                 unit={unit}
                 precision={precision}
-                band={band}
+                bands={bands}
               />
             </>
           )

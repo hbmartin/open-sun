@@ -110,19 +110,26 @@ describe("buildNextHours", () => {
     ).toBeUndefined()
   })
 
-  it("widens the domain to cover the uncertainty band", () => {
+  it("widens the domain to cover the widest uncertainty band", () => {
     const days = daysFor({ ...twoDays, hourly: hourlyRows("2026-08-05T16:00:00Z", 24) })
     const model = buildNextHours(days, NOW, ForecastMetric.TEMP)
-    // The fixture's dressed grid spans 79.14-85.72 around a temp of 82.29.
-    expect(model?.domainMin).toBe(79.14)
-    expect(model?.domainMax).toBe(85.72)
+    // The fixture's dressed grid spans 77.96-87.52 at 90% coverage (p05/p95)
+    // around a temp of 82.29.
+    expect(model?.domainMin).toBe(77.96)
+    expect(model?.domainMax).toBe(87.52)
+  })
+
+  it("carries the nested bands widest first", () => {
+    const days = daysFor({ ...twoDays, hourly: hourlyRows("2026-08-05T16:00:00Z", 24) })
+    const model = buildNextHours(days, NOW, ForecastMetric.TEMP)
+    expect(model?.points[0].bands.map((band) => band.coverage)).toEqual([0.9, 0.6, 0.3])
   })
 
   it("serves humidity values without a band", () => {
     const days = daysFor({ ...twoDays, hourly: hourlyRows("2026-08-05T16:00:00Z", 24) })
     const model = buildNextHours(days, NOW, ForecastMetric.HUMIDITY)
     expect(model?.points[0].value).toBe(18.17)
-    expect(model?.points[0].bandLow).toBeUndefined()
+    expect(model?.points[0].bands).toEqual([])
     // Every fixture hour carries the same humidity, so the degenerate domain
     // pads out by one on each side.
     expect(model?.domainMin).toBe(17.17)

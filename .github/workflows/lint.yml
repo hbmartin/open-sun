@@ -1,9 +1,13 @@
 name: Lint
 
 # Broader than test.yml on purpose: this is the only quality signal on feature
-# branches, which test.yml (main/develop only) does not cover.
+# branches, which test.yml (main/develop only) does not cover. The data branch
+# is the hourly-published forecast document, not code: its orphan tree carries
+# no workflows, and the explicit ignore keeps even an accidental full-tree push
+# there from burning a run.
 on:
   push:
+    branches-ignore: [ data ]
   pull_request:
 
 concurrency:

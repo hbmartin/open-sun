@@ -5,6 +5,7 @@ import { Droplets } from "lucide-react"
 import { useId } from "react"
 import WeatherIcon from "@/components/WeatherIcon"
 import { WINDOW_HOURS } from "@/lib/next-hours"
+import { likelyBand } from "@/lib/quantiles"
 import { forecast_metric_display_units, forecast_metric_precision } from "@/lib/types"
 import { formatHour, formatMetricValue } from "@/lib/utils"
 
@@ -128,10 +129,11 @@ export default function NextHoursChart({
     TOP + (1 - (value - domainMin) / (domainMax - domainMin)) * (PLOT_BOTTOM - TOP)
 
   const lineRuns = contiguousRuns(model.points, (point) => point.value !== undefined)
-  const bandRuns = contiguousRuns(
-    model.points,
-    (point) => point.bandLow !== undefined && point.bandHigh !== undefined,
-  ).filter((run) => run.length > 1)
+  // Bands are all-or-nothing per point, so one run geometry serves all three
+  // coverage layers.
+  const bandRuns = contiguousRuns(model.points, (point) => point.bands.length > 0).filter(
+    (run) => run.length > 1,
+  )
   const labeled = model.points.filter(
     (point) => point.offset % LABEL_STEP === 0 && point.value !== undefined,
   )
@@ -170,23 +172,28 @@ export default function NextHoursChart({
               />
             ))}
 
-            {bandRuns.map((run) => (
-              <path
-                key={run[0].offset}
-                d={[
-                  ...run.map(
-                    (point, index) =>
-                      `${index === 0 ? "M" : "L"}${xOf(point.offset)} ${yOf(point.bandHigh as number)}`,
-                  ),
-                  ...run
-                    .toReversed()
-                    .map((point) => `L${xOf(point.offset)} ${yOf(point.bandLow as number)}`),
-                  "Z",
-                ].join(" ")}
-                fillOpacity={0.35}
-                className="fill-gray-300 dark:fill-gray-600"
-              />
-            ))}
+            {/* One translucent layer per coverage, widest first; overlap
+                compounds the shared fill (1/2/3 layers ≈ 0.22/0.39/0.53), so
+                the distribution reads darker toward its center. */}
+            {bandRuns.map((run) =>
+              run[0].bands.map((band, bandIndex) => (
+                <path
+                  key={`${run[0].offset}-${band.coverage}`}
+                  d={[
+                    ...run.map(
+                      (point, index) =>
+                        `${index === 0 ? "M" : "L"}${xOf(point.offset)} ${yOf(point.bands[bandIndex].high)}`,
+                    ),
+                    ...run
+                      .toReversed()
+                      .map((point) => `L${xOf(point.offset)} ${yOf(point.bands[bandIndex].low)}`),
+                    "Z",
+                  ].join(" ")}
+                  fillOpacity={0.22}
+                  className="fill-gray-300 dark:fill-gray-600"
+                />
+              )),
+            )}
 
             {lineRuns.map((run) =>
               run.length === 1 ? undefined : (
@@ -279,10 +286,13 @@ export default function NextHoursChart({
             if (point.value === undefined) {
               return
             }
+            // Only the 60% band is voiced: "likely" is honest at that
+            // coverage, and three intervals per hour would be noise.
+            const likely = likelyBand(point.bands)
             const band =
-              point.bandLow === undefined || point.bandHigh === undefined
+              likely === undefined
                 ? ""
-                : `, likely between ${formatMetricValue(point.bandLow, precision)}${unit} and ${formatMetricValue(point.bandHigh, precision)}${unit}`
+                : `, likely between ${formatMetricValue(likely.low, precision)}${unit} and ${formatMetricValue(likely.high, precision)}${unit}`
             return (
               <li key={`point-${point.offset}`}>
                 {formatHour(point.hour)}: {formatMetricValue(point.value, precision)}

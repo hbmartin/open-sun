@@ -61,8 +61,11 @@ describe("ForecastWeather", () => {
     expect(markup).toContain("unvalidated")
   })
 
-  it("renders the uncertainty band behind the range bar", () => {
-    expect(render(ok())).toContain("range-bar-band")
+  it("renders all three nested uncertainty bands behind the range bar", () => {
+    const markup = render(ok())
+    expect(markup).toContain("range-bar-band-90")
+    expect(markup).toContain("range-bar-band-60")
+    expect(markup).toContain("range-bar-band-30")
   })
 
   it("collapses a zero-width range to a single value", () => {

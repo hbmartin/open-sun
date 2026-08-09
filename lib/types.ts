@@ -161,7 +161,8 @@ export interface ForecastHourData {
   wind?: number
   gust?: number
   pressure?: number
-  bands: Partial<Record<ForecastMetric, QuantileBand>>
+  /** Nested uncertainty bands, widest first; empty when the row has no grid. */
+  bands: Partial<Record<ForecastMetric, QuantileBand[]>>
   methods: Partial<Record<ForecastMetric, string>>
 }
 
@@ -175,7 +176,8 @@ export interface ForecastDayData extends Partial<ForecastRanges> {
   precipSum?: number
   humidity?: number
   wind?: number
-  bands: Partial<Record<ForecastMetric, QuantileBand>>
+  /** Nested uncertainty bands, widest first; empty when the row has no grid. */
+  bands: Partial<Record<ForecastMetric, QuantileBand[]>>
   methods: Partial<Record<ForecastMetric, string>>
   sunTimes: TimesData
   /** Indexed by station-local hour; empty beyond the published hourly horizon. */

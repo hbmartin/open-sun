@@ -190,17 +190,21 @@ describe("mapForecastDocument", () => {
   })
 
   describe("bands and methods", () => {
-    it("derives a temperature band from the quantile grid", () => {
-      expect(mapDocument().days[0].bands[ForecastMetric.TEMP]).toEqual({
-        low: 79.14,
-        high: 85.72,
-        coverage: 0.8,
-      })
+    it("derives nested temperature bands from the quantile grid, widest first", () => {
+      const bands = mapDocument().days[0].bands[ForecastMetric.TEMP]
+      expect(bands?.map((band) => band.coverage)).toEqual([0.9, 0.6, 0.3])
+      // 90% (p05/p95) is exact on the dressed grid.
+      expect(bands?.[0]).toEqual({ low: 77.96, high: 87.52, coverage: 0.9 })
+      // 60% (p20/p80) and 30% (p35/p65) interpolate on the dressed grid.
+      expect(bands?.[1].low).toBeCloseTo(80.113_33, 4)
+      expect(bands?.[1].high).toBeCloseTo(84.52, 6)
+      expect(bands?.[2].low).toBeCloseTo(81.264, 6)
+      expect(bands?.[2].high).toBeCloseTo(83.256, 6)
     })
 
-    it("leaves the band undefined when the row carries no quantiles", () => {
+    it("leaves the bands empty when the row carries no quantiles", () => {
       const forecast = mapDocument({ daily: [makeDailyRow({ quantiles: {} })] })
-      expect(forecast.days[0].bands[ForecastMetric.TEMP]).toBeUndefined()
+      expect(forecast.days[0].bands[ForecastMetric.TEMP]).toEqual([])
     })
 
     it("falls back to the point value for pop bounds without quantiles", () => {
@@ -216,16 +220,55 @@ describe("mapForecastDocument", () => {
       expect(forecast.days[0].max_pop).toBe(40)
     })
 
-    it("uses the pop quantile band when present", () => {
+    it("uses the 60% pop band for the displayed bounds", () => {
       const forecast = mapDocument({
         daily: [
           makeDailyRow({
-            quantiles: { pop: { "0.1": 0.2, "0.9": 0.6 } },
+            quantiles: { pop: { "0.2": 0.2, "0.8": 0.6 } },
           }),
         ],
       })
       expect(forecast.days[0].min_pop).toBeCloseTo(20, 6)
       expect(forecast.days[0].max_pop).toBeCloseTo(60, 6)
+    })
+
+    it("bounds pop by the 60% band even when the grid holds wider levels", () => {
+      const forecast = mapDocument({
+        daily: [
+          makeDailyRow({
+            quantiles: { pop: { "0.05": 0, "0.2": 0.2, "0.8": 0.6, "0.95": 0.9 } },
+          }),
+        ],
+      })
+      // The 90% band (0..90) renders as an overlay, not as the bar bounds.
+      expect(forecast.days[0].min_pop).toBeCloseTo(20, 6)
+      expect(forecast.days[0].max_pop).toBeCloseTo(60, 6)
+    })
+
+    it("scales daily pop bands to percent", () => {
+      const forecast = mapDocument({
+        daily: [
+          makeDailyRow({
+            quantiles: { pop: { "0.2": 0.25, "0.8": 0.5 } },
+          }),
+        ],
+      })
+      const bands = forecast.days[0].bands[ForecastMetric.POP]
+      expect(bands?.map((band) => band.coverage)).toEqual([0.9, 0.6, 0.3])
+      // p05/p95 clamp to the grid edges; p20/p80 hit them exactly.
+      expect(bands?.[0]).toEqual({ low: 25, high: 50, coverage: 0.9 })
+      expect(bands?.[1]).toEqual({ low: 25, high: 50, coverage: 0.6 })
+      expect(bands?.[2].low).toBeCloseTo(31.25, 6)
+      expect(bands?.[2].high).toBeCloseTo(43.75, 6)
+    })
+
+    it("scales hourly pop bands to percent", () => {
+      const forecast = mapDocument({
+        hourly: [makeHourlyRow({ quantiles: { pop: { "0.2": 0.25, "0.8": 0.5 } } })],
+      })
+      // 15:00Z is 08:00 PDT.
+      const bands = forecast.days[0].hours[8]?.bands[ForecastMetric.POP]
+      expect(bands?.[0]).toEqual({ low: 25, high: 50, coverage: 0.9 })
     })
 
     it("carries the serving method per metric", () => {

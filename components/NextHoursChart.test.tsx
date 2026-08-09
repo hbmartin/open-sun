@@ -9,9 +9,23 @@ function makePoints(): NextHoursPoint[] {
     offset,
     hour: String((9 + offset) % 24),
     value: 70 + offset,
+    bands: [],
     condition: "sunny" as const,
     pop: 10,
   }))
+}
+
+/** Three nested bands around each point's value, widest first. */
+function bandedPoints(): NextHoursPoint[] {
+  return makePoints().map((point) =>
+    Object.assign(point, {
+      bands: [
+        { low: (point.value as number) - 6, high: (point.value as number) + 6, coverage: 0.9 },
+        { low: (point.value as number) - 4, high: (point.value as number) + 4, coverage: 0.6 },
+        { low: (point.value as number) - 2, high: (point.value as number) + 2, coverage: 0.3 },
+      ],
+    }),
+  )
 }
 
 function makeModel(overrides: Partial<NextHoursModel> = {}): NextHoursModel {
@@ -65,16 +79,11 @@ describe("NextHoursChart", () => {
     expect(markup.match(/<polyline/gu)).toHaveLength(2)
   })
 
-  it("draws no band without quantiles and one with them", () => {
-    // The band polygon is the only mark wearing this fill.
+  it("draws no band without quantiles and one layer per coverage with them", () => {
+    // The band polygons are the only marks wearing this fill.
     expect(render(makeModel())).not.toContain("fill-gray-300")
-    const banded = makePoints().map((point) =>
-      Object.assign(point, {
-        bandLow: (point.value as number) - 2,
-        bandHigh: (point.value as number) + 2,
-      }),
-    )
-    expect(render(makeModel({ points: banded }))).toContain("fill-gray-300")
+    const markup = render(makeModel({ points: bandedPoints() }))
+    expect(markup.match(/fill-gray-300/gu)).toHaveLength(3)
   })
 
   it("formats values by the selected metric's precision and unit", () => {
@@ -97,13 +106,7 @@ describe("NextHoursChart", () => {
   })
 
   it("describes every interval, value and band to screen readers", () => {
-    const banded = makePoints().map((point) =>
-      Object.assign(point, {
-        bandLow: (point.value as number) - 2,
-        bandHigh: (point.value as number) + 2,
-      }),
-    )
-    const markup = render(makeModel({ points: banded }))
+    const markup = render(makeModel({ points: bandedPoints() }))
 
     // The SVG must point at the off-screen list that actually holds the data.
     const describedBy = /aria-describedby="([^"]+)"/u.exec(markup)?.[1]
@@ -112,7 +115,8 @@ describe("NextHoursChart", () => {
 
     expect(markup).toContain("Afternoon: 10% chance of rain")
     expect(markup).toContain("Overnight: rain chance unknown")
-    expect(markup).toContain("9 AM: 70°, likely between 68° and 72°")
+    // The 60% band is voiced, not the widest (±6) or narrowest (±2).
+    expect(markup).toContain("9 AM: 70°, likely between 66° and 74°")
     // All 24 plotted hours are listed, not just the labeled samples.
     expect(markup.match(/likely between/gu)).toHaveLength(24)
   })
