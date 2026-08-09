@@ -1,4 +1,4 @@
-import type { ForecastDayData, ForecastMetric } from "@/lib/types"
+import type { ForecastDayData, ForecastMetric, ForecastRanges } from "@/lib/types"
 import type React from "react"
 import { Sunrise, Sunset } from "lucide-react"
 import ForecastHourlyDetail from "@/components/forecast-hourly-detail"
@@ -7,9 +7,12 @@ import { formatCalendarDate, formatStationTime } from "@/lib/utils"
 export default function ForecastHourlyContainer({
   day,
   metric,
+  hourRanges,
 }: {
   day: ForecastDayData
   metric: ForecastMetric
+  /** Forecast-wide, so every expanded day plots on the same scale. */
+  hourRanges: ForecastRanges
 }): React.JSX.Element {
   if (day.hours.every((hour) => hour === undefined)) {
     // Days beyond the published hourly horizon hit this. The day list renders
@@ -41,8 +44,8 @@ export default function ForecastHourlyContainer({
       <ForecastHourlyDetail
         hourly_data={day.hours}
         metric={metric}
-        minTemp={day.hourRanges[`min_${metric}`]}
-        maxTemp={day.hourRanges[`max_${metric}`]}
+        minTemp={hourRanges[`min_${metric}`]}
+        maxTemp={hourRanges[`max_${metric}`]}
       />
     </div>
   )

@@ -220,7 +220,8 @@
     {
       "files": ["components/NextHoursChart.tsx"],
       "rules": {
-        "jsx-a11y/prefer-tag-over-role": "off"
+        "jsx-a11y/prefer-tag-over-role": "off",
+        "jsx-a11y/no-noninteractive-tabindex": ["error", { "roles": ["tabpanel", "group"] }]
       }
     }
   ]

@@ -175,7 +175,6 @@ function mapDailyRow(
     },
     sunTimes: getStationSunTimes(row.date_local),
     hours,
-    hourRanges: hourRangesFor(hours),
   }
 }
 
@@ -280,6 +279,8 @@ export function mapForecastDocument(document: ForecastDocument, now: Date): Fore
     publisherVersion: document.publisher_version,
     days,
     ranges: calculateForecastRanges(days),
+    // One scale for every expanded day, so their hour bubbles are comparable.
+    hourRanges: hourRangesFor(days.flatMap((day) => day.hours)),
     info: {
       status: document.status,
       statusReason: document.status_reason ?? undefined,

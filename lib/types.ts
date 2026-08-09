@@ -182,7 +182,6 @@ export interface ForecastDayData extends Partial<ForecastRanges> {
   sunTimes: TimesData
   /** Indexed by station-local hour; empty beyond the published hourly horizon. */
   hours: (ForecastHourData | undefined)[]
-  hourRanges: ForecastRanges
 }
 
 export type ForecastFreshness = "fresh" | "stale" | "expired"
@@ -228,6 +227,11 @@ export interface ForecastData {
   publisherVersion: string
   days: ForecastDayData[]
   ranges: ForecastRanges
+  /**
+   * Spans every day's hourly rows, not one day's. The expanded day rows share
+   * it so two days can be compared by eye instead of each rescaling to itself.
+   */
+  hourRanges: ForecastRanges
   info: ForecastInfoData
 }
 
