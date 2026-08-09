@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import { makeDailyRow, makeHourlyRow, parsedForecastDocument } from "@/lib/__fixtures__/forecast"
 import { mapForecastDocument } from "@/lib/forecast-mappers"
 import { ForecastDocumentSchema } from "@/lib/forecast-schemas"
-import { buildNextHours } from "@/lib/next-hours"
+import { MAX_HORIZON_HOURS, WINDOW_HOURS, buildNextHours } from "@/lib/next-hours"
 import { ForecastMetric } from "@/lib/types"
 
 // 16:00Z is 09:00 PDT on the fixture's station-local day.
@@ -28,6 +28,16 @@ const twoDays = {
   daily: [makeDailyRow(), makeDailyRow({ date_local: "2026-08-06", lead_days: 1 })],
 }
 
+/** Consecutive daily rows from 2026-08-05; hourly rows outside them are dropped. */
+function dailyRows(count: number) {
+  return Array.from({ length: count }, (_, index) =>
+    makeDailyRow({
+      date_local: new Date(Date.UTC(2026, 7, 5 + index)).toISOString().slice(0, 10),
+      lead_days: index,
+    }),
+  )
+}
+
 describe("buildNextHours", () => {
   it("assembles a 24-hour window across midnight", () => {
     // 16:00Z on the 5th through 15:00Z on the 6th is 09:00 local to 08:00 local.
@@ -38,6 +48,65 @@ describe("buildNextHours", () => {
     expect(model?.points[0]).toMatchObject({ offset: 0, hour: "09" })
     expect(model?.points[23]).toMatchObject({ offset: 23, hour: "08" })
     expect(model?.startHour).toBe(9)
+  })
+
+  it("extends the horizon past one screenful when the document carries more", () => {
+    const days = daysFor({ daily: dailyRows(4), hourly: hourlyRows("2026-08-05T16:00:00Z", 48) })
+    const model = buildNextHours(days, NOW, ForecastMetric.TEMP)
+    expect(model?.points).toHaveLength(48)
+    expect(model?.horizonHours).toBe(48)
+    expect(model?.points.at(-1)).toMatchObject({ offset: 47, hour: "08" })
+  })
+
+  it("floors the horizon at one screenful when the data is shorter", () => {
+    // Six hours stretched across the viewport would misread as a whole day.
+    const days = daysFor({ ...twoDays, hourly: hourlyRows("2026-08-05T16:00:00Z", 6) })
+    const model = buildNextHours(days, NOW, ForecastMetric.TEMP)
+    expect(model?.points).toHaveLength(6)
+    expect(model?.horizonHours).toBe(WINDOW_HOURS)
+    expect(model?.dayParts.at(-1)?.endOffset).toBe(WINDOW_HOURS)
+  })
+
+  it("trims trailing empty slots from the horizon", () => {
+    const days = daysFor({ daily: dailyRows(4), hourly: hourlyRows("2026-08-05T16:00:00Z", 30) })
+    expect(buildNextHours(days, NOW, ForecastMetric.TEMP)?.horizonHours).toBe(30)
+  })
+
+  it("stops at the maximum horizon however much the document carries", () => {
+    const days = daysFor({ daily: dailyRows(7), hourly: hourlyRows("2026-08-05T16:00:00Z", 120) })
+    const model = buildNextHours(days, NOW, ForecastMetric.TEMP)
+    expect(model?.points).toHaveLength(MAX_HORIZON_HOURS)
+    expect(model?.horizonHours).toBe(MAX_HORIZON_HOURS)
+  })
+
+  it("covers the whole horizon with contiguous day-part runs", () => {
+    const days = daysFor({ daily: dailyRows(4), hourly: hourlyRows("2026-08-05T16:00:00Z", 48) })
+    const runs = buildNextHours(days, NOW, ForecastMetric.TEMP)?.dayParts ?? []
+    expect(runs[0].startOffset).toBe(0)
+    expect(runs.at(-1)?.endOffset).toBe(48)
+    expect(
+      runs.every((run, index) => index === 0 || runs[index - 1].endOffset === run.startOffset),
+    ).toBe(true)
+  })
+
+  it("heads each overnight run with its weekday, keeping the label for prose", () => {
+    // Four days of "Morning / Afternoon / Evening / Overnight" have nothing to
+    // tell them apart; overnight starts at local midnight, so it names the day.
+    const days = daysFor({ daily: dailyRows(4), hourly: hourlyRows("2026-08-05T16:00:00Z", 48) })
+    const overnight = (buildNextHours(days, NOW, ForecastMetric.TEMP)?.dayParts ?? []).filter(
+      (run) => run.label === "Overnight",
+    )
+    // The window opens 09:00 Wed, so the runs are Thursday's and Friday's.
+    expect(overnight.map((run) => run.heading)).toEqual(["THU", "FRI"])
+    expect(overnight.every((run) => run.label === "Overnight")).toBe(true)
+  })
+
+  it("names every other run by its day part", () => {
+    const days = daysFor({ ...twoDays, hourly: hourlyRows("2026-08-05T16:00:00Z", 24) })
+    const runs = buildNextHours(days, NOW, ForecastMetric.TEMP)?.dayParts ?? []
+    expect(
+      runs.filter((run) => run.label !== "Overnight").every((run) => run.heading === run.label),
+    ).toBe(true)
   })
 
   it("excludes hours before the current one", () => {
@@ -95,7 +164,7 @@ describe("buildNextHours", () => {
   it("places the now marker by minutes into the current hour", () => {
     const days = daysFor({ ...twoDays, hourly: hourlyRows("2026-08-05T16:00:00Z", 24) })
     const model = buildNextHours(days, new Date("2026-08-05T16:30:00Z"), ForecastMetric.TEMP)
-    expect(model?.nowFraction).toBeCloseTo(30 / 60 / 24, 10)
+    expect(model?.nowOffset).toBeCloseTo(0.5, 10)
   })
 
   it("returns undefined when fewer than two hours carry a value", () => {
@@ -166,8 +235,13 @@ describe("against the captured published document", () => {
       const model = buildNextHours(forecast.days, now, metric)
       expect(model).toBeDefined()
       expect(model?.points.length).toBeGreaterThanOrEqual(20)
-      expect(model?.dayParts.length).toBeGreaterThanOrEqual(4)
-      expect(model?.dayParts.length).toBeLessThanOrEqual(5)
+      // Structural, not counted: the captured document may be refreshed to a
+      // longer horizon, and these hold at any length.
+      expect(model?.horizonHours).toBeGreaterThanOrEqual(WINDOW_HOURS)
+      expect(model?.horizonHours).toBeLessThanOrEqual(MAX_HORIZON_HOURS)
+      expect(model?.horizonHours).toBe((model?.points.at(-1)?.offset ?? 0) + 1)
+      expect(model?.dayParts[0].startOffset).toBe(0)
+      expect(model?.dayParts.at(-1)?.endOffset).toBe(model?.horizonHours)
       expect(Number.isFinite(model?.domainMin)).toBe(true)
       expect(Number.isFinite(model?.domainMax)).toBe(true)
     }

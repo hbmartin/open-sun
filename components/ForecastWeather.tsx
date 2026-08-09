@@ -191,7 +191,11 @@ export default function ForecastWeather({
                     expandedDayIndex.has(index) ? "max-h-screen" : "max-h-0"
                   }`}
                 >
-                  <ForecastHourlyContainer day={day} metric={metric} />
+                  <ForecastHourlyContainer
+                    day={day}
+                    metric={metric}
+                    hourRanges={forecast.forecast.hourRanges}
+                  />
                 </div>
               )}
             </div>

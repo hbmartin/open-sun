@@ -407,6 +407,26 @@ describe("mapForecastDocument", () => {
     expect(forecast.ranges.min_temp).toBe(60)
     expect(forecast.ranges.max_temp).toBe(101)
   })
+
+  it("spans every day's hours in one range, so expanded days share a scale", () => {
+    const forecast = mapDocument({
+      daily: [makeDailyRow(), makeDailyRow({ date_local: "2026-08-06", lead_days: 1 })],
+      hourly: [
+        makeHourlyRow({ values: { ...makeHourlyRow().values, temp_f: 70 } }),
+        makeHourlyRow({
+          valid_time: "2026-08-06T22:00:00+00:00",
+          values: { ...makeHourlyRow().values, temp_f: 96 },
+        }),
+      ],
+    })
+    // Each day alone spans a single value; together they span both.
+    expect(forecast.hourRanges.min_temp).toBe(70)
+    expect(forecast.hourRanges.max_temp).toBe(96)
+  })
+
+  it("returns zeros for an hourly range with no hours at all", () => {
+    expect(mapDocument({ hourly: [] }).hourRanges.max_temp).toBe(0)
+  })
 })
 
 describe("calculateForecastRanges", () => {
