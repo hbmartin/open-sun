@@ -178,10 +178,9 @@ export default function NextHoursChart({
               />
             ))}
 
-            {/* One solid layer per coverage, widest first, on the same ladder
-                as the range-bar overlays; the nested narrower bands paint over
-                the wider ones, so the distribution reads darker toward its
-                center in full ramp steps. */}
+            {/* One solid layer per coverage, widest first; the nested narrower
+                bands paint over the wider ones, so the distribution reads
+                darker toward its center in full ramp steps. */}
             {bandRuns.map((run) =>
               run[0].bands.map((band, bandIndex) => (
                 <path

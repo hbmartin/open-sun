@@ -1,4 +1,3 @@
-import type { QuantileBand } from "@/lib/quantiles"
 import type { ForecastData, ForecastFetchResult, ForecastMetric, ForecastRanges } from "@/lib/types"
 import type React from "react"
 import { Droplets } from "lucide-react"
@@ -37,7 +36,6 @@ function DayValue({
   metric,
   unit,
   precision,
-  bands,
 }: {
   low: number | undefined
   high: number | undefined
@@ -45,7 +43,6 @@ function DayValue({
   metric: ForecastMetric
   unit: string
   precision: number
-  bands: QuantileBand[] | undefined
 }): React.JSX.Element {
   if (low === undefined || high === undefined) {
     return (
@@ -71,7 +68,6 @@ function DayValue({
       maxTemp={ranges[`max_${metric}`]}
       unit={unit}
       precision={precision}
-      bands={bands}
     />
   )
 }
@@ -121,7 +117,6 @@ export default function ForecastWeather({
         {forecast.forecast.days.map((day, index) => {
           const low = day[`min_${metric}`]
           const high = day[`max_${metric}`]
-          const bands = day.bands[metric]
           const hasHours = day.hours.some((hour) => hour !== undefined)
 
           let dayLabelClass = "text-gray-400 dark:text-gray-600"
@@ -161,7 +156,6 @@ export default function ForecastWeather({
                 metric={metric}
                 unit={unit}
                 precision={precision}
-                bands={bands}
               />
             </>
           )

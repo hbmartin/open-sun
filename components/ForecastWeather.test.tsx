@@ -61,18 +61,16 @@ describe("ForecastWeather", () => {
     expect(markup).toContain("unvalidated")
   })
 
-  it("renders all three nested uncertainty bands behind the range bar", () => {
-    const markup = render(ok())
-    expect(markup).toContain("range-bar-band-90")
-    expect(markup).toContain("range-bar-band-60")
-    expect(markup).toContain("range-bar-band-30")
+  it("keeps uncertainty bands out of the daily rows", () => {
+    // A row is only as wide as it is tall, so nested bands collapsed into a
+    // gray disc behind the high label. They belong to the Next 24 Hours chart,
+    // which has the horizontal room to nest them legibly.
+    expect(render(ok())).not.toContain("range-bar-band")
   })
 
   it("collapses a zero-width range to a single value", () => {
     // Probability with no quantiles gives low === high.
-    const markup = render(ok(), ForecastMetric.POP)
-    expect(markup).not.toContain("range-bar-band")
-    expect(markup).toContain("0%")
+    expect(render(ok(), ForecastMetric.POP)).toContain("0%")
   })
 
   it("renders a day beyond the hourly horizon inert and grayed", () => {
