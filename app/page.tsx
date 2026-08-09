@@ -5,6 +5,7 @@ import {
   fetchHourlyDataRange,
   fetchLastWeekData,
 } from "@/lib/fetcher"
+import { buildTwilightEvents } from "@/lib/twilight"
 
 // Incremental Static Regeneration: the page is statically rendered and
 // regenerated at most once an hour, matching the hourly Vercel cron that
@@ -34,6 +35,9 @@ export default async function Page() {
       lastWeekData={lastWeekData}
       hourlyDataByDate={hourlyDataByDate}
       currentDate={currentDate}
+      // Anchored on the same instant NextHours gets as initialNow, so the sun
+      // strip and the chart's Now line never disagree about which day it is.
+      twilight={buildTwilightEvents(currentDate)}
       forecast={forecast}
     />
   )

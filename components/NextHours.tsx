@@ -2,8 +2,9 @@
 
 import type { ForecastFetchResult, ForecastMetric } from "@/lib/types"
 import type React from "react"
-import { useEffect, useMemo, useState } from "react"
+import { useMemo } from "react"
 import NextHoursChart from "@/components/NextHoursChart"
+import { useNow } from "@/components/use-now"
 import { buildNextHours } from "@/lib/next-hours"
 
 export default function NextHours({
@@ -15,16 +16,7 @@ export default function NextHours({
   metric: ForecastMetric
   initialNow: Date
 }): React.JSX.Element | undefined {
-  // Seeded from the server prop so hydration matches the server markup, then
-  // corrected on mount: the page is statically revalidated hourly, so the
-  // server's clock can be up to an hour behind by the time this renders. The
-  // interval keeps the Now line honest on a long-open tab.
-  const [now, setNow] = useState(initialNow)
-  useEffect(() => {
-    setNow(new Date())
-    const id = setInterval(() => setNow(new Date()), 60_000)
-    return () => clearInterval(id)
-  }, [])
+  const now = useNow(initialNow)
 
   const model = useMemo(
     () =>

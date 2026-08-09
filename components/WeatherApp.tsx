@@ -1,5 +1,6 @@
 "use client"
 
+import type { TwilightEvent } from "@/lib/twilight"
 import type { DailyData, ForecastFetchResult, InstantObservation, WeeklyData } from "@/lib/types"
 import type React from "react"
 import { Eye, Info, Library } from "lucide-react"
@@ -10,7 +11,6 @@ import ForecastWeather from "@/components/ForecastWeather"
 import MetricTabs from "@/components/MetricTabs"
 import NextHours from "@/components/NextHours"
 import SunInfo from "@/components/SunInfo"
-import ThemeToggle from "@/components/ThemeToggle"
 import WeeklyWeather from "@/components/WeeklyWeather"
 import { DisplayMetric, ForecastMetric } from "@/lib/types"
 
@@ -50,6 +50,7 @@ interface WeatherAppProperties {
   lastWeekData: WeeklyData
   hourlyDataByDate: Partial<Record<string, DailyData>>
   currentDate: Date
+  twilight: TwilightEvent[]
   forecast: ForecastFetchResult
 }
 
@@ -58,6 +59,7 @@ export default function WeatherApp({
   lastWeekData,
   hourlyDataByDate,
   currentDate,
+  twilight,
   forecast,
 }: WeatherAppProperties) {
   const [activeTab, setActiveTab] = useState<DisplayMetric>(DisplayMetric.TEMP)
@@ -83,11 +85,10 @@ export default function WeatherApp({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 max-w-sm md:max-w-2xl mx-auto relative">
-      <div className="flex items-center justify-between px-4 pt-3">
-        <h1 className="text-base font-bold text-gray-900 dark:text-gray-100">Open Sun</h1>
-        <ThemeToggle />
-      </div>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 max-w-sm md:max-w-2xl mx-auto relative pt-3">
+      {/* The visible wordmark is gone, but this is the document's only level-one
+          heading and every panel below hangs an h2 off it. */}
+      <h1 className="sr-only">Open Sun</h1>
 
       {/* Keyed by view: the tablist's ref array is positional, so a five-tab
           set must not be reconciled onto a three-tab one. The Info view has no
@@ -121,7 +122,7 @@ export default function WeatherApp({
         ) : (
           <CurrentWeather currentWeatherData={currentWeatherData} />
         ))}
-      {!isInfo && <SunInfo currentDate={currentDate} timesData={currentWeatherData.sunTimes} />}
+      {!isInfo && <SunInfo twilight={twilight} initialNow={currentDate} />}
 
       {isInfo ? (
         <ForecastInfo forecast={forecast} />
