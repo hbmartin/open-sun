@@ -156,9 +156,11 @@ body {
 .dark .range-bar {
   background-color: #a3a3a3;
 }
-/* Forecast uncertainty intervals behind the range bar: nested 90/60/30%
-   coverage bands, wider = fainter. Drawn widest-first, so DOM order stacks
-   the narrow bands on top. */
+/* Forecast uncertainty intervals: nested 90/60/30% coverage bands, wider =
+   fainter, one solid ladder shared by the range-bar overlays (background) and
+   the chart polygons (fill). Solid steps rather than translucent stacking so
+   adjacent bands stay clearly distinguishable; drawn widest-first, so paint
+   order puts the narrow bands on top. */
 .range-bar-band-90 {
   background-color: #ececec;
 }
@@ -176,4 +178,22 @@ body {
 }
 .dark .range-bar-band-30 {
   background-color: #6e6e6e;
+}
+.band-fill-90 {
+  fill: #ececec;
+}
+.band-fill-60 {
+  fill: #d4d4d4;
+}
+.band-fill-30 {
+  fill: #b3b3b3;
+}
+.dark .band-fill-90 {
+  fill: #383838;
+}
+.dark .band-fill-60 {
+  fill: #525252;
+}
+.dark .band-fill-30 {
+  fill: #6e6e6e;
 }

@@ -33,6 +33,12 @@ const metric_chart_names: Record<ForecastMetric, string> = {
   wind: "wind speed",
 }
 
+const band_coverage_fills: Record<number, string> = {
+  0.9: "band-fill-90",
+  0.6: "band-fill-60",
+  0.3: "band-fill-30",
+}
+
 function xOf(offset: number): number {
   return ((offset + 0.5) / WINDOW_HOURS) * WIDTH
 }
@@ -172,9 +178,10 @@ export default function NextHoursChart({
               />
             ))}
 
-            {/* One translucent layer per coverage, widest first; overlap
-                compounds the shared fill (1/2/3 layers ≈ 0.22/0.39/0.53), so
-                the distribution reads darker toward its center. */}
+            {/* One solid layer per coverage, widest first, on the same ladder
+                as the range-bar overlays; the nested narrower bands paint over
+                the wider ones, so the distribution reads darker toward its
+                center in full ramp steps. */}
             {bandRuns.map((run) =>
               run[0].bands.map((band, bandIndex) => (
                 <path
@@ -189,8 +196,7 @@ export default function NextHoursChart({
                       .map((point) => `L${xOf(point.offset)} ${yOf(point.bands[bandIndex].low)}`),
                     "Z",
                   ].join(" ")}
-                  fillOpacity={0.22}
-                  className="fill-gray-300 dark:fill-gray-600"
+                  className={band_coverage_fills[band.coverage] ?? "band-fill-60"}
                 />
               )),
             )}

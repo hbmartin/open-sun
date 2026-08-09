@@ -80,10 +80,13 @@ describe("NextHoursChart", () => {
   })
 
   it("draws no band without quantiles and one layer per coverage with them", () => {
-    // The band polygons are the only marks wearing this fill.
-    expect(render(makeModel())).not.toContain("fill-gray-300")
+    // The band polygons are the only marks wearing these fills.
+    expect(render(makeModel())).not.toContain("band-fill")
     const markup = render(makeModel({ points: bandedPoints() }))
-    expect(markup.match(/fill-gray-300/gu)).toHaveLength(3)
+    expect(markup).toContain("band-fill-90")
+    expect(markup).toContain("band-fill-60")
+    expect(markup).toContain("band-fill-30")
+    expect(markup.match(/band-fill-/gu)).toHaveLength(3)
   })
 
   it("formats values by the selected metric's precision and unit", () => {
