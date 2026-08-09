@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   dressedGrid,
   makeDailyRow,
+  makeForecastDocument,
   makeHourlyRow,
   parsedForecastDocument,
 } from "@/lib/__fixtures__/forecast"
@@ -10,6 +11,7 @@ import {
   getForecastFreshness,
   mapForecastDocument,
 } from "@/lib/forecast-mappers"
+import { ForecastDocumentSchema } from "@/lib/forecast-schemas"
 import { ForecastMetric } from "@/lib/types"
 
 const NOW = new Date("2026-08-05T16:00:00Z")
@@ -248,6 +250,85 @@ describe("mapForecastDocument", () => {
         hourly: [makeHourlyRow({ valid_time: "2026-08-05T10:00:00+00:00" })],
       })
       expect(forecast.days[0].hours[3]?.isDaytime).toBe(false)
+    })
+  })
+
+  describe("info", () => {
+    it("carries the model-state fields onto the summary", () => {
+      const info = mapDocument().info
+      expect(info.status).toBe("ready")
+      expect(info.statusReason).toBeUndefined()
+      expect(info.issuedAt).toBe("2026-08-05T15:36:00+00:00")
+      expect(info.freshness).toBe("fresh")
+      expect(info.observationAt).toBe("2026-08-05T15:35:21+00:00")
+      expect(info.releaseIds).toEqual(["c22474d379549f29"])
+      expect(info.sources).toEqual(["nbm", "nws", "open_meteo"])
+      expect(info.datasetFingerprint).toBe("718e5bfa65100a5b")
+      expect(info.publisherVersion).toBe("1.0.0")
+      expect(info.schemaVersion).toBe(1)
+      expect(info.timezone).toBe("America/Los_Angeles")
+      expect(info.hourlyRows).toBe(1)
+      expect(info.dailyRows).toBe(1)
+    })
+
+    it("maps a null observation time to undefined", () => {
+      expect(mapDocument({ observation_at: null }).info.observationAt).toBeUndefined()
+    })
+
+    it("computes evidence coverage as backed slots over value slots", () => {
+      const info = mapDocument().info
+      // The hourly fixture row carries 8 values and 1 release id; daily 4 and 1.
+      expect(info.evidenceCoverage.hourly).toBeCloseTo(0.125, 10)
+      expect(info.evidenceCoverage.daily).toBeCloseTo(0.25, 10)
+    })
+
+    it("reports zero coverage for an empty product", () => {
+      expect(mapDocument({ hourly: [] }).info.evidenceCoverage.hourly).toBe(0)
+    })
+
+    it("sorts method counts descending with a name tiebreak", () => {
+      const info = mapDocument({
+        hourly: [
+          makeHourlyRow({ methods: { temp_f: "gbm_quantile", pop: "gbm_quantile" } }),
+          makeHourlyRow({
+            valid_time: "2026-08-05T16:00:00+00:00",
+            methods: { temp_f: "best_provider" },
+          }),
+        ],
+        daily: [makeDailyRow({ methods: { temp_max_f: "analog_ensemble" } })],
+      }).info
+      expect(info.methodCounts).toEqual([
+        { name: "gbm_quantile", count: 2 },
+        { name: "analog_ensemble", count: 1 },
+        { name: "best_provider", count: 1 },
+      ])
+    })
+
+    it("tallies selection reasons across hourly and daily rows", () => {
+      const info = mapDocument({
+        hourly: [
+          makeHourlyRow({
+            selection_reasons: { temp_f: "lowest MAE", pop: "lowest MAE (gated)" },
+          }),
+        ],
+        daily: [makeDailyRow({ selection_reasons: { temp_max_f: "lowest MAE" } })],
+      }).info
+      expect(info.reasonCounts).toEqual([
+        { name: "lowest MAE", count: 2 },
+        { name: "lowest MAE (gated)", count: 1 },
+      ])
+    })
+
+    it("stays empty on documents published before 1.3.0", () => {
+      const { selection_reasons: _hourly, ...hourlyRow } = makeHourlyRow()
+      const { selection_reasons: _daily, ...dailyRow } = makeDailyRow()
+      const { release_ids: _cohort, ...document } = makeForecastDocument({
+        hourly: [hourlyRow],
+        daily: [dailyRow],
+      })
+      const info = mapForecastDocument(ForecastDocumentSchema.parse(document), NOW).info
+      expect(info.reasonCounts).toEqual([])
+      expect(info.releaseIds).toEqual([])
     })
   })
 

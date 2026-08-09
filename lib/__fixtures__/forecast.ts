@@ -34,6 +34,7 @@ export function makeHourlyRow(overrides: Record<string, unknown> = {}) {
     methods: { temp_f: "anchored_trend_grounded", pop: "damped_grounded_equal_weight" },
     release_ids: { temp_f: "c22474d379549f29" },
     quantiles: { temp_f: dressedGrid },
+    selection_reasons: { temp_f: "lowest backtest MAE among promotable common-case methods" },
     ...overrides,
   }
 }
@@ -46,6 +47,7 @@ export function makeDailyRow(overrides: Record<string, unknown> = {}) {
     methods: { temp_max_f: "inverse_mse", temp_min_f: "equal_weight" },
     release_ids: { temp_max_f: "c22474d379549f29" },
     quantiles: { temp_max_f: dressedGrid },
+    selection_reasons: { temp_max_f: "lowest backtest MAE among promotable common-case methods" },
     ...overrides,
   }
 }
@@ -64,6 +66,7 @@ export function makeForecastDocument(overrides: Record<string, unknown> = {}) {
     longitude: -117.1692,
     dataset_fingerprint: "718e5bfa65100a5b",
     sources: ["nbm", "nws", "open_meteo"],
+    release_ids: ["c22474d379549f29"],
     status: "ready",
     // The wire contract is JSON, where an absent reason is explicitly null.
     status_reason: null,

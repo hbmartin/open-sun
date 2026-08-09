@@ -2,6 +2,7 @@ import type { DayPartRun, NextHoursModel, NextHoursPoint } from "@/lib/next-hour
 import type { ForecastMetric } from "@/lib/types"
 import type React from "react"
 import { Droplets } from "lucide-react"
+import { useId } from "react"
 import WeatherIcon from "@/components/WeatherIcon"
 import { WINDOW_HOURS } from "@/lib/next-hours"
 import { forecast_metric_display_units, forecast_metric_precision } from "@/lib/types"
@@ -16,6 +17,12 @@ const PLOT_BOTTOM = HEIGHT - BOTTOM
 const LABEL_STEP = 3
 /** Day-part runs shorter than this have no room for their header text. */
 const MIN_LABELED_RUN = 3
+
+/** Tick offsets aligned with the labeled dots: 0, 3, …, 21. */
+const HOUR_TICKS = Array.from(
+  { length: WINDOW_HOURS / LABEL_STEP },
+  (_, index) => index * LABEL_STEP,
+)
 
 const metric_chart_names: Record<ForecastMetric, string> = {
   temp: "temperature",
@@ -115,6 +122,7 @@ export default function NextHoursChart({
   const unit = forecast_metric_display_units[metric]
   const precision = forecast_metric_precision[metric]
   const { domainMin, domainMax } = model
+  const descriptionId = useId()
 
   const yOf = (value: number): number =>
     TOP + (1 - (value - domainMin) / (domainMax - domainMin)) * (PLOT_BOTTOM - TOP)
@@ -148,6 +156,7 @@ export default function NextHoursChart({
             className="w-full h-auto"
             role="img"
             aria-label={`Hourly ${metric_chart_names[metric]} forecast for the next 24 hours`}
+            aria-describedby={descriptionId}
           >
             {model.dayParts.slice(1).map((run) => (
               <line
@@ -240,7 +249,7 @@ export default function NextHoursChart({
               )
             })}
 
-            {[0, 6, 12, 18].map((offset) => (
+            {HOUR_TICKS.map((offset) => (
               <text
                 key={offset}
                 x={Math.min(WIDTH - 14, Math.max(14, xOf(offset)))}
@@ -254,6 +263,35 @@ export default function NextHoursChart({
             ))}
           </svg>
         </div>
+
+        {/* The plotted data, readable: aria-describedby points screen readers
+            here, since the SVG marks themselves carry no accessible values. */}
+        <ul id={descriptionId} className="sr-only">
+          {model.dayParts.map((run) => (
+            <li key={`part-${run.startOffset}`}>
+              {run.label}:{" "}
+              {run.maxPop === undefined
+                ? "rain chance unknown"
+                : `${Math.round(run.maxPop)}% chance of rain`}
+            </li>
+          ))}
+          {model.points.map((point) => {
+            if (point.value === undefined) {
+              return
+            }
+            const band =
+              point.bandLow === undefined || point.bandHigh === undefined
+                ? ""
+                : `, likely between ${formatMetricValue(point.bandLow, precision)}${unit} and ${formatMetricValue(point.bandHigh, precision)}${unit}`
+            return (
+              <li key={`point-${point.offset}`}>
+                {formatHour(point.hour)}: {formatMetricValue(point.value, precision)}
+                {unit}
+                {band}
+              </li>
+            )
+          })}
+        </ul>
       </div>
     </div>
   )

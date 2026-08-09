@@ -86,4 +86,34 @@ describe("NextHoursChart", () => {
   it("omits the summary paragraph when there is none", () => {
     expect(render(makeModel({ summary: undefined }))).not.toContain("Clear skies")
   })
+
+  it("draws a time tick under every labeled dot", () => {
+    const markup = render(makeModel())
+    // The tick row is the only fontSize-9 text in the chart.
+    expect(markup.match(/font-size="9"/gu)).toHaveLength(8)
+    // startHour 9: offset 6 is 3 PM, offset 21 is 6 AM.
+    expect(markup).toContain(">3 PM</text>")
+    expect(markup).toContain(">6 AM</text>")
+  })
+
+  it("describes every interval, value and band to screen readers", () => {
+    const banded = makePoints().map((point) =>
+      Object.assign(point, {
+        bandLow: (point.value as number) - 2,
+        bandHigh: (point.value as number) + 2,
+      }),
+    )
+    const markup = render(makeModel({ points: banded }))
+
+    // The SVG must point at the off-screen list that actually holds the data.
+    const describedBy = /aria-describedby="([^"]+)"/u.exec(markup)?.[1]
+    expect(describedBy).toBeDefined()
+    expect(markup).toContain(`<ul id="${describedBy}" class="sr-only">`)
+
+    expect(markup).toContain("Afternoon: 10% chance of rain")
+    expect(markup).toContain("Overnight: rain chance unknown")
+    expect(markup).toContain("9 AM: 70°, likely between 68° and 72°")
+    // All 24 plotted hours are listed, not just the labeled samples.
+    expect(markup.match(/likely between/gu)).toHaveLength(24)
+  })
 })

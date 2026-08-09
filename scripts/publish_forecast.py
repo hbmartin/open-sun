@@ -44,7 +44,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-PUBLISHER_VERSION = "1.2.0"
+PUBLISHER_VERSION = "1.3.0"
 CONTRACT_VERSION = 1
 SOURCE_SCHEMA_VERSION = 5
 
@@ -69,7 +69,9 @@ PUSH_TIMEOUT_S = 90
 # Bucket labels the consumer's zod enum knows about. An unrecognised bucket means
 # the pipeline's horizon changed; refuse rather than publish a document the
 # consumer would reject wholesale (a stale forecast beats a blank one).
-KNOWN_LEAD_BUCKETS = frozenset({"0-1h", "1-3h", "3-6h", "6-12h", "12-24h", "24-48h", "48-96h"})
+KNOWN_LEAD_BUCKETS = frozenset(
+    {"0-1h", "1-3h", "3-6h", "6-12h", "12-24h", "24-48h", "48-96h", "96-168h"}
+)
 
 
 # Diagnostics normally go to stdout so launchd files them under
@@ -287,6 +289,16 @@ def _rename_map(source: Any, table: dict[str, Conversion], product: str) -> dict
     }
 
 
+def _release_id_list(value: Any) -> list[str]:
+    """The top-level promoted-release cohort; absent means an empty cohort."""
+    if value is None:
+        return []
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        msg = f"release_ids is not a list of strings: {value!r}"
+        raise RefusedError(msg)
+    return list(value)
+
+
 def _convert_values(source: Any, table: dict[str, Conversion], product: str) -> dict[str, Any]:
     if not isinstance(source, dict):
         msg = f"{product} row has no values object"
@@ -390,6 +402,9 @@ def _hourly_row(row: dict[str, Any]) -> dict[str, Any]:
         "methods": _rename_map(row.get("methods"), HOURLY_VARIABLES, "hourly"),
         "release_ids": _rename_map(row.get("release_ids"), HOURLY_VARIABLES, "hourly"),
         "quantiles": _convert_quantiles(row.get("quantiles"), HOURLY_VARIABLES, "hourly"),
+        "selection_reasons": _rename_map(
+            row.get("selection_reasons"), HOURLY_VARIABLES, "hourly"
+        ),
     }
 
 
@@ -405,6 +420,9 @@ def _daily_row(row: dict[str, Any]) -> dict[str, Any]:
         "methods": _rename_map(row.get("methods"), DAILY_VARIABLES, "daily"),
         "release_ids": _rename_map(row.get("release_ids"), DAILY_VARIABLES, "daily"),
         "quantiles": _convert_quantiles(row.get("quantiles"), DAILY_VARIABLES, "daily"),
+        "selection_reasons": _rename_map(
+            row.get("selection_reasons"), DAILY_VARIABLES, "daily"
+        ),
     }
 
 
@@ -444,6 +462,7 @@ def transform(document: dict[str, Any], published_at: datetime) -> dict[str, Any
         "longitude": document.get("longitude"),
         "dataset_fingerprint": document.get("dataset_fingerprint"),
         "sources": document.get("sources") or [],
+        "release_ids": _release_id_list(document.get("release_ids")),
         "status": status,
         "status_reason": status_reason,
         "units": dict(UNITS),

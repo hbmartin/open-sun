@@ -2,9 +2,10 @@
 
 import type { DailyData, ForecastFetchResult, InstantObservation, WeeklyData } from "@/lib/types"
 import type React from "react"
-import { Clock, Eye, Library } from "lucide-react"
+import { Eye, Info, Library } from "lucide-react"
 import { useId, useState } from "react"
 import CurrentWeather from "@/components/CurrentWeather"
+import ForecastInfo from "@/components/ForecastInfo"
 import ForecastWeather from "@/components/ForecastWeather"
 import MetricTabs from "@/components/MetricTabs"
 import NextHours from "@/components/NextHours"
@@ -32,13 +33,13 @@ const forecast_tab_names: Record<ForecastMetric, string> = {
   [ForecastMetric.WIND]: "WIND (MPH)",
 }
 
-const navItems = ["Forecast", "History", "Notifications"] as const
+const navItems = ["Forecast", "History", "Info"] as const
 type NavItem = (typeof navItems)[number]
 
 const iconMap: Record<NavItem, React.ElementType> = {
   Forecast: Eye,
   History: Library,
-  Notifications: Clock,
+  Info,
 }
 
 const historyTabs = Object.values(DisplayMetric)
@@ -66,17 +67,11 @@ export default function WeatherApp({
   const panelId = useId()
 
   const isForecast = activeNavItem === "Forecast"
+  const isInfo = activeNavItem === "Info"
 
   const renderPanel = () => {
     if (isForecast) {
       return <ForecastWeather metric={activeForecastTab} forecast={forecast} />
-    }
-    if (activeNavItem === "Notifications") {
-      return (
-        <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-          Notifications are not available yet.
-        </div>
-      )
     }
     return (
       <WeeklyWeather
@@ -95,43 +90,50 @@ export default function WeatherApp({
       </div>
 
       {/* Keyed by view: the tablist's ref array is positional, so a five-tab
-          set must not be reconciled onto a three-tab one. */}
-      {isForecast ? (
-        <MetricTabs
-          key="forecast"
-          tabs={forecastTabs}
-          labels={forecast_tab_names}
-          activeTab={activeForecastTab}
-          onSelect={setActiveForecastTab}
-          panelId={panelId}
-          label="Forecast metric"
-        />
-      ) : (
-        <MetricTabs
-          key="history"
-          tabs={historyTabs}
-          labels={tab_names}
-          activeTab={activeTab}
-          onSelect={setActiveTab}
-          panelId={panelId}
-          label="Weather metric"
-        />
-      )}
+          set must not be reconciled onto a three-tab one. The Info view has no
+          metrics, chart or sun strip — it unmounts the whole chrome. */}
+      {!isInfo &&
+        (isForecast ? (
+          <MetricTabs
+            key="forecast"
+            tabs={forecastTabs}
+            labels={forecast_tab_names}
+            activeTab={activeForecastTab}
+            onSelect={setActiveForecastTab}
+            panelId={panelId}
+            label="Forecast metric"
+          />
+        ) : (
+          <MetricTabs
+            key="history"
+            tabs={historyTabs}
+            labels={tab_names}
+            activeTab={activeTab}
+            onSelect={setActiveTab}
+            panelId={panelId}
+            label="Weather metric"
+          />
+        ))}
 
-      {isForecast ? (
-        <NextHours forecast={forecast} metric={activeForecastTab} initialNow={currentDate} />
-      ) : (
-        <CurrentWeather currentWeatherData={currentWeatherData} />
-      )}
-      <SunInfo currentDate={currentDate} timesData={currentWeatherData.sunTimes} />
+      {!isInfo &&
+        (isForecast ? (
+          <NextHours forecast={forecast} metric={activeForecastTab} initialNow={currentDate} />
+        ) : (
+          <CurrentWeather currentWeatherData={currentWeatherData} />
+        ))}
+      {!isInfo && <SunInfo currentDate={currentDate} timesData={currentWeatherData.sunTimes} />}
 
-      <div
-        id={panelId}
-        role="tabpanel"
-        aria-labelledby={`tab-${isForecast ? activeForecastTab : activeTab}`}
-      >
-        {renderPanel()}
-      </div>
+      {isInfo ? (
+        <ForecastInfo forecast={forecast} />
+      ) : (
+        <div
+          id={panelId}
+          role="tabpanel"
+          aria-labelledby={`tab-${isForecast ? activeForecastTab : activeTab}`}
+        >
+          {renderPanel()}
+        </div>
+      )}
 
       <nav
         aria-label="Views"

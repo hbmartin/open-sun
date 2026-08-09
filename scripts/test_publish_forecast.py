@@ -24,7 +24,14 @@ from pathlib import Path
 from typing import Any
 
 import publish_forecast
-from publish_forecast import RefusedError, _hourly_row, choose_source, remember_good
+from publish_forecast import (
+    RefusedError,
+    _daily_row,
+    _hourly_row,
+    choose_source,
+    remember_good,
+    transform,
+)
 
 NOW = datetime(2026, 8, 8, 13, 0, tzinfo=UTC)
 
@@ -204,13 +211,77 @@ class LeadBucketTest(unittest.TestCase):
         }
 
     def test_accepts_every_bucket_the_consumer_enum_knows(self) -> None:
+        # The 96h horizon depends on these buckets; looping over the set alone
+        # would silently shrink coverage if one were ever removed.
+        self.assertIn("48-96h", publish_forecast.KNOWN_LEAD_BUCKETS)
+        self.assertIn("96-168h", publish_forecast.KNOWN_LEAD_BUCKETS)
         for bucket in sorted(publish_forecast.KNOWN_LEAD_BUCKETS):
             with self.subTest(bucket=bucket):
                 self.assertEqual(_hourly_row(self._row(bucket))["lead_bucket"], bucket)
 
     def test_refuses_a_bucket_beyond_the_published_horizon(self) -> None:
-        with self.assertRaisesRegex(RefusedError, "unknown lead_bucket '96-168h'"):
-            _hourly_row(self._row("96-168h"))
+        with self.assertRaisesRegex(RefusedError, "unknown lead_bucket '168-240h'"):
+            _hourly_row(self._row("168-240h"))
+
+
+class SelectionReasonsTest(unittest.TestCase):
+    def test_hourly_reasons_are_renamed_to_consumer_variables(self) -> None:
+        row = LeadBucketTest._row("0-1h")
+        row["selection_reasons"] = {"temp_c": "lowest backtest MAE"}
+        published = _hourly_row(row)
+        self.assertEqual(published["selection_reasons"], {"temp_f": "lowest backtest MAE"})
+
+    def test_daily_reasons_are_renamed_to_consumer_variables(self) -> None:
+        row: dict[str, Any] = {
+            "date_local": "2026-08-08",
+            "lead_days": 0,
+            "values": {"temp_max_c": 35.0},
+            "selection_reasons": {"temp_max_c": "lowest backtest MAE"},
+        }
+        published = _daily_row(row)
+        self.assertEqual(published["selection_reasons"], {"temp_max_f": "lowest backtest MAE"})
+
+    def test_absent_reasons_publish_as_an_empty_map(self) -> None:
+        self.assertEqual(_hourly_row(LeadBucketTest._row("0-1h"))["selection_reasons"], {})
+
+    def test_an_unknown_reason_variable_is_refused(self) -> None:
+        row = LeadBucketTest._row("0-1h")
+        row["selection_reasons"] = {"vibes": "felt right"}
+        with self.assertRaisesRegex(RefusedError, "unknown hourly variable"):
+            _hourly_row(row)
+
+
+class ReleaseCohortTest(unittest.TestCase):
+    @staticmethod
+    def _document(**overrides: Any) -> dict[str, Any]:
+        document: dict[str, Any] = {
+            "schema_version": 5,
+            "status": "ready",
+            "issued_at": "2026-08-08T12:00:00+00:00",
+            "observation_at": "2026-08-08T11:59:00+00:00",
+            "hourly": [],
+            "daily": [],
+        }
+        document.update(overrides)
+        return document
+
+    def _transform(self, **overrides: Any) -> dict[str, Any]:
+        published_at = datetime(2026, 8, 8, 12, 5, tzinfo=UTC)
+        return transform(self._document(**overrides), published_at)
+
+    def test_the_cohort_list_passes_through_verbatim(self) -> None:
+        published = self._transform(release_ids=["2a2b510af0e95621"])
+        self.assertEqual(published["release_ids"], ["2a2b510af0e95621"])
+
+    def test_an_absent_cohort_publishes_as_an_empty_list(self) -> None:
+        self.assertEqual(self._transform()["release_ids"], [])
+
+    def test_a_non_list_cohort_is_refused(self) -> None:
+        with self.assertRaisesRegex(RefusedError, "release_ids is not a list of strings"):
+            self._transform(release_ids="2a2b510af0e95621")
+
+    def test_the_publisher_version_names_this_contract(self) -> None:
+        self.assertEqual(self._transform()["publisher_version"], "1.3.0")
 
 
 if __name__ == "__main__":

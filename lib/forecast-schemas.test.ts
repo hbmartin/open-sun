@@ -112,6 +112,34 @@ describe("ForecastDocumentSchema", () => {
       const result = ForecastDocumentSchema.safeParse(document)
       expect(result.data?.sources).toEqual([])
     })
+
+    it("defaults missing selection_reasons, as pre-1.3.0 documents have", () => {
+      const { selection_reasons: _hourly, ...hourlyRow } = makeHourlyRow()
+      const { selection_reasons: _daily, ...dailyRow } = makeDailyRow()
+      const result = parse({ hourly: [hourlyRow], daily: [dailyRow] })
+      expect(result.data?.hourly[0].selection_reasons).toEqual({})
+      expect(result.data?.daily[0].selection_reasons).toEqual({})
+    })
+
+    it("carries per-variable selection reasons", () => {
+      const result = parse({
+        hourly: [makeHourlyRow({ selection_reasons: { temp_f: "lowest backtest MAE" } })],
+      })
+      expect(result.data?.hourly[0].selection_reasons).toEqual({
+        temp_f: "lowest backtest MAE",
+      })
+    })
+
+    it("defaults a missing release cohort, as pre-1.3.0 documents have", () => {
+      const { release_ids: _omitted, ...document } = makeForecastDocument()
+      const result = ForecastDocumentSchema.safeParse(document)
+      expect(result.data?.release_ids).toEqual([])
+    })
+
+    it("carries the release cohort list", () => {
+      const result = parse({ release_ids: ["2a2b510af0e95621"] })
+      expect(result.data?.release_ids).toEqual(["2a2b510af0e95621"])
+    })
   })
 
   describe("status", () => {
@@ -178,8 +206,13 @@ describe("ForecastDocumentSchema", () => {
       expect(parseHourly({ lead_hours: 0.42 }).success).toBe(true)
     })
 
+    it("accepts the buckets the 96-hour horizon emits", () => {
+      expect(parseHourly({ lead_bucket: "48-96h" }).success).toBe(true)
+      expect(parseHourly({ lead_bucket: "96-168h" }).success).toBe(true)
+    })
+
     it("rejects an unknown lead_bucket", () => {
-      expect(parseHourly({ lead_bucket: "96-168h" }).success).toBe(false)
+      expect(parseHourly({ lead_bucket: "168-240h" }).success).toBe(false)
     })
   })
 

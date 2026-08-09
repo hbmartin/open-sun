@@ -83,6 +83,17 @@ export function getStationHour(date: Date): string {
   return stationHourFormatter.format(date)
 }
 
+/** "34m ago" / "5h ago" / "2d ago", for provenance lines. */
+export function describeAge(ageHours: number): string {
+  if (ageHours < 1) {
+    return `${Math.max(1, Math.round(ageHours * 60))}m ago`
+  }
+  if (ageHours < 24) {
+    return `${Math.round(ageHours)}h ago`
+  }
+  return `${Math.round(ageHours / 24)}d ago`
+}
+
 export function formatMetricValue(value: number, precision: number): string {
   // toFixed(0) renders small negatives as "-0"; rounding sidesteps that.
   if (precision === 0) {

@@ -16,7 +16,7 @@ export default function ForecastHourlyContainer({
     // those rows inert, so this is a safety net rather than the normal path.
     return (
       <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-        Hourly detail is only available for the next 3 days.
+        Hourly detail is only available for the next 4 days.
       </div>
     )
   }
