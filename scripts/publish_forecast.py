@@ -277,16 +277,26 @@ def _lookup(variable: str, table: dict[str, Conversion], product: str) -> Conver
     return conversion
 
 
-def _rename_map(source: Any, table: dict[str, Conversion], product: str) -> dict[str, Any]:
-    """Rename the keys of a per-variable metadata map (methods, release_ids)."""
-    if not source:
+def _rename_map(source: Any, table: dict[str, Conversion], product: str) -> dict[str, str]:
+    """Rename the keys of a per-variable metadata map (methods, release_ids,
+    selection_reasons).
+
+    The consumer schema types every value as a string, so anything else is
+    refused here rather than poisoning the published document. Only None means
+    an absent map; any other non-object is a broken row.
+    """
+    if source is None:
         return {}
     if not isinstance(source, dict):
         msg = f"expected an object, got {type(source).__name__}"
         raise RefusedError(msg)
-    return {
-        _lookup(variable, table, product)[0]: value for variable, value in source.items()
-    }
+    renamed: dict[str, str] = {}
+    for variable, value in source.items():
+        if not isinstance(value, str):
+            msg = f"{product} metadata for {variable!r} is not a string: {value!r}"
+            raise RefusedError(msg)
+        renamed[_lookup(variable, table, product)[0]] = value
+    return renamed
 
 
 def _release_id_list(value: Any) -> list[str]:

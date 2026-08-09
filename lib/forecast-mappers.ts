@@ -236,6 +236,7 @@ export function mapForecastDocument(document: ForecastDocument, now: Date): Fore
   )
 
   const hoursByDate = new Map<string, (ForecastHourData | undefined)[]>()
+  const acceptedHourly: ForecastHourlyRow[] = []
   for (const row of document.hourly) {
     const date = getStationDate(new Date(row.valid_time))
     const sunTimes = sunTimesByDate.get(date)
@@ -243,6 +244,7 @@ export function mapForecastDocument(document: ForecastDocument, now: Date): Fore
       // An hourly row outside the daily horizon has nowhere to render.
       continue
     }
+    acceptedHourly.push(row)
     const hour = mapHourlyRow(row, sunTimes.sunrise, sunTimes.sunset)
     const slots =
       hoursByDate.get(date) ??
@@ -253,7 +255,9 @@ export function mapForecastDocument(document: ForecastDocument, now: Date): Fore
 
   const days = document.daily.map((row) => mapDailyRow(row, hoursByDate))
   const { ageHours, freshness } = getForecastFreshness(document.issued_at, now)
-  const allRows = [...document.hourly, ...document.daily]
+  // The Info aggregates describe what the app can render, so hourly rows
+  // dropped above as outside the daily horizon stay out of them too.
+  const allRows = [...acceptedHourly, ...document.daily]
 
   return {
     issuedAt: document.issued_at,
@@ -274,7 +278,7 @@ export function mapForecastDocument(document: ForecastDocument, now: Date): Fore
       observationAt: document.observation_at ?? undefined,
       releaseIds: document.release_ids,
       evidenceCoverage: {
-        hourly: coverageOf(document.hourly),
+        hourly: coverageOf(acceptedHourly),
         daily: coverageOf(document.daily),
       },
       hourlyRows: document.hourly.length,

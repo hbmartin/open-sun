@@ -91,9 +91,9 @@ describe("NextHoursChart", () => {
     const markup = render(makeModel())
     // The tick row is the only fontSize-9 text in the chart.
     expect(markup.match(/font-size="9"/gu)).toHaveLength(8)
-    // startHour 9: offset 6 is 3 PM, offset 21 is 6 AM.
-    expect(markup).toContain(">3 PM</text>")
-    expect(markup).toContain(">6 AM</text>")
+    // startHour 9 in three-hour steps, rolling over midnight.
+    const ticks = [...markup.matchAll(/font-size="9"[^>]*>([^<]+)</gu)].map((match) => match[1])
+    expect(ticks).toEqual(["9 AM", "12 PM", "3 PM", "6 PM", "9 PM", "12 AM", "3 AM", "6 AM"])
   })
 
   it("describes every interval, value and band to screen readers", () => {
