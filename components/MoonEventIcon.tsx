@@ -19,10 +19,12 @@ const HEAD: Record<MoonKind, string> = {
   moonset: ARROW_HEAD_DOWN,
 }
 
-// Indigo, off the orange-morning / purple-evening axis the twilight glyphs use.
+// Black, off the orange-morning / purple-evening axis the twilight glyphs use.
 // Moonrise is not a morning event -- it walks through every hour of the day
-// across a month -- so borrowing either hue would state something false.
-const TONE = "text-indigo-500 dark:text-indigo-300"
+// across a month -- so borrowing either hue would state something false. The
+// dark-mode pairing is near-white: literal black on the gray-900 card would be
+// invisible, and inverting is what "black" means on an inverted ground.
+const TONE = "text-gray-900 dark:text-gray-100"
 
 export default function MoonEventIcon({
   kind,

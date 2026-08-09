@@ -8,7 +8,9 @@ import type { MetadataRoute } from "next"
 // holding one colour -- change one and change all three.
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Lassen - Open Sun",
+    name: "Weather Forecast: North of the Ridge",
+    // Still the short name: home-screen labels truncate past about 12 characters,
+    // so this one stays as it is while the full name follows the title.
     short_name: "Open Sun",
     description:
       "Weather station readings and a grounded ten-day forecast for Lassen, with uncertainty bands and sun and moon times.",

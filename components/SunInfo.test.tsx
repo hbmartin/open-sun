@@ -28,12 +28,30 @@ function timesIn(markup: string): string[] {
 }
 
 describe("SunInfo", () => {
-  it("shows four twilight times then the next moonrise and moonset", () => {
+  it("interleaves the four twilight times and the two moon ones by clock", () => {
     const times = timesIn(render(EVENTS))
     expect(times).toHaveLength(6)
-    expect(times).toEqual([
-      ...selectNextTwilight(EVENTS, NOW).map((event) => formatStationTime(event.at)),
-      ...selectNextMoonEvents(MOON, NOW).map((event) => formatStationTime(event.at)),
+    expect(times).toEqual(
+      [...selectNextTwilight(EVENTS, NOW), ...selectNextMoonEvents(MOON, NOW)]
+        .toSorted((first, second) => first.at.getTime() - second.at.getTime())
+        .map((event) => formatStationTime(event.at)),
+    )
+  })
+
+  it("threads the moon cells in among the sun ones", () => {
+    // The point of sorting: at 09:00 the next moonset is this afternoon, ahead
+    // of every twilight left today, and moonrise lands between the second dusk
+    // and the following dawn. Appending the pair would misplace both.
+    const labels = [...render(EVENTS).matchAll(/<span class="sr-only">([^<]+)<\/span>/gu)].map(
+      (match) => match[1],
+    )
+    expect(labels).toEqual([
+      "Moonset",
+      "Civil dusk",
+      "Astronomical dusk",
+      "Moonrise",
+      "Astronomical dawn",
+      "Civil dawn",
     ])
   })
 
@@ -85,8 +103,11 @@ describe("SunInfo", () => {
 
   it("keeps the moon off the morning/evening hue axis", () => {
     // Moonrise walks through every hour of the day across a month, so borrowing
-    // the dawn orange or the dusk purple would state something false.
-    expect(render(EVENTS)).toContain("text-indigo-500")
+    // the dawn orange or the dusk purple would state something false. Black,
+    // inverted to near-white on the dark card.
+    const markup = render(EVENTS)
+    expect(markup).toContain("text-gray-900 dark:text-gray-100")
+    expect(markup).not.toContain("text-indigo-500")
   })
 
   it("leaks neither NaN nor an invalid date", () => {

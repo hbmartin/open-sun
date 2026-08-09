@@ -34,6 +34,19 @@ const stationTimeFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: STATION_TIME_ZONE,
 })
 
+// timeZoneName "short" prints PST or PDT as the date itself falls, so the line
+// names the offset without anything here tracking the switch.
+const stationDateTimeFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: STATION_TIME_ZONE,
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  hour12: true,
+  timeZoneName: "short",
+})
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
@@ -64,6 +77,11 @@ export function formatCalendarDate(dateString: string): string {
 
 export function formatStationTime(date: Date): string {
   return stationTimeFormatter.format(date)
+}
+
+/** "Aug 5, 2026, 8:36 AM PDT" -- an absolute stamp in the station's zone. */
+export function formatStationDateTime(date: Date): string {
+  return stationDateTimeFormatter.format(date)
 }
 
 export function getRangePosition(value: number, minimum: number, maximum: number): number {
