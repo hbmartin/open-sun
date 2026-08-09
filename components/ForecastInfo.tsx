@@ -1,5 +1,6 @@
 import type { ForecastFetchResult, ForecastInfoData } from "@/lib/types"
 import type React from "react"
+import { ChevronRight, CirclePlay } from "lucide-react"
 import { describeAge } from "@/lib/utils"
 
 /**
@@ -34,6 +35,30 @@ function Line({ amber = false, children }: { amber?: boolean; children: React.Re
 
 function Note({ children }: { children: React.ReactNode }) {
   return <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">{children}</p>
+}
+
+const WALKTHROUGH_URL = "https://www.youtube.com/watch?v=sqhd5yF8Tfg"
+
+/**
+ * The way in to the rest of this view.
+ *
+ * Blue rather than the neutral card white, because the four cards below report
+ * state while this one is an action; amber is already spoken for by the warning
+ * Lines, so it cannot be reused for emphasis here.
+ */
+function VideoCallout() {
+  return (
+    <a
+      href={WALKTHROUGH_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-900 rounded-lg shadow-sm p-4 mb-3 text-blue-800 dark:text-blue-200"
+    >
+      <CirclePlay size={20} className="shrink-0" aria-hidden="true" />
+      <span className="text-sm font-semibold flex-1">See how it works</span>
+      <ChevronRight size={16} className="shrink-0 opacity-60" aria-hidden="true" />
+    </a>
+  )
 }
 
 function percent(fraction: number): string {
@@ -154,6 +179,9 @@ export default function ForecastInfo({
     return (
       <div className="px-4">
         <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">Forecast Model</h2>
+        {/* The walkthrough is about the model in general, so it outlives any one
+            document -- a publisher outage is the moment it is most wanted. */}
+        <VideoCallout />
         <div className="text-center text-gray-500 dark:text-gray-400 py-8">
           Model status unavailable.
           <div className="text-sm mt-1">{forecast.reason}</div>
@@ -166,6 +194,7 @@ export default function ForecastInfo({
   return (
     <div className="px-4">
       <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">Forecast Model</h2>
+      <VideoCallout />
       <HealthCard info={info} />
       <EvidenceCard info={info} />
       <SelectionCard info={info} />

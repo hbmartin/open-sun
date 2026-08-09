@@ -10,12 +10,16 @@ import { cn } from "@/lib/utils"
 // carried redundantly by the fade in TONE. The shallow cap still has to clear
 // its own 2-unit stroke, or it renders as a lump rather than an arc: 9.8 of
 // chord on r=5.5 puts it 3 units tall against the civil cap's 5.5.
-const HORIZON = "M2 21h20"
+// Exported for MoonEventIcon, which shares the horizon-and-arrow frame so the
+// moon cells of the strip read as the same family as the sun ones. Only the
+// body between the rule and the arrow differs.
+export const HORIZON = "M2 21h20"
+export const ARROW_SHAFT = "M12 3v8"
+export const ARROW_HEAD_UP = "m9 6 3-3 3 3"
+export const ARROW_HEAD_DOWN = "m9 8 3 3 3-3"
+
 const DOME_CIVIL = "M6.5 21a5.5 5.5 0 0 1 11 0"
 const DOME_ASTRONOMICAL = "M7.1 21a5.5 5.5 0 0 1 9.8 0"
-const ARROW_SHAFT = "M12 3v8"
-const ARROW_HEAD_UP = "m9 6 3-3 3 3"
-const ARROW_HEAD_DOWN = "m9 8 3 3 3-3"
 
 // Rays for the civil pair only: it is the one that clears the horizon far
 // enough to throw light, and reserving them for it gives depth a second cue

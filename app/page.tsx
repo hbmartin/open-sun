@@ -5,6 +5,7 @@ import {
   fetchHourlyDataRange,
   fetchLastWeekData,
 } from "@/lib/fetcher"
+import { buildMoonEvents } from "@/lib/moon"
 import { buildTwilightEvents } from "@/lib/twilight"
 
 // Incremental Static Regeneration: the page is statically rendered and
@@ -38,6 +39,9 @@ export default async function Page() {
       // Anchored on the same instant that seeds WeatherApp's clock, so the sun
       // strip and the chart's Now line never disagree about which day it is.
       twilight={buildTwilightEvents(currentDate)}
+      // Same anchor as the twilight events, for the same reason: the sun and
+      // moon cells of one strip must not disagree about which day it is.
+      moon={buildMoonEvents(currentDate)}
       forecast={forecast}
     />
   )

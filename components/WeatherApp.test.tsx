@@ -1,11 +1,16 @@
 import type { InstantObservation, WeeklyData } from "@/lib/types"
 import { renderToStaticMarkup } from "react-dom/server"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import WeatherApp from "@/components/WeatherApp"
 import { parsedForecastDocument } from "@/lib/__fixtures__/forecast"
 import { mapForecastDocument } from "@/lib/forecast-mappers"
+import { buildMoonEvents } from "@/lib/moon"
 import { getTimes } from "@/lib/suncalc"
 import { buildTwilightEvents } from "@/lib/twilight"
+
+// useForegroundRefresh reaches for the app router, which real Next supplies
+// during SSR but a bare renderToStaticMarkup does not.
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }))
 
 const NOW = new Date("2026-08-05T16:00:00Z")
 
@@ -55,6 +60,7 @@ describe("WeatherApp", () => {
         hourlyDataByDate={{}}
         currentDate={NOW}
         twilight={buildTwilightEvents(NOW)}
+        moon={buildMoonEvents(NOW)}
         forecast={{ kind: "ok", forecast: mapForecastDocument(parsedForecastDocument(), NOW) }}
       />,
     )
@@ -63,5 +69,35 @@ describe("WeatherApp", () => {
     // Forecast is the initial view: its tablist and panel render.
     expect(markup).toContain('role="tabpanel"')
     expect(markup).toContain("Next 10 Days")
+  })
+
+  it("puts the sun and moon strip above the hourly chart, and the almanac last", () => {
+    const markup = renderToStaticMarkup(
+      <WeatherApp
+        currentWeatherData={observation}
+        lastWeekData={emptyWeek}
+        hourlyDataByDate={{}}
+        currentDate={NOW}
+        twilight={buildTwilightEvents(NOW)}
+        moon={buildMoonEvents(NOW)}
+        forecast={{ kind: "ok", forecast: mapForecastDocument(parsedForecastDocument(), NOW) }}
+      />,
+    )
+    const strip = markup.indexOf("Next sun and moon times")
+    // The fixture's single hourly row leaves buildNextHours with nothing to
+    // plot, so the block renders its empty state rather than the chart; either
+    // way it occupies the same slot.
+    const chart = Math.max(
+      markup.indexOf("Hourly Forecast"),
+      markup.indexOf("Hourly forecast is unavailable right now."),
+    )
+    const days = markup.indexOf("Next 10 Days")
+    const almanac = markup.indexOf(">Almanac<")
+    expect(strip).toBeGreaterThan(-1)
+    expect(chart).toBeGreaterThan(-1)
+    expect(almanac).toBeGreaterThan(-1)
+    expect(strip).toBeLessThan(chart)
+    expect(chart).toBeLessThan(days)
+    expect(days).toBeLessThan(almanac)
   })
 })

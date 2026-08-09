@@ -88,12 +88,15 @@ function render(model: NextHoursModel, metric: ForecastMetric = ForecastMetric.T
 }
 
 describe("NextHoursChart", () => {
-  it("renders the heading, summary, day parts, now marker and labeled values", () => {
+  it("renders the heading, summary, day parts and labeled values", () => {
     const markup = render(makeModel())
     expect(markup).toContain("Hourly Forecast")
     expect(markup).toContain("Clear skies this morning and this afternoon.")
     expect(markup).toContain("Afternoon")
-    expect(markup).toContain("Now")
+    // The dashed rule is the only vertical line on the chart, so it reads as
+    // "now" without a caption; the caption it used to carry is gone.
+    expect(markup).not.toContain(">Now<")
+    expect(markup).toContain('stroke-dasharray="2 3"')
     expect(markup).toContain("70°")
     expect(markup).toContain("10%")
     expect(markup).toContain("9 AM")

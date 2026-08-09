@@ -104,4 +104,19 @@ describe("ForecastInfo", () => {
     expect(markup).toContain("Model status unavailable.")
     expect(markup).toContain("HTTP 404")
   })
+
+  it("opens with a link to the walkthrough, above the status cards", () => {
+    const markup = render(ok())
+    expect(markup).toContain("https://www.youtube.com/watch?v=sqhd5yF8Tfg")
+    expect(markup).toContain("See how it works")
+    expect(markup).toContain('rel="noopener noreferrer"')
+    expect(markup.indexOf("See how it works")).toBeLessThan(markup.indexOf("Status: Ready"))
+  })
+
+  // A publisher outage is when the explainer is most wanted, so it must not be
+  // rendered only on the healthy branch.
+  it("keeps the walkthrough link when the document is unavailable", () => {
+    const markup = render({ kind: "unavailable", reason: "HTTP 404" })
+    expect(markup).toContain("https://www.youtube.com/watch?v=sqhd5yF8Tfg")
+  })
 })
