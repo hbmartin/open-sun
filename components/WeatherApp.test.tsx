@@ -5,6 +5,7 @@ import WeatherApp from "@/components/WeatherApp"
 import { parsedForecastDocument } from "@/lib/__fixtures__/forecast"
 import { mapForecastDocument } from "@/lib/forecast-mappers"
 import { getTimes } from "@/lib/suncalc"
+import { buildTwilightEvents } from "@/lib/twilight"
 
 const NOW = new Date("2026-08-05T16:00:00Z")
 
@@ -53,6 +54,7 @@ describe("WeatherApp", () => {
         lastWeekData={emptyWeek}
         hourlyDataByDate={{}}
         currentDate={NOW}
+        twilight={buildTwilightEvents(NOW)}
         forecast={{ kind: "ok", forecast: mapForecastDocument(parsedForecastDocument(), NOW) }}
       />,
     )

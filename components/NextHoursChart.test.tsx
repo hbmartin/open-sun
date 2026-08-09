@@ -42,7 +42,7 @@ function makeModel(overrides: Partial<NextHoursModel> = {}): NextHoursModel {
     nowFraction: 0.02,
     domainMin: 70,
     domainMax: 93,
-    summary: "Clear skies this morning and this afternoon. Sunset at 7:31 PM.",
+    summary: "Clear skies this morning and this afternoon.",
     ...overrides,
   }
 }

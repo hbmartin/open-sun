@@ -136,11 +136,11 @@ describe("buildNextHours", () => {
     expect(model?.domainMax).toBe(19.17)
   })
 
-  it("writes a summary from the first two day parts and the next sun event", () => {
+  it("writes a summary from the first two day parts", () => {
     const days = daysFor({ ...twoDays, hourly: hourlyRows("2026-08-05T16:00:00Z", 24) })
     const model = buildNextHours(days, NOW, ForecastMetric.TEMP)
     // The fixture's dry, 18% humidity hours read as clear skies all day.
-    expect(model?.summary).toMatch(/^Clear skies this morning and this afternoon\. Sunset at \d/u)
+    expect(model?.summary).toBe("Clear skies this morning and this afternoon.")
   })
 
   it("names the coming rain in the summary", () => {
@@ -151,7 +151,7 @@ describe("buildNextHours", () => {
       }),
     })
     const model = buildNextHours(days, NOW, ForecastMetric.TEMP)
-    expect(model?.summary).toMatch(/^A chance of rain this morning and this afternoon\./u)
+    expect(model?.summary).toBe("A chance of rain this morning and this afternoon.")
   })
 })
 

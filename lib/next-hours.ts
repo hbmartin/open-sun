@@ -1,7 +1,7 @@
 import type { QuantileBand } from "@/lib/quantiles"
 import type { ForecastDayData, ForecastMetric, WeatherCondition } from "@/lib/types"
 import { mapForecastToCondition } from "@/lib/forecast-conditions"
-import { STATION_TIME_ZONE, formatStationTime, getStationDate, getStationHour } from "@/lib/utils"
+import { STATION_TIME_ZONE, getStationDate, getStationHour } from "@/lib/utils"
 
 /**
  * View model for the Next 24 Hours chart.
@@ -137,15 +137,10 @@ function dominantCondition(
 
 /**
  * A deterministic one-liner: the dominant condition of the current day part,
- * then the next, then the upcoming sun event. Undefined when the window lacks
- * the data to say anything honest.
+ * then the next. Undefined when the window lacks the data to say anything
+ * honest.
  */
-export function buildSummary(
-  points: NextHoursPoint[],
-  dayParts: DayPartRun[],
-  today: ForecastDayData,
-  tomorrow?: ForecastDayData,
-): string | undefined {
+export function buildSummary(points: NextHoursPoint[], dayParts: DayPartRun[]): string | undefined {
   const [first, second] = dayParts
   if (!first || !second) {
     return undefined
@@ -158,21 +153,11 @@ export function buildSummary(
 
   const firstPhrase = conditionPhrases[firstCondition]
   const secondPhrase = conditionPhrases[secondCondition]
-  const conditions =
-    firstPhrase === secondPhrase
-      ? `${firstPhrase} ${dayPartPhrases[first.label]} and ${dayPartPhrases[second.label]}.`
-      : `${firstPhrase} ${dayPartPhrases[first.label]}, ${secondPhrase.toLowerCase()} ${
-          dayPartPhrases[second.label]
-        }.`
-
-  // Before evening the sunset is still ahead; after it, tomorrow's sunrise is
-  // the next sun event worth naming.
-  const sunEvent =
-    first.label === "Morning" || first.label === "Afternoon"
-      ? `Sunset at ${formatStationTime(today.sunTimes.sunset)}.`
-      : `Sunrise at ${formatStationTime((tomorrow ?? today).sunTimes.sunrise)}.`
-
-  return `${conditions} ${sunEvent}`
+  return firstPhrase === secondPhrase
+    ? `${firstPhrase} ${dayPartPhrases[first.label]} and ${dayPartPhrases[second.label]}.`
+    : `${firstPhrase} ${dayPartPhrases[first.label]}, ${secondPhrase.toLowerCase()} ${
+        dayPartPhrases[second.label]
+      }.`
 }
 
 export function buildNextHours(
@@ -232,6 +217,6 @@ export function buildNextHours(
     nowFraction: minutes / 60 / WINDOW_HOURS,
     domainMin,
     domainMax,
-    summary: buildSummary(points, dayParts, days[startIndex], days[startIndex + 1]),
+    summary: buildSummary(points, dayParts),
   }
 }

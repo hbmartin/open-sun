@@ -1,30 +1,48 @@
-import type { TimesData } from "@/lib/suncalc"
+"use client"
+
+import type { TwilightEvent } from "@/lib/twilight"
 import type React from "react"
-import { Rss, Sunrise, Sunset } from "lucide-react"
+import TwilightIcon from "@/components/TwilightIcon"
+import { useNow } from "@/components/use-now"
+import { TWILIGHT_LABELS, selectNextTwilight } from "@/lib/twilight"
 import { formatStationTime } from "@/lib/utils"
 
 interface SunInfoProperties {
-  currentDate: Date
-  timesData: TimesData
+  twilight: readonly TwilightEvent[]
+  initialNow: Date
 }
 
-export default function SunInfo({ currentDate, timesData }: SunInfoProperties): React.JSX.Element {
+/**
+ * The next few twilight boundaries, counting forward from now.
+ *
+ * Fixed-width cells and tabular figures so the strip does not shuffle sideways
+ * as times roll between one and two digits on the minute tick.
+ */
+export default function SunInfo({
+  twilight,
+  initialNow,
+}: SunInfoProperties): React.JSX.Element | undefined {
+  const now = useNow(initialNow)
+  const next = selectNextTwilight(twilight, now)
+
+  if (next.length === 0) {
+    return undefined
+  }
+
   return (
-    <div className="px-4 py-3 text-center">
-      <div className="flex items-center justify-center">
-        <Sunrise size={16} className="text-orange-600 dark:text-orange-400 mr-2" />
-        <span className="text-gray-700 dark:text-gray-300 mr-4">
-          {formatStationTime(timesData.dawn)}
-        </span>
-        <Rss size={16} className="text-gray-800 dark:text-gray-300 mr-2" />
-        <span className="text-gray-700 dark:text-gray-300 mr-4">
-          {formatStationTime(currentDate)}
-        </span>
-        <Sunset size={16} className="text-purple-800 dark:text-purple-400 mr-2" />
-        <span className="text-gray-700 dark:text-gray-300">
-          {formatStationTime(timesData.dusk)}
-        </span>
-      </div>
-    </div>
+    <ul aria-label="Next twilight times" className="grid grid-cols-4 gap-1 px-4 py-3">
+      {next.map((event) => (
+        <li key={event.at.toISOString()} className="flex items-center justify-center gap-1">
+          <TwilightIcon kind={event.kind} />
+          <span className="sr-only">{TWILIGHT_LABELS[event.kind]}</span>
+          <time
+            dateTime={event.at.toISOString()}
+            className="text-xs tabular-nums whitespace-nowrap text-gray-700 dark:text-gray-300"
+          >
+            {formatStationTime(event.at)}
+          </time>
+        </li>
+      ))}
+    </ul>
   )
 }
