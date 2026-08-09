@@ -5,6 +5,9 @@ import { mapForecastToColor, mapForecastToCondition } from "@/lib/forecast-condi
 import { forecast_metric_precision } from "@/lib/types"
 import { formatHour, formatMetricValue, getRangePosition } from "@/lib/utils"
 
+/** Below this the hour reads as dry, and the row shows wind instead of rain. */
+const RAIN_VISIBLE_IN = 0.01
+
 export default function ForecastHourlyDetail({
   hourly_data,
   metric,
@@ -28,6 +31,17 @@ export default function ForecastHourlyDetail({
               return
             }
             const value = hour[metric]
+            // Rain and wind share one line so the row stays two lines tall inside its
+            // fixed 60px; a third line overflows and collides with the next hour's label.
+            const segments: string[] = []
+            if (hour.precip !== undefined && hour.precip >= RAIN_VISIBLE_IN) {
+              segments.push(`${hour.precip.toFixed(2)}"`)
+            }
+            if (hour.wind !== undefined) {
+              segments.push(`${Math.round(hour.wind)} mph`)
+            }
+            // A dry hour with no wind reading still needs to read as dry, not as blank.
+            const conditionLine = segments.length === 0 ? '0"' : segments.join(" · ")
             return (
               <div
                 key={`${hour.hour} ${hour.date}`}
@@ -44,24 +58,13 @@ export default function ForecastHourlyDetail({
                 />
 
                 <div className="flex items-center justify-between w-full ml-6 py-3">
-                  <div className="w-20">
+                  <div className="w-32">
                     <div className="font-semibold text-gray-900 dark:text-gray-100">
                       {formatHour(hour.hour)}
                     </div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400 mt-1 flex items-center gap-1">
+                    <div className="text-sm text-gray-600 dark:text-gray-400 mt-1 flex items-center gap-1 whitespace-nowrap">
                       <WeatherIcon condition={mapForecastToCondition(hour)} size={15} />
-                      <span>
-                        {hour.precip !== undefined && hour.precip > 0.005
-                          ? hour.precip.toFixed(2)
-                          : 0}
-                        &quot;
-                      </span>
-                    </div>
-                    {/* Wind and humidity accompany every hour regardless of the
-                        selected metric, matching the precip line above. */}
-                    <div className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">
-                      {hour.wind === undefined ? "" : `${Math.round(hour.wind)} mph`}
-                      {hour.humidity === undefined ? "" : ` · ${Math.round(hour.humidity)}%`}
+                      <span>{conditionLine}</span>
                     </div>
                   </div>
 
