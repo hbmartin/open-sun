@@ -11,6 +11,7 @@ import ForecastWeather from "@/components/ForecastWeather"
 import MetricTabs from "@/components/MetricTabs"
 import NextHours from "@/components/NextHours"
 import SunInfo from "@/components/SunInfo"
+import { useNow } from "@/components/use-now"
 import WeeklyWeather from "@/components/WeeklyWeather"
 import { DisplayMetric, ForecastMetric } from "@/lib/types"
 
@@ -67,6 +68,9 @@ export default function WeatherApp({
   const [activeForecastTab, setActiveForecastTab] = useState<ForecastMetric>(ForecastMetric.TEMP)
   const [activeNavItem, setActiveNavItem] = useState<NavItem>("Forecast")
   const panelId = useId()
+  // One clock for the whole screen: the chart's Now line and the twilight strip
+  // read the same instant, so they cannot tick a minute apart.
+  const now = useNow(currentDate)
 
   const isForecast = activeNavItem === "Forecast"
   const isInfo = activeNavItem === "Info"
@@ -118,11 +122,11 @@ export default function WeatherApp({
 
       {!isInfo &&
         (isForecast ? (
-          <NextHours forecast={forecast} metric={activeForecastTab} initialNow={currentDate} />
+          <NextHours forecast={forecast} metric={activeForecastTab} now={now} />
         ) : (
           <CurrentWeather currentWeatherData={currentWeatherData} />
         ))}
-      {!isInfo && <SunInfo twilight={twilight} initialNow={currentDate} />}
+      {!isInfo && <SunInfo twilight={twilight} now={now} />}
 
       {isInfo ? (
         <ForecastInfo forecast={forecast} />

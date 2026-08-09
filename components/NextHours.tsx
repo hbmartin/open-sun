@@ -4,20 +4,17 @@ import type { ForecastFetchResult, ForecastMetric } from "@/lib/types"
 import type React from "react"
 import { useMemo } from "react"
 import NextHoursChart from "@/components/NextHoursChart"
-import { useNow } from "@/components/use-now"
 import { buildNextHours } from "@/lib/next-hours"
 
 export default function NextHours({
   forecast,
   metric,
-  initialNow,
+  now,
 }: {
   forecast: ForecastFetchResult
   metric: ForecastMetric
-  initialNow: Date
+  now: Date
 }): React.JSX.Element | undefined {
-  const now = useNow(initialNow)
-
   const model = useMemo(
     () =>
       forecast.kind === "ok" ? buildNextHours(forecast.forecast.days, now, metric) : undefined,

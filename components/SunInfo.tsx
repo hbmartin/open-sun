@@ -3,13 +3,12 @@
 import type { TwilightEvent } from "@/lib/twilight"
 import type React from "react"
 import TwilightIcon from "@/components/TwilightIcon"
-import { useNow } from "@/components/use-now"
 import { TWILIGHT_LABELS, selectNextTwilight } from "@/lib/twilight"
 import { formatStationTime } from "@/lib/utils"
 
 interface SunInfoProperties {
   twilight: readonly TwilightEvent[]
-  initialNow: Date
+  now: Date
 }
 
 /**
@@ -20,9 +19,8 @@ interface SunInfoProperties {
  */
 export default function SunInfo({
   twilight,
-  initialNow,
+  now,
 }: SunInfoProperties): React.JSX.Element | undefined {
-  const now = useNow(initialNow)
   const next = selectNextTwilight(twilight, now)
 
   if (next.length === 0) {

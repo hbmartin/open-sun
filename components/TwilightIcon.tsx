@@ -17,11 +17,23 @@ const ARROW_SHAFT = "M12 3v8"
 const ARROW_HEAD_UP = "m9 6 3-3 3 3"
 const ARROW_HEAD_DOWN = "m9 8 3 3 3-3"
 
-const GEOMETRY: Record<TwilightKind, { dome: string; head: string }> = {
-  astronomicalDawn: { dome: DOME_ASTRONOMICAL, head: ARROW_HEAD_UP },
-  civilDawn: { dome: DOME_CIVIL, head: ARROW_HEAD_UP },
-  civilDusk: { dome: DOME_CIVIL, head: ARROW_HEAD_DOWN },
-  astronomicalDusk: { dome: DOME_ASTRONOMICAL, head: ARROW_HEAD_DOWN },
+// Rays for the civil pair only: it is the one that clears the horizon far
+// enough to throw light, and reserving them for it gives depth a second cue
+// alongside cap height and the TONE fade. The 45° pair borrows lucide's sunrise
+// spans exactly — r=8 out to r=10 about the sun's centre at (12,21) — so these
+// sit in the same family as the sunrise/sunset glyphs elsewhere. Straight up is
+// already the arrow's column, and level rays would vanish into the horizon rule
+// the sun is centred on, so the diagonals are the only two slots free.
+const RAY_LEFT = "m6.34 15.34-1.41-1.41"
+const RAY_RIGHT = "m17.66 15.34 1.41-1.41"
+const RAYS_CIVIL = [RAY_LEFT, RAY_RIGHT]
+const RAYS_NONE: string[] = []
+
+const GEOMETRY: Record<TwilightKind, { dome: string; head: string; rays: readonly string[] }> = {
+  astronomicalDawn: { dome: DOME_ASTRONOMICAL, head: ARROW_HEAD_UP, rays: RAYS_NONE },
+  civilDawn: { dome: DOME_CIVIL, head: ARROW_HEAD_UP, rays: RAYS_CIVIL },
+  civilDusk: { dome: DOME_CIVIL, head: ARROW_HEAD_DOWN, rays: RAYS_CIVIL },
+  astronomicalDusk: { dome: DOME_ASTRONOMICAL, head: ARROW_HEAD_DOWN, rays: RAYS_NONE },
 }
 
 // The same families the sunrise/sunset icons already wear elsewhere. Hue carries
@@ -43,7 +55,7 @@ export default function TwilightIcon({
   size?: number
   className?: string
 }): React.JSX.Element {
-  const { dome, head } = GEOMETRY[kind]
+  const { dome, head, rays } = GEOMETRY[kind]
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -63,6 +75,10 @@ export default function TwilightIcon({
       <path d={dome} />
       <path d={ARROW_SHAFT} />
       <path d={head} />
+      {/* Trailing, so the four paths every variant shares keep fixed indices. */}
+      {rays.map((ray) => (
+        <path key={ray} d={ray} />
+      ))}
     </svg>
   )
 }
