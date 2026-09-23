@@ -298,6 +298,13 @@ class ReleaseCohortTest(unittest.TestCase):
         published = self._transform(release_ids=["2a2b510af0e95621"])
         self.assertEqual(published["release_ids"], ["2a2b510af0e95621"])
 
+    def test_missing_observation_time_remains_null(self) -> None:
+        self.assertIsNone(self._transform(observation_at=None)["observation_at"])
+
+    def test_malformed_observation_time_is_refused(self) -> None:
+        with self.assertRaisesRegex(RefusedError, "observation_at is not a string"):
+            self._transform(observation_at=123)
+
     def test_an_absent_cohort_publishes_as_an_empty_list(self) -> None:
         self.assertEqual(self._transform()["release_ids"], [])
 
