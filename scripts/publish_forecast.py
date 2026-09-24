@@ -369,6 +369,12 @@ def _normalise_timestamp(value: Any, field: str) -> str:
     return parsed.replace(microsecond=0).isoformat()
 
 
+def _normalise_optional_timestamp(value: Any, field: str) -> str | None:
+    if value is None:
+        return None
+    return _normalise_timestamp(value, field)
+
+
 def _truth_semantics(document: dict[str, Any]) -> dict[str, str]:
     """Hoist the per-row truth_semantics maps to a single per-variable block.
 
@@ -463,7 +469,7 @@ def transform(document: dict[str, Any], published_at: datetime) -> dict[str, Any
         "source_schema_version": SOURCE_SCHEMA_VERSION,
         "published_at": published_at.replace(microsecond=0).isoformat(),
         "issued_at": _normalise_timestamp(document.get("issued_at"), "issued_at"),
-        "observation_at": _normalise_timestamp(
+        "observation_at": _normalise_optional_timestamp(
             document.get("observation_at"), "observation_at"
         ),
         "issue_interval_seconds": ISSUE_INTERVAL_SECONDS,
