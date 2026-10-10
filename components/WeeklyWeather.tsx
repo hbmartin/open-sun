@@ -5,6 +5,7 @@ import { useState } from "react"
 import HourlyContainer from "@/components/HourlyContainer"
 import RangedBar from "@/components/RangedBar"
 import WeatherIcon from "@/components/WeatherIcon"
+import { formatRainfall } from "@/lib/rainfall"
 import { metric_display_units } from "@/lib/types"
 import { mapWeatherToCondition } from "@/lib/weather-conditions"
 
@@ -55,7 +56,7 @@ export default function WeeklyWeather({
                 <div className="flex space-x-1">
                   <Droplets size={14} className="text-blue-400" />
                   <span className="text-xs text-blue-500 dark:text-blue-400 font-medium">
-                    {day.avg_rainofhourly > 0.005 ? day.avg_rainofhourly.toFixed(2) : 0}&quot;
+                    {formatRainfall(day.rain_total_in)} in
                   </span>
                 </div>
               </div>

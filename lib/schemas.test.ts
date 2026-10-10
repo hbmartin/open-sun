@@ -90,6 +90,18 @@ describe("DailyApiResponseSchema", () => {
     expect(result.data).toHaveLength(2)
   })
 
+  it("preserves inches of accumulated rainfall and rejects negative totals", () => {
+    const parsed = DailyApiResponseSchema.parse({
+      data: [{ ...validItem, rain_total_in: 0.01 }],
+    })
+    expect(parsed.data[0].rain_total_in).toBe(0.01)
+    expect(() =>
+      DailyApiResponseSchema.parse({
+        data: [{ ...validItem, rain_total_in: -1 }],
+      }),
+    ).toThrow()
+  })
+
   it("rejects non-number fields", () => {
     expect(() =>
       DailyApiResponseSchema.parse({

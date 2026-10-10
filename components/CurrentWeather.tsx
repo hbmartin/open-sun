@@ -1,5 +1,6 @@
 import type { InstantObservation } from "@/lib/types"
 import type React from "react"
+import RainfallSummary from "@/components/RainfallSummary"
 
 interface CurrentWeatherProperties {
   currentWeatherData: InstantObservation
@@ -42,6 +43,7 @@ export default function CurrentWeather({
           <div className="text-sm text-gray-500 dark:text-gray-400">UVI</div>
         </div>
       </div>
+      <RainfallSummary currentWeatherData={currentWeatherData} />
     </div>
   )
 }

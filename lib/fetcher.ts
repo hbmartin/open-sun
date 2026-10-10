@@ -27,6 +27,7 @@ export async function fetchCurrentWeatherData(): Promise<InstantObservation> {
   const validatedResponse = CurrentWeatherApiResponseSchema.parse(body)
   return {
     ...validatedResponse.data,
+    observedAt: validatedResponse.metadata?.observed_at,
     sunTimes: getSunTimes(new Date()),
   }
 }

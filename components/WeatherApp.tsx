@@ -12,6 +12,7 @@ import ForecastInfo from "@/components/ForecastInfo"
 import ForecastWeather from "@/components/ForecastWeather"
 import MetricTabs from "@/components/MetricTabs"
 import NextHours from "@/components/NextHours"
+import RainfallSummary from "@/components/RainfallSummary"
 import ScrollToTop from "@/components/ScrollToTop"
 import SunInfo from "@/components/SunInfo"
 import { useForegroundRefresh } from "@/components/use-foreground-refresh"
@@ -139,6 +140,12 @@ export default function WeatherApp({
       {/* Above the chart: the sun and moon times frame the hours that follow,
           and a strip of six short times reads faster than the chart does. */}
       {hasChrome && <SunInfo twilight={twilight} moon={moon} now={now} />}
+
+      {isForecast && (
+        <div className="mx-4 mb-4 px-4 bg-white dark:bg-gray-900 rounded-lg shadow-sm">
+          <RainfallSummary currentWeatherData={currentWeatherData} />
+        </div>
+      )}
 
       {hasChrome && (
         <div ref={leadRef}>

@@ -18,6 +18,8 @@ export interface InstantObservation {
   pm25: number | null
   rainofhourly: number
   eventrain: number
+  rain_total_in?: number | null
+  observedAt?: string
   sunTimes: TimesData
 }
 
@@ -34,6 +36,8 @@ export interface RangeObservation {
   avg_avgwind: number
   max_avgwind: number
   avg_rainofhourly: number
+  /** Accumulated rainfall within this day/hour, in inches. */
+  rain_total_in?: number | null
   min_uvi: number
   avg_uvi: number
   max_uvi: number

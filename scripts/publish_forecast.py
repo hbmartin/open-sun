@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Publish a grounded-weather-forecast document to the open-sun ``data`` branch.
 
-Reads the schema-v5 document written by ``grounded-weather-forecast predict``,
+Reads the schema-v5/v6 document written by ``grounded-weather-forecast predict``,
 transforms it into the open-sun publish contract (imperial units, no minutely
 block), and force-pushes it as a single unparented commit on an orphan branch.
 ``lib/forecast-schemas.ts`` is the consumer of that contract; the two must be
@@ -44,9 +44,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-PUBLISHER_VERSION = "1.3.0"
+PUBLISHER_VERSION = "1.3.1"
 CONTRACT_VERSION = 1
-SOURCE_SCHEMA_VERSION = 5
+SOURCE_SCHEMA_VERSION = 6
+SUPPORTED_SOURCE_SCHEMA_VERSIONS = frozenset({5, SOURCE_SCHEMA_VERSION})
 
 DEFAULT_SOURCE = "/Volumes/ExtStor/weather/grounded-weather-forecast/forecast.json"
 DEFAULT_REMOTE = "git@github.com:hbmartin/open-sun.git"
@@ -443,10 +444,15 @@ def _daily_row(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def transform(document: dict[str, Any], published_at: datetime) -> dict[str, Any]:
-    """Map a schema-v5 forecast document onto the open-sun publish contract."""
-    if (version := document.get("schema_version")) != SOURCE_SCHEMA_VERSION:
+    """Map the reviewed schema-v5/v6 shapes onto the open-sun contract.
+
+    Schema 6 changes minutely release attribution. The published hourly/daily
+    shape is compatible with schema 5; minutely rows are deliberately omitted.
+    """
+    version = document.get("schema_version")
+    if type(version) is not int or version not in SUPPORTED_SOURCE_SCHEMA_VERSIONS:
         msg = (
-            f"source schema_version is {version!r}, expected {SOURCE_SCHEMA_VERSION}; "
+            f"source schema_version is {version!r}, expected 5 or {SOURCE_SCHEMA_VERSION}; "
             f"review the contract before republishing"
         )
         raise RefusedError(msg)
@@ -466,7 +472,7 @@ def transform(document: dict[str, Any], published_at: datetime) -> dict[str, Any
     return {
         "schema_version": CONTRACT_VERSION,
         "publisher_version": PUBLISHER_VERSION,
-        "source_schema_version": SOURCE_SCHEMA_VERSION,
+        "source_schema_version": version,
         "published_at": published_at.replace(microsecond=0).isoformat(),
         "issued_at": _normalise_timestamp(document.get("issued_at"), "issued_at"),
         "observation_at": _normalise_optional_timestamp(

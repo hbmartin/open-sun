@@ -313,7 +313,48 @@ class ReleaseCohortTest(unittest.TestCase):
             self._transform(release_ids="2a2b510af0e95621")
 
     def test_the_publisher_version_names_this_contract(self) -> None:
-        self.assertEqual(self._transform()["publisher_version"], "1.3.0")
+        self.assertEqual(self._transform()["publisher_version"], "1.3.1")
+
+
+    def test_schema_six_preserves_hourly_values_and_release_attribution(self) -> None:
+        row = LeadBucketTest._row("0-1h")
+        row.update(
+            values={"temp_c": 20.0},
+            methods={"temp_c": "equal_weight"},
+            release_ids={"temp_c": "hourly-release"},
+            quantiles={"temp_c": {"0.1": 18.0, "0.9": 22.0}},
+            quantiles_source={"temp_c": "residual"},
+        )
+        published = self._transform(
+            schema_version=6,
+            release_ids=["hourly-release", "minutely-release"],
+            hourly=[row],
+            minutely=[{"release_ids": {"temp_c": "minutely-release"}}],
+        )
+        self.assertEqual(published["source_schema_version"], 6)
+        self.assertEqual(published["schema_version"], 1)
+        self.assertEqual(published["hourly"][0]["values"]["temp_f"], 68.0)
+        self.assertEqual(
+            published["hourly"][0]["release_ids"]["temp_f"], "hourly-release"
+        )
+        self.assertEqual(
+            published["hourly"][0]["quantiles"]["temp_f"], {"0.1": 64.4, "0.9": 71.6}
+        )
+        self.assertNotIn("minutely", published)
+
+    def test_schema_five_remains_compatible_for_held_documents(self) -> None:
+        self.assertEqual(self._transform(schema_version=5)["source_schema_version"], 5)
+
+    def test_future_schema_is_refused(self) -> None:
+        for version in (7, "6", 6.0, True, None, [], {}):
+            with self.subTest(version=version):
+                with self.assertRaisesRegex(RefusedError, "source schema_version"):
+                    self._transform(schema_version=version)
+
+    def test_missing_observation_remains_nullable(self) -> None:
+        self.assertIsNone(
+            self._transform(schema_version=6, observation_at=None)["observation_at"]
+        )
 
 
 if __name__ == "__main__":
