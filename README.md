@@ -32,9 +32,29 @@ Both publishers write into **one commit**, because the branch is force-pushed wh
 
 ### Contract
 
+The forecast publisher accepts grounded-weather-forecast source schemas 5 and
+6 and records the actual version in `source_schema_version`. Schema 6 updates
+minutely attribution; the published hourly/daily contract remains version 1.
+Unknown source versions are refused. Missing station observations remain
+nullable.
+
 `lib/forecast-schemas.ts` and `scripts/publish_forecast.py` are two halves of one contract and must change together. Breaking shape changes bump `schema_version` (the consumer asserts it exactly); additive changes and fixes bump `publisher_version` only. The same applies to `lib/schemas.ts` and `scripts/publish_station.py`.
 
-The station documents deliberately keep the exact shape of the `aw2sqlite` `/` , `/daily` and `/hourly` endpoints they replace, so `lib/schemas.ts` and `lib/mappers.ts` are unchanged by the move. `publish_station.py` calls that project's own aggregation functions rather than reimplementing the SQL, which is why it runs under the aw2sqlite project while `publish_forecast.py` stays stdlib-only. Two consequences worth knowing:
+The station documents retain the `aw2sqlite` `/`, `/daily` and `/hourly` fields
+and add `rain_total_in` for accumulated rainfall in inches. The station
+publisher uses the logger's aggregation functions for other weather fields and
+sums increases in the event-rain counter for each station-local day and hour.
+Events spanning midnight contribute only new rain to the new day; counter
+resets start a new event, and small dips/rebounds do not double-count rain.
+Rainfall spanning an outage of more than ten minutes is unknown when it cannot
+be assigned to a single day or hour. Unknown/missing totals display a dash,
+never an average rate or a made-up zero. Two-hour history rows combine their
+available hourly totals. The current observation card separately labels
+**Rain today** in inches and **Rain rate** in inches/hour, with the actual
+station observation timestamp. This summary appears on Forecast and History.
+
+`publish_station.py` runs under the aw2sqlite project; the forecast publisher
+stays stdlib-only. Two consequences worth knowing:
 
 - **`daily.json` is bounded to eight days and `hourly.json` to the same window.** A published file cannot be re-queried per request, so the publisher bounds it to what the page actually shows; that also keeps `hourly.json` around 60 KB instead of dragging along the station's entire history.
 - **`current.json` is the newest stored observation, not a live device read.** The collector writes every 60s, so it is at most a minute old when published — and unlike the live endpoint it does not require the station device to be reachable at publish time. `metadata.observed_at` carries its true timestamp.

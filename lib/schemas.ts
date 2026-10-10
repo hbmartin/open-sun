@@ -18,7 +18,9 @@ export const CurrentWeatherApiResponseSchema = z.object({
     pm25: z.number().nullable(),
     rainofhourly: z.number(),
     eventrain: z.number(),
+    rain_total_in: z.number().nonnegative().nullable().optional(),
   }),
+  metadata: z.object({ observed_at: z.string().optional() }).optional(),
 })
 
 export const HourlyApiResponseSchema = z.object({
@@ -40,6 +42,7 @@ export const HourlyApiResponseSchema = z.object({
           max_avgwind: z.number(),
           avg_avgwind: z.number(),
           avg_rainofhourly: z.number(),
+          rain_total_in: z.number().nonnegative().nullable().optional(),
           avg_uvi: z.number(),
           avg_solarrad: z.number(),
           min_uvi: z.number(),
@@ -67,6 +70,7 @@ export const DailyApiResponseSchema = z.object({
       max_avgwind: z.number(),
       avg_avgwind: z.number(),
       avg_rainofhourly: z.number(),
+      rain_total_in: z.number().nonnegative().nullable().optional(),
       avg_uvi: z.number(),
       avg_solarrad: z.number(),
       min_uvi: z.number(),

@@ -20,10 +20,10 @@ time. Reading the database also drops the dependency on the station device being
 reachable at publish time; the collector writes every 60s, so the newest row is
 at most a minute old.
 
-Aggregation is delegated to ``ambientweather2sqlite``'s own query functions
-rather than reimplemented in SQL, so the published documents keep the exact
-shape and grouping semantics of the ``/daily`` and ``/hourly`` endpoints, and
-follow them if upstream changes. That is why this script must run under the
+Weather aggregation is delegated to ``ambientweather2sqlite``'s own query
+functions. Accumulated rainfall is added from event-counter increments in
+station-local days/hours; averaging a rain rate cannot produce a rain total.
+That is why this script must run under the
 aw2sqlite project (``uv run --project .../ambientweather2sqlite``) while
 ``publish_forecast.py`` stays stdlib-only.
 
@@ -43,11 +43,16 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import sqlite3
 import sys
+from collections.abc import Iterable
+from contextlib import closing
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
-PUBLISHER_VERSION = "1.0.0"
+PUBLISHER_VERSION = "1.1.0"
 
 DEFAULT_DB = str(Path.home() / "Downloads/ambientweather2sqlite/aw2sqlite.db")
 DEFAULT_PRIOR_DAYS = 7
@@ -99,7 +104,7 @@ NULLABLE_CURRENT_FIELDS = ("inTemp", "inHumi", "AbsPress", "RelPress", "pm25")
 
 # Averages arrive with full float noise (17 significant digits). Every display
 # path rounds far harder than this -- RangedBar formats to at most 2 decimals
-# and the rain threshold is 0.005 -- so 4 decimals is display-lossless while
+# and rain totals display hundredths -- so 4 decimals is display-lossless while
 # keeping hourly.json roughly a third smaller.
 PRECISION = 4
 
@@ -137,7 +142,11 @@ def _import_library() -> tuple[Any, Any, Any]:
             f"`uv run --project /Volumes/ExtStor/weather/ambientweather2sqlite python ...`"
         )
         raise RefusedError(msg) from exc
-    return query_latest_observation, query_daily_aggregated_data, query_hourly_aggregated_data
+    return (
+        query_latest_observation,
+        query_daily_aggregated_data,
+        query_hourly_aggregated_data,
+    )
 
 
 def _round(value: Any) -> Any:
@@ -204,9 +213,11 @@ def build_current(observation: dict[str, Any] | None) -> dict[str, Any]:
 
 
 def build_daily(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    """Daily aggregates, oldest first, exactly as ``/daily`` returns them."""
+    """Daily weather aggregates, oldest first; rain totals are added separately."""
     keys = ("date", *AGGREGATION_FIELDS)
-    usable = [_clean_row(row, keys) for row in rows if row.get("date") and _usable_row(row)]
+    usable = [
+        _clean_row(row, keys) for row in rows if row.get("date") and _usable_row(row)
+    ]
 
     dropped = len(rows) - len(usable)
     if dropped:
@@ -241,6 +252,112 @@ def serialise(payload: dict[str, Any]) -> bytes:
     # allow_nan=False: Python would otherwise emit bare NaN, which is invalid
     # JSON and would take the whole page down with an opaque parse error.
     return json.dumps(payload, allow_nan=False, separators=(",", ":")).encode("utf-8")
+
+
+def _observation_time(value: str) -> datetime:
+    at = datetime.fromisoformat(value)
+    return at.replace(tzinfo=UTC) if at.tzinfo is None else at.astimezone(UTC)
+
+
+def rain_totals(
+    observations: Iterable[tuple[str, float | None]],
+    tz: str,
+) -> tuple[dict[str, float | None], dict[tuple[str, str], float | None]]:
+    """Sum event-counter increments, in inches, into station-local days/hours.
+
+    A reset starts a new event; small dips and rebounds do not count twice.
+    Rain across a logging gap can be assigned to a day/hour only when both
+    ends fall in that bucket. Unknown amounts remain null rather than zero.
+    Replay the archive so an event spanning midnight keeps its earlier baseline.
+    """
+    zone = ZoneInfo(tz)
+    daily: dict[str, float | None] = {}
+    hourly: dict[tuple[str, str], float | None] = {}
+    previous: float | None = None
+    previous_at: datetime | None = None
+    peak = 0.0
+
+    def bucket(at: datetime) -> tuple[str, str]:
+        local = at.astimezone(zone)
+        return local.date().isoformat(), f"{local.hour:02d}"
+
+    for timestamp, counter in observations:
+        at = _observation_time(timestamp)
+        day, hour = bucket(at)
+        key = (day, hour)
+        daily.setdefault(day, 0.0)
+        hourly.setdefault(key, 0.0)
+        if counter is None or not math.isfinite(counter) or counter < 0:
+            daily[day] = hourly[key] = None
+            continue
+
+        if previous is None:
+            delta = 0.0 if counter == 0 else None
+            peak = counter
+        elif counter < previous * 0.5:
+            delta = counter
+            peak = counter
+        else:
+            delta = max(0.0, counter - peak)
+            peak = max(peak, counter)
+
+        if delta is None:
+            daily[day] = hourly[key] = None
+        elif delta > 0:
+            # With minute samples, attribute a tip to its first observed time.
+            # Across outages, never invent which side of midnight/hour it fell.
+            gap = (at - previous_at).total_seconds() if previous_at else 0
+            uncertain_hours: set[tuple[str, str]] = set()
+            if previous_at and gap > 600:
+                cursor = previous_at.replace(minute=0, second=0, microsecond=0)
+                while cursor <= at:
+                    uncertain_hours.add(bucket(cursor))
+                    cursor += timedelta(hours=1)
+            uncertain_days = {key[0] for key in uncertain_hours}
+            if len(uncertain_days) > 1:
+                for uncertain_day in uncertain_days:
+                    daily[uncertain_day] = None
+            elif daily[day] is not None:
+                daily[day] += delta
+            if len(uncertain_hours) > 1:
+                for uncertain_hour in uncertain_hours:
+                    hourly[uncertain_hour] = None
+            elif hourly[key] is not None:
+                hourly[key] += delta
+
+        previous = counter
+        previous_at = at
+
+    return daily, hourly
+
+
+def add_rain_totals(
+    documents: dict[str, dict[str, Any]], db_path: str, tz: str
+) -> None:
+    with closing(
+        sqlite3.connect(f"{Path(db_path).resolve().as_uri()}?mode=ro", uri=True)
+    ) as conn:
+        daily, hourly = rain_totals(
+            conn.execute(
+                "SELECT ts, eventrain FROM observations WHERE ts <= ? ORDER BY ts",
+                (documents["current.json"]["metadata"]["observed_at"],),
+            ),
+            tz,
+        )
+    for row in documents["daily.json"]["data"]:
+        row["rain_total_in"] = _round(daily.get(row["date"]))
+    for day, slots in documents["hourly.json"]["data"].items():
+        for row in slots:
+            if row is not None:
+                row["rain_total_in"] = _round(hourly.get((day, row["hour"])))
+    current = documents["current.json"]
+    observed_at = current["metadata"].get("observed_at")
+    if observed_at:
+        at = _observation_time(observed_at)
+        current["metadata"]["observed_at"] = at.isoformat()
+        current["data"]["rain_total_in"] = _round(
+            daily.get(at.astimezone(ZoneInfo(tz)).date().isoformat())
+        )
 
 
 # --------------------------------------------------------------------------
@@ -284,7 +401,9 @@ def build_documents(
         ),
     )
 
-    return {"current.json": current, "daily.json": daily, "hourly.json": hourly}
+    documents = {"current.json": current, "daily.json": daily, "hourly.json": hourly}
+    add_rain_totals(documents, db_path, tz)
+    return documents
 
 
 def run(
@@ -309,7 +428,9 @@ def run(
         return 0
 
     if out_dir is None:
-        print("--out-dir is required unless --print is given", file=sys.stderr, flush=True)
+        print(
+            "--out-dir is required unless --print is given", file=sys.stderr, flush=True
+        )
         return 2
 
     destination = Path(out_dir)
@@ -324,7 +445,10 @@ def run(
 
     days = len(documents["daily.json"]["data"])
     hours = sum(
-        1 for slots in documents["hourly.json"]["data"].values() for slot in slots if slot
+        1
+        for slots in documents["hourly.json"]["data"].values()
+        for slot in slots
+        if slot
     )
     _log(f"station documents ready: {days} days, {hours} populated hours")
     return 0
@@ -334,11 +458,19 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     parser.add_argument("--db", default=DEFAULT_DB, help="aw2sqlite database path")
     parser.add_argument("--out-dir", help="directory to write the documents into")
-    parser.add_argument("--prior-days", type=int, default=DEFAULT_PRIOR_DAYS,
-                        help="days of daily history, not counting today")
+    parser.add_argument(
+        "--prior-days",
+        type=int,
+        default=DEFAULT_PRIOR_DAYS,
+        help="days of daily history, not counting today",
+    )
     parser.add_argument("--tz", default=STATION_TIME_ZONE, help="grouping timezone")
-    parser.add_argument("--print", dest="print_payload", action="store_true",
-                        help="write the documents to stdout instead of the output directory")
+    parser.add_argument(
+        "--print",
+        dest="print_payload",
+        action="store_true",
+        help="write the documents to stdout instead of the output directory",
+    )
     args = parser.parse_args(argv)
     return run(
         db_path=args.db,

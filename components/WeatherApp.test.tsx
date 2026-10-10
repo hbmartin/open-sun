@@ -72,6 +72,8 @@ describe("WeatherApp", () => {
     // Forecast is the initial view: its tablist and panel render.
     expect(markup).toContain('role="tabpanel"')
     expect(markup).toContain("Next 10 Days")
+    expect(markup).toContain("Rain today")
+    expect(markup).toContain("Rain rate")
   })
 
   it("puts the sun and moon strip above the hourly chart, and the almanac last", () => {

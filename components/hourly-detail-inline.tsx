@@ -1,6 +1,7 @@
 import type { DisplayMetric, HourData } from "@/lib/types"
 import type React from "react"
 import WeatherIcon from "@/components/WeatherIcon"
+import { formatRainfall } from "@/lib/rainfall"
 import { formatHour, getRangePosition } from "@/lib/utils"
 import { mapWeatherToColor, mapWeatherToCondition } from "@/lib/weather-conditions"
 
@@ -23,7 +24,9 @@ export default function HourlyDetailInline({
       <div className="py-4">
         <div className="relative">
           {[...Array.from({ length: 12 }).keys()].map((index) => {
-            const hour = hourly_data[index * 2]
+            const firstHour = hourly_data[index * 2]
+            const nextHour = hourly_data[index * 2 + 1]
+            const hour = firstHour ?? nextHour
             if (hour === undefined) {
               return
             }
@@ -45,12 +48,18 @@ export default function HourlyDetailInline({
                 <div className="flex items-center justify-between w-full ml-6 py-3">
                   <div className="w-16">
                     <div className="font-semibold text-gray-900 dark:text-gray-100">
-                      {formatHour(hour.hour)}
+                      {formatHour(String(index * 2))}
                     </div>
                     <div className="text-sm text-gray-600 dark:text-gray-400 mt-1 flex items-center gap-1">
                       <WeatherIcon condition={mapWeatherToCondition(hour)} size={15} />
                       <span>
-                        {hour.avg_rainofhourly > 0.005 ? hour.avg_rainofhourly.toFixed(2) : 0}&quot;
+                        {formatRainfall(
+                          typeof hour.rain_total_in !== "number" ||
+                            (firstHour && nextHour && typeof nextHour.rain_total_in !== "number")
+                            ? undefined
+                            : (firstHour?.rain_total_in ?? 0) + (nextHour?.rain_total_in ?? 0),
+                        )}{" "}
+                        in
                       </span>
                     </div>
                   </div>

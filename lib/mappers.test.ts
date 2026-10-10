@@ -28,6 +28,14 @@ function makeObservation(overrides: Partial<RangeObservation> = {}): RangeObserv
 }
 
 describe("mapDailyApiResponse", () => {
+  it("preserves accumulated rain independently of average rate", () => {
+    const result = mapDailyApiResponse({
+      data: [makeObservation({ rain_total_in: 0.01, avg_rainofhourly: 0.0007 })],
+    })
+    expect(result[0].rain_total_in).toBe(0.01)
+    expect(result[0].avg_rainofhourly).toBe(0.0007)
+    expect(mapDailyApiResponse({ data: [makeObservation()] })[0].rain_total_in).toBeUndefined()
+  })
   it("maps API items to DayData with abbreviated day and sun times", () => {
     const response = {
       data: [
