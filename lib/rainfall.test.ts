@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { formatRainfall } from "@/lib/rainfall"
+import { formatRainfall, sumHourlyRainfall } from "@/lib/rainfall"
 
 describe("formatRainfall", () => {
   it("preserves a measurable hundredth of an inch", () => {
@@ -12,5 +12,12 @@ describe("formatRainfall", () => {
     expect(formatRainfall(null)).toBe("—")
     expect(formatRainfall()).toBe("—")
     expect(formatRainfall(Number.NaN)).toBe("—")
+  })
+})
+
+describe("sumHourlyRainfall", () => {
+  it("keeps a period without any hour records unknown", () => {
+    expect(sumHourlyRainfall([])).toBeUndefined()
+    expect(sumHourlyRainfall([undefined, undefined])).toBeUndefined()
   })
 })

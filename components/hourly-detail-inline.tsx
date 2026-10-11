@@ -1,7 +1,7 @@
 import type { DisplayMetric, HourData } from "@/lib/types"
 import type React from "react"
 import WeatherIcon from "@/components/WeatherIcon"
-import { formatRainfall } from "@/lib/rainfall"
+import { formatRainfall, sumHourlyRainfall } from "@/lib/rainfall"
 import { formatHour, getRangePosition } from "@/lib/utils"
 import { mapWeatherToColor, mapWeatherToCondition } from "@/lib/weather-conditions"
 
@@ -30,6 +30,7 @@ export default function HourlyDetailInline({
             if (hour === undefined) {
               return
             }
+            const rainfall = sumHourlyRainfall([firstHour, nextHour])
             return (
               <div
                 key={`${hour.hour} ${hour.date}`}
@@ -52,15 +53,7 @@ export default function HourlyDetailInline({
                     </div>
                     <div className="text-sm text-gray-600 dark:text-gray-400 mt-1 flex items-center gap-1">
                       <WeatherIcon condition={mapWeatherToCondition(hour)} size={15} />
-                      <span>
-                        {formatRainfall(
-                          typeof hour.rain_total_in !== "number" ||
-                            (firstHour && nextHour && typeof nextHour.rain_total_in !== "number")
-                            ? undefined
-                            : (firstHour?.rain_total_in ?? 0) + (nextHour?.rain_total_in ?? 0),
-                        )}{" "}
-                        in
-                      </span>
+                      <span>{formatRainfall(rainfall)} in</span>
                     </div>
                   </div>
 

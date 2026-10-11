@@ -143,7 +143,7 @@ export default function WeatherApp({
 
       {isForecast && (
         <div className="mx-4 mb-4 px-4 bg-white dark:bg-gray-900 rounded-lg shadow-sm">
-          <RainfallSummary currentWeatherData={currentWeatherData} />
+          <RainfallSummary currentWeatherData={currentWeatherData} now={now} />
         </div>
       )}
 
@@ -152,7 +152,7 @@ export default function WeatherApp({
           {isForecast ? (
             <NextHours forecast={forecast} metric={activeForecastTab} now={now} />
           ) : (
-            <CurrentWeather currentWeatherData={currentWeatherData} />
+            <CurrentWeather currentWeatherData={currentWeatherData} now={now} />
           )}
         </div>
       )}

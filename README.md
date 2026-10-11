@@ -48,10 +48,24 @@ Events spanning midnight contribute only new rain to the new day; counter
 resets start a new event, and small dips/rebounds do not double-count rain.
 Rainfall spanning an outage of more than ten minutes is unknown when it cannot
 be assigned to a single day or hour. Unknown/missing totals display a dash,
-never an average rate or a made-up zero. Two-hour history rows combine their
-available hourly totals. The current observation card separately labels
-**Rain today** in inches and **Rain rate** in inches/hour, with the actual
-station observation timestamp. This summary appears on Forecast and History.
+never an average rate or a made-up zero. Two-hour history rows sum the totals
+of their present hourly records. An absent hour record is skipped; if either
+present record has an unknown or missing rainfall total, the row displays a
+dash. If both hour records are absent, no row is shown. The current observation
+card separately labels **Rain today** in inches and **Rain rate** in inches/hour,
+with the actual station observation timestamp. This summary appears on Forecast
+and History.
+
+The rainfall summary shows the observation's absolute time in
+`America/Los_Angeles` and its age, updated by the screen's shared minute clock.
+This clock updates the age display; it does not fetch a new observation.
+Readings older than two hours are labeled **Older snapshot**. After local
+midnight, **Rain today** becomes **Rain on [observation date]** for an older
+day's observation. Missing or invalid observation times show **Reading time
+unavailable** and **Rain total**. Future timestamps are identified as ahead of
+the current time. A zero rain rate can still accompany rainfall already
+accumulated. Station collection runs every minute; dashboard snapshots are
+published about hourly, and page caching can add further delay.
 
 `publish_station.py` runs under the aw2sqlite project; the forecast publisher
 stays stdlib-only. Two consequences worth knowing:
