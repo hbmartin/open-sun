@@ -82,9 +82,10 @@ export default function WeatherApp({
   // read the same instant, so they cannot tick a minute apart.
   const { now, hasClientTime } = useNow(currentDate)
   const stationNow = hasClientTime ? now : undefined
-  // Freshness describes the current clock, not when the cached payload was built.
+  // Preserve the mapped server snapshot for first paint, then derive freshness
+  // from the shared browser clock for every view.
   let currentForecast = forecast
-  if (forecast.kind === "ok") {
+  if (forecast.kind === "ok" && hasClientTime) {
     const freshness = getForecastFreshness(forecast.forecast.issuedAt, now)
     currentForecast = {
       kind: "ok",

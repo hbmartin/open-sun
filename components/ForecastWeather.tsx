@@ -11,8 +11,8 @@ import { formatMetricValue, formatStationDateTime } from "@/lib/utils"
 
 function ProvenanceLine({ forecast }: { forecast: ForecastData }): React.JSX.Element {
   const isSuspect = forecast.status === "degraded" || forecast.freshness !== "fresh"
-  // An absolute stamp rather than an age: this renders once per ISR revalidation
-  // and would otherwise sit here claiming "5m ago" for the rest of the hour.
+  // Keep the publication timestamp absolute while the shared clock updates
+  // the freshness warning independently of the cached forecast document.
   const parts = [`Last updated: ${formatStationDateTime(new Date(forecast.issuedAt))}`]
   if (forecast.status === "degraded") {
     parts.push(`degraded: ${forecast.statusReason ?? "no backtest evidence"}`)

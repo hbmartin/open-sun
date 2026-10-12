@@ -61,7 +61,9 @@ The rainfall summary first shows the observation's absolute time and date in
 shared minute clock is corrected on mount, so a cached page cannot initially
 claim an age calculated at regeneration time.
 The clock's `hasClientTime` flag records that browser time has been read; it
-stays ready across router refreshes. Relative age and its warning have reserved
+stays ready across router refreshes. The clock corrects immediately when the
+tab becomes visible or the page is restored from the back/forward cache.
+Relative age and its warning have reserved
 space beneath the absolute timestamp so appearing text does not push the
 following content down. This clock updates the age display; it does not fetch
 a new observation.
@@ -90,8 +92,9 @@ stays stdlib-only. Two consequences worth knowing:
 Points worth knowing when reading the forecast:
 
 - **Freshness follows the screen's clock.** Forecast and Info warnings are
-  recalculated from the issue time after the browser clock is corrected and on
-  each minute tick, rather than staying frozen at page regeneration. Forecasts
+  initially use the server's mapped snapshot so hydration matches first paint.
+  They are recalculated from the issue time after the browser clock is corrected,
+  on each minute tick, and immediately when the page resumes. Forecasts
   remain fresh through three hours, stale through twelve hours, and expired
   after twelve hours. The Forecast view keeps its absolute update timestamp.
 - **Units are imperial and self-declared.** Every published document carries a `units` block that the zod schema asserts literal-by-literal, so a publisher that started emitting Celsius under `temp_f` would fail validation rather than render 25 as a plausible Fahrenheit reading.
