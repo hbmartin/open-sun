@@ -2,7 +2,7 @@ import type { ForecastHourData, ForecastMetric } from "@/lib/types"
 import type React from "react"
 import WeatherIcon from "@/components/WeatherIcon"
 import { mapForecastToColor, mapForecastToCondition } from "@/lib/forecast-conditions"
-import { forecast_metric_precision } from "@/lib/types"
+import { forecast_metric_display_units, forecast_metric_precision } from "@/lib/types"
 import { formatHour, formatMetricValue, getRangePosition } from "@/lib/utils"
 
 export default function ForecastHourlyDetail({
@@ -54,7 +54,7 @@ export default function ForecastHourlyDetail({
                         {hour.precip !== undefined && hour.precip > 0.005
                           ? hour.precip.toFixed(2)
                           : 0}
-                        &quot;
+                        {forecast_metric_display_units.precip}
                       </span>
                     </div>
                     {/* Wind accompanies every hour regardless of the selected

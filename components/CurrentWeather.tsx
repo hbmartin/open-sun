@@ -4,10 +4,12 @@ import RainfallSummary from "@/components/RainfallSummary"
 
 interface CurrentWeatherProperties {
   currentWeatherData: InstantObservation
+  now: Date
 }
 
 export default function CurrentWeather({
   currentWeatherData,
+  now,
 }: CurrentWeatherProperties): React.JSX.Element {
   return (
     <div className="px-4 py-2 bg-white dark:bg-gray-900 mx-4 rounded-lg shadow-sm mb-4">
@@ -43,7 +45,7 @@ export default function CurrentWeather({
           <div className="text-sm text-gray-500 dark:text-gray-400">UVI</div>
         </div>
       </div>
-      <RainfallSummary currentWeatherData={currentWeatherData} />
+      <RainfallSummary currentWeatherData={currentWeatherData} now={now} />
     </div>
   )
 }

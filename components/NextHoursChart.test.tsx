@@ -131,7 +131,7 @@ describe("NextHoursChart", () => {
   it("formats values by the selected metric's precision and unit", () => {
     const points = makePoints().map((point) => Object.assign(point, { value: 0.125 }))
     const markup = render(makeModel({ points, domainMin: 0, domainMax: 1 }), ForecastMetric.PRECIP)
-    expect(markup).toContain("0.13&quot;")
+    expect(markup).toContain("0.13 in")
   })
 
   it("haloes the value labels so they survive the darkest band", () => {

@@ -133,7 +133,7 @@ export enum ForecastMetric {
 export const forecast_metric_display_units: Record<ForecastMetric, string> = {
   [ForecastMetric.TEMP]: "°",
   [ForecastMetric.POP]: "%",
-  [ForecastMetric.PRECIP]: '"',
+  [ForecastMetric.PRECIP]: " in",
   [ForecastMetric.HUMIDITY]: "%",
   [ForecastMetric.WIND]: "",
 }

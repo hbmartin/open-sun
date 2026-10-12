@@ -31,6 +31,7 @@ const observation: InstantObservation = {
   pm25: null,
   rainofhourly: 0,
   eventrain: 0,
+  observedAt: NOW.toISOString(),
   sunTimes: getTimes(NOW, 34.2768, -117.1692),
 }
 
@@ -74,6 +75,8 @@ describe("WeatherApp", () => {
     expect(markup).toContain("Next 10 Days")
     expect(markup).toContain("Rain today")
     expect(markup).toContain("Rain rate")
+    expect(markup).toContain("Station readings are collected every minute")
+    expect(markup).toContain("just now")
   })
 
   it("puts the sun and moon strip above the hourly chart, and the almanac last", () => {

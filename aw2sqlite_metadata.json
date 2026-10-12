@@ -47,7 +47,7 @@
             "dailygust": "mph",
             "solarrad": "watt / meter ** 2",
             "pm25": "microgram / meter ** 3",
-            "rainofhourly": "inch",
+            "rainofhourly": "inch / hour",
             "eventrain": "inch",
             "rainofdaily": "inch",
             "rainofweekly": "inch",
