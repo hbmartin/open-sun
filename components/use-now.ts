@@ -6,16 +6,17 @@ import { useEffect, useState } from "react"
  * A minute-ticking clock seeded from a server-rendered instant.
  *
  * Seeded from the prop so hydration matches the server markup, then corrected on
- * mount: the page is statically revalidated hourly, so the server's clock can be
- * up to an hour behind by the time this renders. The interval keeps it honest on
- * a long-open tab.
+ * mount: the page is statically revalidated hourly, so its clock can be behind.
+ * Readiness changes together with the corrected instant, allowing freshness
+ * labels to wait for the browser clock. The interval keeps a long-open tab current.
  */
-export function useNow(initialNow: Date, intervalMs = 60_000): Date {
-  const [now, setNow] = useState(initialNow)
+export function useNow(initialNow: Date, intervalMs = 60_000): { now: Date; isHydrated: boolean } {
+  const [clock, setClock] = useState({ now: initialNow, isHydrated: false })
   useEffect(() => {
-    setNow(new Date())
-    const id = setInterval(() => setNow(new Date()), intervalMs)
+    const update = () => setClock({ now: new Date(), isHydrated: true })
+    update()
+    const id = setInterval(update, intervalMs)
     return () => clearInterval(id)
   }, [intervalMs])
-  return now
+  return clock
 }

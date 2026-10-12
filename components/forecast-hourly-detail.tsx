@@ -51,9 +51,9 @@ export default function ForecastHourlyDetail({
                     <div className="text-sm text-gray-600 dark:text-gray-400 mt-1 flex items-center gap-1">
                       <WeatherIcon condition={mapForecastToCondition(hour)} size={15} />
                       <span>
-                        {hour.precip !== undefined && hour.precip > 0.005
-                          ? hour.precip.toFixed(2)
-                          : 0}
+                        {hour.precip === undefined
+                          ? "—"
+                          : formatMetricValue(hour.precip, forecast_metric_precision.precip)}
                         {forecast_metric_display_units.precip}
                       </span>
                     </div>

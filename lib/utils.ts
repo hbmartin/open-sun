@@ -47,6 +47,13 @@ const stationDateTimeFormatter = new Intl.DateTimeFormat("en-US", {
   timeZoneName: "short",
 })
 
+const stationDateFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: STATION_TIME_ZONE,
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+})
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
@@ -82,6 +89,10 @@ export function formatStationTime(date: Date): string {
 /** "Aug 5, 2026, 8:36 AM PDT" -- an absolute stamp in the station's zone. */
 export function formatStationDateTime(date: Date): string {
   return stationDateTimeFormatter.format(date)
+}
+
+export function formatStationDate(date: Date): string {
+  return stationDateFormatter.format(date)
 }
 
 export function getRangePosition(value: number, minimum: number, maximum: number): number {

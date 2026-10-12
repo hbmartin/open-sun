@@ -53,6 +53,50 @@ describe("CurrentWeatherApiResponseSchema", () => {
     const { outTemp: _, ...incomplete } = validData.data
     expect(() => CurrentWeatherApiResponseSchema.parse({ data: incomplete })).toThrow()
   })
+
+  it.each([
+    "2026-10-10T21:46:00Z",
+    "2026-10-10T21:46:00+00:00",
+    "2026-10-10T14:46:00-07:00",
+    "2026-10-11T03:16:00+05:30",
+    "2026-10-10T21:46:00.123456Z",
+    "2026-10-10T21:46:00.123456+00:00",
+  ])("preserves the timezone-bearing observation timestamp %s", (observed_at) => {
+    const result = CurrentWeatherApiResponseSchema.parse({
+      ...validData,
+      metadata: { observed_at },
+    })
+    expect(result.metadata?.observed_at).toBe(observed_at)
+  })
+
+  it.each([
+    "",
+    "invalid",
+    "2026-10-10T21:46:00",
+    "2026-10-10 21:46:00+00:00",
+    "10/10/2026 14:46",
+    "2026-02-30T21:46:00Z",
+    null,
+    123,
+    false,
+    {},
+  ])("discards invalid observation timestamp %j while preserving readings", (observed_at) => {
+    const result = CurrentWeatherApiResponseSchema.parse({
+      ...validData,
+      metadata: { observed_at },
+    })
+    expect(result.metadata?.observed_at).toBeUndefined()
+    expect(result.data).toEqual(validData.data)
+  })
+
+  it("allows metadata without an observation timestamp", () => {
+    const result = CurrentWeatherApiResponseSchema.parse({ ...validData, metadata: {} })
+    expect(result.metadata?.observed_at).toBeUndefined()
+  })
+
+  it("still rejects malformed metadata", () => {
+    expect(() => CurrentWeatherApiResponseSchema.parse({ ...validData, metadata: 123 })).toThrow()
+  })
 })
 
 describe("DailyApiResponseSchema", () => {

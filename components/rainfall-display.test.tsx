@@ -142,8 +142,18 @@ describe("station rainfall display", () => {
     expect(markup).toContain("Rain today")
     expect(markup).toContain("Observed: Oct 10, 2026, 2:46 PM PDT")
     expect(markup).toContain("14 minutes ago")
-    expect(markup).toContain("A zero rain rate can still accompany rainfall already accumulated.")
-    expect(markup).toContain("dashboard snapshots are published about hourly.")
+    expect(markup).toContain("Snapshots publish about hourly.")
+    expect(markup).not.toContain("A zero rain rate")
+    expect(markup).not.toContain("collected every minute")
+
+    const beforeHydration = renderToStaticMarkup(
+      <RainfallSummary currentWeatherData={observation} />,
+    )
+    expect(beforeHydration).toContain("Observed: Oct 10, 2026, 2:46 PM PDT")
+    expect(beforeHydration).toContain("Rain on Oct 10, 2026")
+    expect(beforeHydration).not.toContain("ago")
+    expect(beforeHydration).not.toContain("Rain today")
+    expect(beforeHydration).not.toContain("Older snapshot")
 
     const dryRate = { ...observation, rainofhourly: 0 }
     const history = renderToStaticMarkup(
@@ -152,9 +162,8 @@ describe("station rainfall display", () => {
     expect(history).toContain("0.01 in")
     expect(history).toContain("0.00 in/hr")
     expect(history).toContain("Older snapshot")
-    expect(history).toContain("Rain on 2026-10-10")
+    expect(history).toContain("Rain on Oct 10, 2026")
     expect(history).not.toContain("Rain today")
-    expect(history).toContain("A zero rain rate can still accompany rainfall already accumulated.")
-    expect(history).toContain("Station readings are collected every minute")
+    expect(history).toContain("Snapshots publish about hourly.")
   })
 })

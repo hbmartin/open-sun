@@ -30,7 +30,7 @@ describe("station snapshot description", () => {
       "Rain today",
     )
     expect(describeStationReading(observation, new Date("2026-10-11T07:00:00Z")).rainLabel).toBe(
-      "Rain on 2026-10-10",
+      "Rain on Oct 10, 2026",
     )
   })
 
@@ -42,11 +42,42 @@ describe("station snapshot description", () => {
     })
   })
 
-  it("names a future clock reading instead of presenting a negative age", () => {
-    const reading = describeStationReading(observedAt, new Date("2026-10-10T21:45:00Z"))
+  it.each(["2026-10-10T21:45:59.999Z", "2026-10-10T21:45:00Z", "2026-10-10T21:41:00Z"])(
+    "tolerates small future clock differences at %s",
+    (now) => {
+      const reading = describeStationReading(observedAt, new Date(now))
+      expect(reading.timeLabel).toContain("just now")
+      expect(reading.timeLabel).not.toContain("ahead")
+      expect(reading.older).toBe(false)
+    },
+  )
+
+  it("names a future clock reading beyond five minutes", () => {
+    const reading = describeStationReading(observedAt, new Date("2026-10-10T21:40:59.999Z"))
     expect(reading.timeLabel).toContain("Reading time is ahead of current time")
     expect(reading.timeLabel).not.toContain("ago")
     expect(reading.older).toBe(false)
+  })
+
+  it("shows only absolute observation labels before the clock is corrected", () => {
+    expect(describeStationReading(observedAt)).toEqual({
+      rainLabel: "Rain on Oct 10, 2026",
+      timeLabel: "Observed: Oct 10, 2026, 2:46 PM PDT",
+      older: false,
+    })
+  })
+
+  it("uses the station-local date for absolute labels around midnight", () => {
+    expect(describeStationReading("2026-10-11T06:59:00Z").rainLabel).toBe("Rain on Oct 10, 2026")
+    expect(describeStationReading("2026-10-11T07:00:00Z").rainLabel).toBe("Rain on Oct 11, 2026")
+  })
+
+  it.each([undefined, ""])("keeps unavailable time %s before hydration", (timestamp) => {
+    expect(describeStationReading(timestamp)).toEqual({
+      rainLabel: "Rain total",
+      timeLabel: "Reading time unavailable",
+      older: false,
+    })
   })
 
   it("formats winter readings with the station's PST offset", () => {
