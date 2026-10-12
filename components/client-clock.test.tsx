@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 
-import type { InstantObservation, WeeklyData } from "@/lib/types"
 import type { Root } from "react-dom/client"
 import { act } from "react"
 import { createRoot, hydrateRoot } from "react-dom/client"
@@ -10,50 +9,25 @@ import RainfallSummary from "@/components/RainfallSummary"
 import { useNow } from "@/components/use-now"
 import WeatherApp from "@/components/WeatherApp"
 import { parsedForecastDocument } from "@/lib/__fixtures__/forecast"
+import { makeEmptyWeek, makeObservation } from "@/lib/__fixtures__/station"
 import { mapForecastDocument } from "@/lib/forecast-mappers"
-import { getTimes } from "@/lib/suncalc"
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }))
 
 const SERVER_TIME = new Date("2026-10-10T22:00:00Z")
 const CLIENT_TIME = new Date("2026-10-10T23:00:00Z")
-const observation: InstantObservation = {
-  inTemp: null,
-  inHumi: null,
-  AbsPress: null,
-  RelPress: null,
+const observation = makeObservation(SERVER_TIME, {
   outTemp: 55,
   outHumi: 85,
   windir: 180,
-  avgwind: 1,
-  gustspeed: 2,
-  dailygust: 3,
   solarrad: 110,
-  uv: 1,
   uvi: 1,
-  pm25: null,
   rainofhourly: 0.07,
   eventrain: 0.01,
   rain_total_in: 0.01,
   observedAt: "2026-10-10T20:46:00Z",
-  sunTimes: getTimes(SERVER_TIME, 34.2768, -117.1692),
-}
-const emptyWeek: WeeklyData = {
-  data: [],
-  ranges: {
-    min_outTemp: 0,
-    max_outTemp: 100,
-    min_outHumi: 0,
-    max_outHumi: 100,
-    max_gustspeed: 10,
-    min_avgwind: 0,
-    max_avgwind: 10,
-    min_uvi: 0,
-    max_uvi: 10,
-    min_solarrad: 0,
-    max_solarrad: 1000,
-  },
-}
+})
+const emptyWeek = makeEmptyWeek()
 
 let container: HTMLDivElement
 let root: Root | undefined
@@ -92,6 +66,17 @@ function StationClock({ seed }: { seed: Date }) {
   return <RainfallSummary currentWeatherData={observation} now={hasClientTime ? now : undefined} />
 }
 
+async function resumePage(event: "visibilitychange" | "pageshow") {
+  if (event === "visibilitychange") {
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible")
+    await act(() => document.dispatchEvent(new Event("visibilitychange")))
+  } else {
+    await act(() =>
+      globalThis.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true })),
+    )
+  }
+}
+
 async function clickNav(name: string) {
   const button = [...container.querySelectorAll("button")].find((item) => item.textContent === name)
   expect(button).toBeDefined()
@@ -101,10 +86,12 @@ async function clickNav(name: string) {
 function App({
   seed,
   issuedAt,
+  mappedAt = seed,
   degraded = false,
 }: {
   seed: Date
   issuedAt: string
+  mappedAt?: Date
   degraded?: boolean
 }) {
   return (
@@ -123,7 +110,7 @@ function App({
             status: degraded ? "degraded" : "ready",
             status_reason: degraded ? "no live evidence" : null,
           }),
-          seed,
+          mappedAt,
         ),
       }}
     />
@@ -143,6 +130,75 @@ function infoAge() {
 }
 
 describe("shared client clock", () => {
+  it.each(["visibilitychange", "pageshow"] as const)(
+    "corrects browser time immediately on %s without an interval tick",
+    async (event) => {
+      root = createRoot(container)
+      await act(() => root?.render(<Clock seed={SERVER_TIME} />))
+      const resumedTime = new Date("2026-10-11T07:00:00Z")
+      vi.setSystemTime(resumedTime)
+      expect(container.textContent).toBe(CLIENT_TIME.toISOString())
+
+      await resumePage(event)
+      expect(container.textContent).toBe(resumedTime.toISOString())
+      expect(container.querySelector("output")?.dataset["ready"]).toBe("true")
+      expect(vi.getTimerCount()).toBe(1)
+    },
+  )
+
+  it("does not resync on hidden visibility or a non-persisted pageshow", async () => {
+    root = createRoot(container)
+    await act(() => root?.render(<Clock seed={SERVER_TIME} />))
+    vi.setSystemTime(new Date("2026-10-11T07:00:00Z"))
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden")
+    await act(() => document.dispatchEvent(new Event("visibilitychange")))
+    expect(container.textContent).toBe(CLIENT_TIME.toISOString())
+    await act(() =>
+      globalThis.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: false })),
+    )
+    expect(container.textContent).toBe(CLIENT_TIME.toISOString())
+    expect(container.querySelector("output")?.dataset["ready"]).toBe("true")
+  })
+
+  it("removes resume listeners on interval replacement and unmount", async () => {
+    const documentAdd = vi.spyOn(document, "addEventListener")
+    const documentRemove = vi.spyOn(document, "removeEventListener")
+    const windowAdd = vi.spyOn(globalThis, "addEventListener")
+    const windowRemove = vi.spyOn(globalThis, "removeEventListener")
+    root = createRoot(container)
+    await act(() => root?.render(<Clock seed={SERVER_TIME} />))
+    const visibilityHandler = documentAdd.mock.calls.find(
+      ([name]) => name === "visibilitychange",
+    )?.[1]
+    const pageShowHandler = windowAdd.mock.calls.find(([name]) => name === "pageshow")?.[1]
+    expect(visibilityHandler).toBeDefined()
+    expect(pageShowHandler).toBeDefined()
+
+    await act(() => root?.render(<Clock seed={SERVER_TIME} intervalMs={120_000} />))
+    expect(documentRemove).toHaveBeenCalledWith("visibilitychange", visibilityHandler)
+    expect(windowRemove).toHaveBeenCalledWith("pageshow", pageShowHandler)
+    expect(vi.getTimerCount()).toBe(1)
+    vi.setSystemTime(new Date("2026-10-11T07:00:00Z"))
+    await resumePage("visibilitychange")
+    expect(container.textContent).toBe("2026-10-11T07:00:00.000Z")
+
+    await act(() => root?.unmount())
+    root = undefined
+    const visibilityRegistrations = documentAdd.mock.calls.filter(
+      ([name]) => name === "visibilitychange",
+    )
+    const pageShowRegistrations = windowAdd.mock.calls.filter(([name]) => name === "pageshow")
+    expect(visibilityRegistrations).toHaveLength(2)
+    expect(pageShowRegistrations).toHaveLength(2)
+    for (const [name, handler] of visibilityRegistrations) {
+      expect(documentRemove).toHaveBeenCalledWith(name, handler)
+    }
+    for (const [name, handler] of pageShowRegistrations) {
+      expect(windowRemove).toHaveBeenCalledWith(name, handler)
+    }
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
   it("hydrates the server seed, corrects readiness and time together, and keeps ticking across prop updates", async () => {
     container.innerHTML = renderToString(<Clock seed={SERVER_TIME} />)
     expect(container.querySelector("output")?.dataset["ready"]).toBe("false")
@@ -211,9 +267,84 @@ describe("shared client clock", () => {
     expect(lines()[2].getAttribute("aria-hidden")).toBe("false")
     expect(recoverable).not.toHaveBeenCalled()
   })
+
+  it.each(["visibilitychange", "pageshow"] as const)(
+    "updates station freshness and the observation day on %s after midnight",
+    async (event) => {
+      vi.setSystemTime(new Date("2026-10-10T21:00:00Z"))
+      root = createRoot(container)
+      await act(() => root?.render(<StationClock seed={SERVER_TIME} />))
+      const lines = () => [...container.querySelectorAll("p")]
+      expect(lines()[1].textContent).toBe("14 minutes ago")
+      expect(lines()[2].textContent).toBe("")
+      expect(container.textContent).toContain("Rain today")
+
+      vi.setSystemTime(new Date("2026-10-11T07:01:00Z"))
+      await resumePage(event)
+      expect(lines()[0].textContent).toBe("Observed: Oct 10, 2026, 1:46 PM PDT")
+      expect(lines()[1].textContent).toBe("10 hours 15 minutes ago")
+      expect(lines()[2].textContent).toBe("Older snapshot")
+      expect(container.textContent).toContain("Rain on Oct 10, 2026")
+    },
+  )
 })
 
 describe("forecast freshness follows the client clock", () => {
+  it("keeps supplied forecast freshness for server markup before reading browser time", async () => {
+    const app = <App seed={SERVER_TIME} mappedAt={CLIENT_TIME} issuedAt="2026-10-10T19:30:00Z" />
+    container.innerHTML = renderToString(app)
+    expect(forecastProvenance()?.className).toContain("text-amber-600")
+    const recoverable = vi.fn()
+    await act(() => {
+      root = hydrateRoot(container, app, { onRecoverableError: recoverable })
+    })
+    expect(forecastProvenance()?.className).toContain("text-amber-600")
+    await clickNav("Info")
+    expect(infoAge()?.textContent).toContain("Issued 4h ago (stale)")
+    expect(recoverable).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ["visibilitychange", "2026-10-10T20:00:00Z", "fresh", "stale"],
+    ["pageshow", "2026-10-10T20:00:00Z", "fresh", "stale"],
+    ["visibilitychange", "2026-10-10T11:00:00Z", "stale", "expired"],
+    ["pageshow", "2026-10-10T11:00:00Z", "stale", "expired"],
+  ] as const)(
+    "corrects both forecast views on %s immediately beyond the %s issue boundary",
+    async (event, issuedAt, before, after) => {
+      // CLIENT_TIME is exactly three or twelve hours after these issues.
+      vi.setSystemTime(new Date(CLIENT_TIME.getTime() - 60_000))
+      root = createRoot(container)
+      await act(() => root?.render(<App seed={SERVER_TIME} issuedAt={issuedAt} />))
+      expect(forecastProvenance()?.className.includes("text-amber-600")).toBe(before !== "fresh")
+      expect(forecastProvenance()?.textContent?.includes("publisher may be down")).toBe(false)
+      await clickNav("Info")
+      expect(infoAge()?.textContent).toContain(`(${before})`)
+      expect(infoAge()?.className.includes("text-amber-600")).toBe(before !== "fresh")
+
+      vi.setSystemTime(CLIENT_TIME)
+      await resumePage(event)
+      expect(infoAge()?.textContent).toContain(`(${before})`)
+      expect(infoAge()?.className.includes("text-amber-600")).toBe(before !== "fresh")
+      await clickNav("Forecast")
+      expect(forecastProvenance()?.className.includes("text-amber-600")).toBe(before !== "fresh")
+      expect(forecastProvenance()?.textContent?.includes("publisher may be down")).toBe(false)
+      await clickNav("Info")
+
+      vi.setSystemTime(new Date(CLIENT_TIME.getTime() + 1))
+      expect(infoAge()?.textContent).toContain(`(${before})`)
+      await resumePage(event)
+      expect(infoAge()?.textContent).toContain(`(${after})`)
+      expect(infoAge()?.className).toContain("text-amber-600")
+      expect(infoAge()?.textContent?.includes("publisher may be down")).toBe(after === "expired")
+      await clickNav("Forecast")
+      expect(forecastProvenance()?.className).toContain("text-amber-600")
+      expect(forecastProvenance()?.textContent?.includes("publisher may be down")).toBe(
+        after === "expired",
+      )
+    },
+  )
+
   it("corrects cached freshness in both views and preserves browser time on router prop refresh", async () => {
     const issuedAt = "2026-10-10T19:30:00Z"
     container.innerHTML = renderToString(<App seed={SERVER_TIME} issuedAt={issuedAt} />)
