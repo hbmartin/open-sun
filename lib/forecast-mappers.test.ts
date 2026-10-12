@@ -10,6 +10,7 @@ import {
   calculateForecastRanges,
   getForecastFreshness,
   mapForecastDocument,
+  withForecastFreshness,
 } from "@/lib/forecast-mappers"
 import { ForecastDocumentSchema } from "@/lib/forecast-schemas"
 import { ForecastMetric } from "@/lib/types"
@@ -49,6 +50,52 @@ describe("getForecastFreshness", () => {
     const result = getForecastFreshness("2026-08-05T16:30:00Z", NOW)
     expect(result.ageHours).toBe(0)
     expect(result.freshness).toBe("fresh")
+  })
+})
+
+describe("withForecastFreshness", () => {
+  it.each([
+    { now: "2026-08-05T16:00:00Z", ageHours: 3, freshness: "fresh" },
+    { now: "2026-08-05T16:00:00.001Z", ageHours: 3 + 1 / 3_600_000, freshness: "stale" },
+    { now: "2026-08-06T01:00:00Z", ageHours: 12, freshness: "stale" },
+    { now: "2026-08-06T01:00:00.001Z", ageHours: 12 + 1 / 3_600_000, freshness: "expired" },
+    { now: "2026-08-05T12:59:00Z", ageHours: 0, freshness: "fresh" },
+  ])("matches the mapper at $now ($freshness)", ({ now, ageHours, freshness }) => {
+    const document = parsedForecastDocument({ issued_at: "2026-08-05T13:00:00Z" })
+    const initial = mapForecastDocument(document, new Date(document.issued_at))
+    const updated = withForecastFreshness(initial, new Date(now))
+
+    expect(updated).toEqual(mapForecastDocument(document, new Date(now)))
+    expect(updated.ageHours).toBeCloseTo(ageHours, 10)
+    expect(updated.freshness).toBe(freshness)
+    expect(updated.info.ageHours).toBe(updated.ageHours)
+    expect(updated.info.freshness).toBe(updated.freshness)
+  })
+
+  it("keeps the input snapshot and payload references intact while updating both views", () => {
+    const initial = mapDocument({ status: "degraded", status_reason: "no live evidence" })
+    const snapshot = structuredClone(initial)
+    Object.freeze(initial)
+    Object.freeze(initial.info)
+
+    const updated = withForecastFreshness(initial, new Date("2026-08-06T16:00:00Z"))
+    expect(updated).not.toBe(initial)
+    expect(updated.info).not.toBe(initial.info)
+    expect(initial).toEqual(snapshot)
+    expect(updated.freshness).toBe("expired")
+    expect(updated.info.freshness).toBe("expired")
+    expect(updated.status).toBe(initial.status)
+    expect(updated.statusReason).toBe(initial.statusReason)
+    expect(updated.info.status).toBe(initial.info.status)
+    expect(updated.info.statusReason).toBe(initial.info.statusReason)
+    expect(updated.days).toBe(initial.days)
+    expect(updated.ranges).toBe(initial.ranges)
+    expect(updated.hourRanges).toBe(initial.hourRanges)
+    expect(updated.sources).toBe(initial.sources)
+    expect(updated.info.releaseIds).toBe(initial.info.releaseIds)
+    expect(updated.info.evidenceCoverage).toBe(initial.info.evidenceCoverage)
+    expect(updated.info.methodCounts).toBe(initial.info.methodCounts)
+    expect(updated.info.reasonCounts).toBe(initial.info.reasonCounts)
   })
 })
 

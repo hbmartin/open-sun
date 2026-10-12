@@ -91,7 +91,7 @@ stays stdlib-only. Two consequences worth knowing:
 
 Points worth knowing when reading the forecast:
 
-- **Freshness follows the screen's clock.** Forecast and Info warnings are
+- **Freshness follows the screen's clock.** Forecast and Info warnings
   initially use the server's mapped snapshot so hydration matches first paint.
   They are recalculated from the issue time after the browser clock is corrected,
   on each minute tick, and immediately when the page resumes. Forecasts

@@ -71,6 +71,17 @@ export function getForecastFreshness(
   return { ageHours, freshness: "expired" }
 }
 
+type FreshnessFields = keyof ReturnType<typeof getForecastFreshness>
+type ForecastWithoutFreshness = Omit<ForecastData, FreshnessFields | "info"> & {
+  info: Omit<ForecastData["info"], FreshnessFields>
+}
+
+/** Apply one clock's freshness to both views without changing the forecast payload. */
+export function withForecastFreshness(forecast: ForecastWithoutFreshness, now: Date): ForecastData {
+  const freshness = getForecastFreshness(forecast.issuedAt, now)
+  return { ...forecast, ...freshness, info: { ...forecast.info, ...freshness } }
+}
+
 function mapHourlyRow(row: ForecastHourlyRow, sunrise: Date, sunset: Date): ForecastHourData {
   const validTime = new Date(row.valid_time)
   const pop = toPercent(row.values.pop)
@@ -264,44 +275,42 @@ export function mapForecastDocument(document: ForecastDocument, now: Date): Fore
   }
 
   const days = document.daily.map((row) => mapDailyRow(row, hoursByDate))
-  const { ageHours, freshness } = getForecastFreshness(document.issued_at, now)
   // The Info aggregates describe what the app can render, so hourly rows
   // dropped above as outside the daily horizon stay out of them too.
   const allRows = [...acceptedHourly, ...document.daily]
 
-  return {
-    issuedAt: document.issued_at,
-    ageHours,
-    freshness,
-    status: document.status,
-    statusReason: document.status_reason ?? undefined,
-    sources: document.sources,
-    publisherVersion: document.publisher_version,
-    days,
-    ranges: calculateForecastRanges(days),
-    // One scale for every expanded day, so their hour bubbles are comparable.
-    hourRanges: hourRangesFor(days.flatMap((day) => day.hours)),
-    info: {
+  return withForecastFreshness(
+    {
+      issuedAt: document.issued_at,
       status: document.status,
       statusReason: document.status_reason ?? undefined,
-      issuedAt: document.issued_at,
-      ageHours,
-      freshness,
-      observationAt: document.observation_at ?? undefined,
-      releaseIds: document.release_ids,
-      evidenceCoverage: {
-        hourly: coverageOf(acceptedHourly),
-        daily: coverageOf(document.daily),
-      },
-      hourlyRows: document.hourly.length,
-      dailyRows: document.daily.length,
-      methodCounts: countsOf(allRows.map((row) => row.methods)),
-      reasonCounts: countsOf(allRows.map((row) => row.selection_reasons)),
       sources: document.sources,
-      datasetFingerprint: document.dataset_fingerprint,
       publisherVersion: document.publisher_version,
-      schemaVersion: document.schema_version,
-      timezone: document.timezone,
+      days,
+      ranges: calculateForecastRanges(days),
+      // One scale for every expanded day, so their hour bubbles are comparable.
+      hourRanges: hourRangesFor(days.flatMap((day) => day.hours)),
+      info: {
+        status: document.status,
+        statusReason: document.status_reason ?? undefined,
+        issuedAt: document.issued_at,
+        observationAt: document.observation_at ?? undefined,
+        releaseIds: document.release_ids,
+        evidenceCoverage: {
+          hourly: coverageOf(acceptedHourly),
+          daily: coverageOf(document.daily),
+        },
+        hourlyRows: document.hourly.length,
+        dailyRows: document.daily.length,
+        methodCounts: countsOf(allRows.map((row) => row.methods)),
+        reasonCounts: countsOf(allRows.map((row) => row.selection_reasons)),
+        sources: document.sources,
+        datasetFingerprint: document.dataset_fingerprint,
+        publisherVersion: document.publisher_version,
+        schemaVersion: document.schema_version,
+        timezone: document.timezone,
+      },
     },
-  }
+    now,
+  )
 }
