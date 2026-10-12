@@ -16,9 +16,12 @@ export default function NextHours({
   now: Date
 }): React.JSX.Element | undefined {
   const days = forecast.kind === "ok" ? forecast.forecast.days : undefined
+  // The chart reads date, hour, and minute; resume events can change only the seconds.
+  const minuteTimestamp = Math.floor(now.getTime() / 60_000) * 60_000
   const model = useMemo(
-    () => (days === undefined ? undefined : buildNextHours(days, now, metric)),
-    [days, now, metric],
+    () =>
+      days === undefined ? undefined : buildNextHours(days, new Date(minuteTimestamp), metric),
+    [days, minuteTimestamp, metric],
   )
 
   if (forecast.kind === "unavailable") {

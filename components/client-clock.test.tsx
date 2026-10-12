@@ -8,9 +8,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import RainfallSummary from "@/components/RainfallSummary"
 import { useNow } from "@/components/use-now"
 import WeatherApp from "@/components/WeatherApp"
-import { parsedForecastDocument } from "@/lib/__fixtures__/forecast"
+import { makeDailyRow, makeHourlyRow, parsedForecastDocument } from "@/lib/__fixtures__/forecast"
 import { makeEmptyWeek, makeObservation } from "@/lib/__fixtures__/station"
 import { mapForecastDocument } from "@/lib/forecast-mappers"
+import * as nextHours from "@/lib/next-hours"
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }))
 
@@ -33,6 +34,8 @@ let container: HTMLDivElement
 let root: Root | undefined
 
 beforeEach(() => {
+  // Vitest's visual jsdom environment starts visible; hidden-state mocks must be restored.
+  expect(document.visibilityState).toBe("visible")
   vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] })
   vi.setSystemTime(CLIENT_TIME)
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
@@ -106,6 +109,12 @@ function App({
             issued_at: issuedAt,
             status: degraded ? "degraded" : "ready",
             status_reason: degraded ? "no live evidence" : null,
+            daily: [makeDailyRow({ date_local: "2026-10-10" })],
+            hourly: Array.from({ length: 4 }, (_, index) =>
+              makeHourlyRow({
+                valid_time: new Date(SERVER_TIME.getTime() + index * 3_600_000).toISOString(),
+              }),
+            ),
           }),
           mappedAt,
         ),
@@ -287,7 +296,7 @@ describe("shared client clock", () => {
 })
 
 describe("forecast freshness follows the client clock", () => {
-  it("honors the supplied server snapshot contract even with a different clock seed", async () => {
+  it("preserves supplied forecast freshness before client-clock readiness", async () => {
     const app = <App seed={SERVER_TIME} mappedAt={CLIENT_TIME} issuedAt="2026-10-10T19:30:00Z" />
     container.innerHTML = renderToString(app)
     expect(forecastProvenance()?.className).toContain("text-amber-600")
@@ -333,6 +342,7 @@ describe("forecast freshness follows the client clock", () => {
   ] as const)(
     "corrects both forecast views on $event immediately beyond the $boundary issue boundary",
     async ({ event, issuedAt, before, after }) => {
+      const build = vi.spyOn(nextHours, "buildNextHours")
       // CLIENT_TIME is exactly three or twelve hours after these issues.
       vi.setSystemTime(new Date(CLIENT_TIME.getTime() - 60_000))
       root = createRoot(container)
@@ -342,19 +352,32 @@ describe("forecast freshness follows the client clock", () => {
       await clickNav("Info")
       expect(infoAge()?.textContent).toContain(`(${before})`)
       expect(infoAge()?.className.includes("text-amber-600")).toBe(before !== "fresh")
+      await clickNav("Forecast")
+      expect(container.querySelector('svg[role="img"]')).not.toBeNull()
+      const beforeMinuteCount = build.mock.calls.length
 
       vi.setSystemTime(CLIENT_TIME)
       await resumePage(event)
+      expect(build).toHaveBeenCalledTimes(beforeMinuteCount + 1)
+      expect(forecastProvenance()?.className.includes("text-amber-600")).toBe(before !== "fresh")
+      expect(forecastProvenance()?.textContent?.includes("publisher may be down")).toBe(false)
+      await clickNav("Info")
       expect(infoAge()?.textContent).toContain(`(${before})`)
       expect(infoAge()?.className.includes("text-amber-600")).toBe(before !== "fresh")
       await clickNav("Forecast")
       expect(forecastProvenance()?.className.includes("text-amber-600")).toBe(before !== "fresh")
       expect(forecastProvenance()?.textContent?.includes("publisher may be down")).toBe(false)
-      await clickNav("Info")
+      const atBoundaryCount = build.mock.calls.length
 
       vi.setSystemTime(new Date(CLIENT_TIME.getTime() + 1))
-      expect(infoAge()?.textContent).toContain(`(${before})`)
+      expect(forecastProvenance()?.className.includes("text-amber-600")).toBe(before !== "fresh")
       await resumePage(event)
+      expect(build).toHaveBeenCalledTimes(atBoundaryCount)
+      expect(forecastProvenance()?.className).toContain("text-amber-600")
+      expect(forecastProvenance()?.textContent?.includes("publisher may be down")).toBe(
+        after === "expired",
+      )
+      await clickNav("Info")
       expect(infoAge()?.textContent).toContain(`(${after})`)
       expect(infoAge()?.className).toContain("text-amber-600")
       expect(infoAge()?.textContent?.includes("publisher may be down")).toBe(after === "expired")
