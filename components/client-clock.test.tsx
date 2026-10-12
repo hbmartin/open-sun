@@ -1,0 +1,299 @@
+// @vitest-environment jsdom
+
+import type { InstantObservation, WeeklyData } from "@/lib/types"
+import type { Root } from "react-dom/client"
+import { act } from "react"
+import { createRoot, hydrateRoot } from "react-dom/client"
+import { renderToString } from "react-dom/server"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import RainfallSummary from "@/components/RainfallSummary"
+import { useNow } from "@/components/use-now"
+import WeatherApp from "@/components/WeatherApp"
+import { parsedForecastDocument } from "@/lib/__fixtures__/forecast"
+import { mapForecastDocument } from "@/lib/forecast-mappers"
+import { getTimes } from "@/lib/suncalc"
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }))
+
+const SERVER_TIME = new Date("2026-10-10T22:00:00Z")
+const CLIENT_TIME = new Date("2026-10-10T23:00:00Z")
+const observation: InstantObservation = {
+  inTemp: null,
+  inHumi: null,
+  AbsPress: null,
+  RelPress: null,
+  outTemp: 55,
+  outHumi: 85,
+  windir: 180,
+  avgwind: 1,
+  gustspeed: 2,
+  dailygust: 3,
+  solarrad: 110,
+  uv: 1,
+  uvi: 1,
+  pm25: null,
+  rainofhourly: 0.07,
+  eventrain: 0.01,
+  rain_total_in: 0.01,
+  observedAt: "2026-10-10T20:46:00Z",
+  sunTimes: getTimes(SERVER_TIME, 34.2768, -117.1692),
+}
+const emptyWeek: WeeklyData = {
+  data: [],
+  ranges: {
+    min_outTemp: 0,
+    max_outTemp: 100,
+    min_outHumi: 0,
+    max_outHumi: 100,
+    max_gustspeed: 10,
+    min_avgwind: 0,
+    max_avgwind: 10,
+    min_uvi: 0,
+    max_uvi: 10,
+    min_solarrad: 0,
+    max_solarrad: 1000,
+  },
+}
+
+let container: HTMLDivElement
+let root: Root | undefined
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] })
+  vi.setSystemTime(CLIENT_TIME)
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
+  vi.stubGlobal(
+    "IntersectionObserver",
+    class {
+      observe = vi.fn()
+      disconnect = vi.fn()
+    },
+  )
+  container = document.createElement("div")
+  document.body.append(container)
+})
+
+afterEach(async () => {
+  if (root !== undefined) await act(() => root?.unmount())
+  root = undefined
+  container.remove()
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+})
+
+function Clock({ seed, intervalMs = 60_000 }: { seed: Date; intervalMs?: number }) {
+  const { now, hasClientTime } = useNow(seed, intervalMs)
+  return <output data-ready={hasClientTime}>{now.toISOString()}</output>
+}
+
+function StationClock({ seed }: { seed: Date }) {
+  const { now, hasClientTime } = useNow(seed)
+  return <RainfallSummary currentWeatherData={observation} now={hasClientTime ? now : undefined} />
+}
+
+async function clickNav(name: string) {
+  const button = [...container.querySelectorAll("button")].find((item) => item.textContent === name)
+  expect(button).toBeDefined()
+  await act(() => button?.click())
+}
+
+function App({
+  seed,
+  issuedAt,
+  degraded = false,
+}: {
+  seed: Date
+  issuedAt: string
+  degraded?: boolean
+}) {
+  return (
+    <WeatherApp
+      currentWeatherData={observation}
+      lastWeekData={emptyWeek}
+      hourlyDataByDate={{}}
+      currentDate={seed}
+      twilight={[]}
+      moon={[]}
+      forecast={{
+        kind: "ok",
+        forecast: mapForecastDocument(
+          parsedForecastDocument({
+            issued_at: issuedAt,
+            status: degraded ? "degraded" : "ready",
+            status_reason: degraded ? "no live evidence" : null,
+          }),
+          seed,
+        ),
+      }}
+    />
+  )
+}
+
+function forecastProvenance() {
+  return [...container.querySelectorAll("p")].find((item) =>
+    item.textContent?.startsWith("Last updated:"),
+  )
+}
+
+function infoAge() {
+  return [...container.querySelectorAll("p")].find((item) =>
+    item.textContent?.startsWith("Issued "),
+  )
+}
+
+describe("shared client clock", () => {
+  it("hydrates the server seed, corrects readiness and time together, and keeps ticking across prop updates", async () => {
+    container.innerHTML = renderToString(<Clock seed={SERVER_TIME} />)
+    expect(container.querySelector("output")?.dataset["ready"]).toBe("false")
+    expect(container.textContent).toBe(SERVER_TIME.toISOString())
+    const recoverable = vi.fn()
+    await act(() => {
+      root = hydrateRoot(container, <Clock seed={SERVER_TIME} />, {
+        onRecoverableError: recoverable,
+      })
+    })
+    expect(container.querySelector("output")?.dataset["ready"]).toBe("true")
+    expect(container.textContent).toBe(CLIENT_TIME.toISOString())
+    expect(recoverable).not.toHaveBeenCalled()
+
+    await act(() => {
+      vi.advanceTimersByTime(60_000)
+    })
+    expect(container.textContent).toBe("2026-10-10T23:01:00.000Z")
+    await act(() => root?.render(<Clock seed={new Date("2026-10-10T21:00:00Z")} />))
+    expect(container.querySelector("output")?.dataset["ready"]).toBe("true")
+    expect(container.textContent).toBe("2026-10-10T23:01:00.000Z")
+    await act(() => {
+      vi.advanceTimersByTime(60_000)
+    })
+    expect(container.textContent).toBe("2026-10-10T23:02:00.000Z")
+
+    await act(() => root?.unmount())
+    root = undefined
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it("replaces the interval without retaining the previous timer", async () => {
+    root = createRoot(container)
+    await act(() => root?.render(<Clock seed={SERVER_TIME} />))
+    await act(() => root?.render(<Clock seed={SERVER_TIME} intervalMs={120_000} />))
+    expect(vi.getTimerCount()).toBe(1)
+    await act(() => {
+      vi.advanceTimersByTime(60_000)
+    })
+    expect(container.textContent).toBe(CLIENT_TIME.toISOString())
+    await act(() => {
+      vi.advanceTimersByTime(60_000)
+    })
+    expect(container.textContent).toBe("2026-10-10T23:02:00.000Z")
+  })
+
+  it("hydrates absolute station markup into the corrected age and warning", async () => {
+    container.innerHTML = renderToString(<StationClock seed={SERVER_TIME} />)
+    const lines = () => [...container.querySelectorAll("p")]
+    expect(lines()[0].textContent).toBe("Observed: Oct 10, 2026, 1:46 PM PDT")
+    expect(lines()[1].textContent).toBe("")
+    expect(lines()[2].textContent).toBe("")
+    expect(lines()[1].getAttribute("aria-hidden")).toBe("true")
+    expect(lines()[2].getAttribute("aria-hidden")).toBe("true")
+    const recoverable = vi.fn()
+    await act(() => {
+      root = hydrateRoot(container, <StationClock seed={SERVER_TIME} />, {
+        onRecoverableError: recoverable,
+      })
+    })
+    expect(lines()[0].textContent).toBe("Observed: Oct 10, 2026, 1:46 PM PDT")
+    expect(lines()[1].textContent).toBe("2 hours 14 minutes ago")
+    expect(lines()[2].textContent).toBe("Older snapshot")
+    expect(container.textContent).toContain("Rain today")
+    expect(lines()[1].getAttribute("aria-hidden")).toBe("false")
+    expect(lines()[2].getAttribute("aria-hidden")).toBe("false")
+    expect(recoverable).not.toHaveBeenCalled()
+  })
+})
+
+describe("forecast freshness follows the client clock", () => {
+  it("corrects cached freshness in both views and preserves browser time on router prop refresh", async () => {
+    const issuedAt = "2026-10-10T19:30:00Z"
+    container.innerHTML = renderToString(<App seed={SERVER_TIME} issuedAt={issuedAt} />)
+    expect(forecastProvenance()?.className).not.toContain("text-amber-600")
+    const recoverable = vi.fn()
+    await act(() => {
+      root = hydrateRoot(container, <App seed={SERVER_TIME} issuedAt={issuedAt} />, {
+        onRecoverableError: recoverable,
+      })
+    })
+    expect(forecastProvenance()?.className).toContain("text-amber-600")
+    await clickNav("Info")
+    expect(infoAge()?.textContent).toContain("Issued 4h ago (stale)")
+    expect(infoAge()?.className).toContain("text-amber-600")
+    await act(() => root?.render(<App seed={SERVER_TIME} issuedAt="2026-10-10T22:30:00Z" />))
+    expect(infoAge()?.textContent).toContain("Issued 30m ago (fresh)")
+    await clickNav("Forecast")
+    expect(forecastProvenance()?.className).not.toContain("text-amber-600")
+    expect(recoverable).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ["2026-10-10T20:00:00Z", "fresh", "stale"],
+    ["2026-10-10T11:00:00Z", "stale", "expired"],
+  ])(
+    "crosses the freshness boundary for an issue at %s on the next clock tick",
+    async (issuedAt, before, after) => {
+      root = createRoot(container)
+      await act(() => root?.render(<App seed={SERVER_TIME} issuedAt={issuedAt} />))
+      expect(forecastProvenance()?.className.includes("text-amber-600")).toBe(before !== "fresh")
+      expect(forecastProvenance()?.textContent?.includes("publisher may be down")).toBe(false)
+      await clickNav("Info")
+      expect(infoAge()?.textContent).toContain(`(${before})`)
+      // Exactly at either threshold the previous category still applies. The
+      // next minute tick is one millisecond beyond the boundary.
+      vi.setSystemTime(new Date("2026-10-10T22:59:00.001Z"))
+      await act(() => {
+        vi.advanceTimersByTime(60_000)
+      })
+      expect(infoAge()?.textContent).toContain(`(${after})`)
+      expect(infoAge()?.className).toContain("text-amber-600")
+      expect(infoAge()?.textContent?.includes("publisher may be down")).toBe(after === "expired")
+      await clickNav("Forecast")
+      expect(forecastProvenance()?.className).toContain("text-amber-600")
+      expect(forecastProvenance()?.textContent?.includes("publisher may be down")).toBe(
+        after === "expired",
+      )
+    },
+  )
+
+  it("retains degraded status while recalculating freshness", async () => {
+    root = createRoot(container)
+    await act(() =>
+      root?.render(<App seed={SERVER_TIME} issuedAt="2026-10-10T22:30:00Z" degraded />),
+    )
+    expect(forecastProvenance()?.textContent).toContain("degraded: no live evidence")
+    expect(forecastProvenance()?.className).toContain("text-amber-600")
+    await clickNav("Info")
+    expect(container.textContent).toContain("Status: Degraded")
+    expect(infoAge()?.textContent).toContain("Issued 30m ago (fresh)")
+    expect(infoAge()?.className).not.toContain("text-amber-600")
+  })
+
+  it("leaves unavailable forecast messages intact", async () => {
+    root = createRoot(container)
+    await act(() =>
+      root?.render(
+        <WeatherApp
+          currentWeatherData={observation}
+          lastWeekData={emptyWeek}
+          hourlyDataByDate={{}}
+          currentDate={SERVER_TIME}
+          twilight={[]}
+          moon={[]}
+          forecast={{ kind: "unavailable", reason: "HTTP 404" }}
+        />,
+      ),
+    )
+    expect(container.textContent).toContain("Forecast unavailable.HTTP 404")
+    await clickNav("Info")
+    expect(container.textContent).toContain("Model status unavailable.HTTP 404")
+  })
+})

@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { OffsetDateTimeSchema } from "@/lib/timestamp-schema"
 import { STATION_TIME_ZONE } from "@/lib/utils"
 
 /**
@@ -60,12 +61,8 @@ const QuantileMapSchema = z.record(z.string(), z.number())
 const PerVariableQuantilesSchema = z.record(z.string(), QuantileMapSchema)
 const PerVariableStringSchema = z.record(z.string(), z.string())
 
-// offset: true accepts both "Z" and "+00:00" while still rejecting an
-// offset-less timestamp, which would silently be read as local time.
-const utcTimestamp = z.iso.datetime({ offset: true })
-
 const ForecastHourlyRowSchema = z.object({
-  valid_time: utcTimestamp,
+  valid_time: OffsetDateTimeSchema,
   // Fractional: the first row is typically ~0.4h out, not 0.
   lead_hours: z.number().min(0),
   lead_bucket: z.enum(["0-1h", "1-3h", "3-6h", "6-12h", "12-24h", "24-48h", "48-96h", "96-168h"]),
@@ -92,8 +89,8 @@ const ForecastDailyRowSchema = z.object({
 export const ForecastDocumentSchema = z.object({
   schema_version: z.literal(FORECAST_SCHEMA_VERSION),
   publisher_version: z.string().min(1),
-  issued_at: utcTimestamp,
-  observation_at: utcTimestamp.nullable(),
+  issued_at: OffsetDateTimeSchema,
+  observation_at: OffsetDateTimeSchema.nullable(),
   issue_interval_seconds: z.number().positive(),
   // Hard-asserted because lib/utils.ts buckets every hourly row into a local
   // day using this exact zone. A publisher-side change would scatter hours
