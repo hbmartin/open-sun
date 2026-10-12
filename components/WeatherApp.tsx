@@ -79,7 +79,8 @@ export default function WeatherApp({
   const panelId = useId()
   // One clock for the whole screen: the chart's Now line and the twilight strip
   // read the same instant, so they cannot tick a minute apart.
-  const now = useNow(currentDate)
+  const { now, isHydrated } = useNow(currentDate)
+  const stationNow = isHydrated ? now : undefined
   // The scroll-to-top button watches this block rather than a scroll offset;
   // wrapping here rather than inside NextHoursChart keeps the History view,
   // whose first block is CurrentWeather, behaving identically.
@@ -143,7 +144,7 @@ export default function WeatherApp({
 
       {isForecast && (
         <div className="mx-4 mb-4 px-4 bg-white dark:bg-gray-900 rounded-lg shadow-sm">
-          <RainfallSummary currentWeatherData={currentWeatherData} now={now} />
+          <RainfallSummary currentWeatherData={currentWeatherData} now={stationNow} />
         </div>
       )}
 
@@ -152,7 +153,7 @@ export default function WeatherApp({
           {isForecast ? (
             <NextHours forecast={forecast} metric={activeForecastTab} now={now} />
           ) : (
-            <CurrentWeather currentWeatherData={currentWeatherData} now={now} />
+            <CurrentWeather currentWeatherData={currentWeatherData} now={stationNow} />
           )}
         </div>
       )}

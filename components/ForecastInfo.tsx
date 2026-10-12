@@ -37,6 +37,18 @@ function Note({ children }: { children: React.ReactNode }) {
   return <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">{children}</p>
 }
 
+function StationSnapshotsCard() {
+  return (
+    <Card title="Station snapshots">
+      <Line>
+        Station readings are collected every minute. Snapshots are published about hourly, and page
+        caching can add delay.
+      </Line>
+      <Note>A zero rain rate can still accompany rainfall already accumulated.</Note>
+    </Card>
+  )
+}
+
 const WALKTHROUGH_URL = "https://www.youtube.com/watch?v=sqhd5yF8Tfg"
 
 /**
@@ -186,6 +198,7 @@ export default function ForecastInfo({
           Model status unavailable.
           <div className="text-sm mt-1">{forecast.reason}</div>
         </div>
+        <StationSnapshotsCard />
       </div>
     )
   }
@@ -199,6 +212,7 @@ export default function ForecastInfo({
       <EvidenceCard info={info} />
       <SelectionCard info={info} />
       <ProvenanceCard info={info} />
+      <StationSnapshotsCard />
     </div>
   )
 }

@@ -4,7 +4,7 @@ import RainfallSummary from "@/components/RainfallSummary"
 
 interface CurrentWeatherProperties {
   currentWeatherData: InstantObservation
-  now: Date
+  now?: Date
 }
 
 export default function CurrentWeather({

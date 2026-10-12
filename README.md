@@ -56,16 +56,23 @@ card separately labels **Rain today** in inches and **Rain rate** in inches/hour
 with the actual station observation timestamp. This summary appears on Forecast
 and History.
 
-The rainfall summary shows the observation's absolute time in
-`America/Los_Angeles` and its age, updated by the screen's shared minute clock.
+The rainfall summary first shows the observation's absolute time and date in
+`America/Los_Angeles`. Relative age and freshness appear only after the screen's
+shared minute clock is corrected on mount, so a cached page cannot initially
+claim an age calculated at regeneration time.
 This clock updates the age display; it does not fetch a new observation.
 Readings older than two hours are labeled **Older snapshot**. After local
 midnight, **Rain today** becomes **Rain on [observation date]** for an older
-day's observation. Missing or invalid observation times show **Reading time
-unavailable** and **Rain total**. Future timestamps are identified as ahead of
-the current time. A zero rain rate can still accompany rainfall already
-accumulated. Station collection runs every minute; dashboard snapshots are
-published about hourly, and page caching can add further delay.
+day's observation, displayed as a readable date such as **Rain on Oct 10, 2026**.
+Observation timestamps must be ISO datetimes with `Z` or an explicit timezone
+offset. Invalid provided timestamps are discarded with a server warning while
+usable weather readings remain visible. Missing or invalid observation times
+show **Reading time unavailable** and **Rain total**. Timestamps up to five
+minutes ahead display **just now**; larger differences are identified as ahead
+of the current time. The summary keeps one cadence note; the Info view's
+**Station snapshots** card explains that a zero rain rate can still accompany
+rainfall already accumulated, station collection runs every minute, dashboard
+snapshots are published about hourly, and page caching can add further delay.
 
 `publish_station.py` runs under the aw2sqlite project; the forecast publisher
 stays stdlib-only. Two consequences worth knowing:

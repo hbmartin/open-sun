@@ -55,6 +55,7 @@ const currentWeatherFixture = {
 }
 
 afterEach(() => {
+  vi.restoreAllMocks()
   vi.unstubAllGlobals()
   // One test re-imports the module with a different station URL; without this
   // the stubbed env would leak into every test that follows.
@@ -78,6 +79,36 @@ describe("fetchCurrentWeatherData", () => {
 
     await expect(fetchCurrentWeatherData()).rejects.toThrow()
   })
+
+  it.each(["", "invalid", "2026-10-10T21:46:00", "2026-10-10 21:46:00+00:00", null, 123])(
+    "warns once and preserves usable readings for rejected timestamp %j",
+    async (observed_at) => {
+      const warning = vi.spyOn(console, "warn").mockImplementation(vi.fn())
+      stubFetchJson({ ...currentWeatherFixture, metadata: { observed_at } })
+
+      const observation = await fetchCurrentWeatherData()
+
+      expect(observation.observedAt).toBeUndefined()
+      expect(observation.outTemp).toBe(64.5)
+      expect(observation.sunTimes.sunrise).toBeInstanceOf(Date)
+      expect(warning).toHaveBeenCalledExactlyOnceWith(
+        "station observed_at rejected; reading time unavailable",
+      )
+    },
+  )
+
+  it.each([undefined, {}, { observed_at: undefined }, { observed_at: "2026-10-10T21:46:00Z" }])(
+    "does not warn for missing or valid observation metadata %j",
+    async (metadata) => {
+      const warning = vi.spyOn(console, "warn").mockImplementation(vi.fn())
+      stubFetchJson({ ...currentWeatherFixture, metadata })
+
+      const observation = await fetchCurrentWeatherData()
+
+      expect(observation.observedAt).toBe(metadata?.observed_at)
+      expect(warning).not.toHaveBeenCalled()
+    },
+  )
 })
 
 describe("fetchLastWeekData", () => {

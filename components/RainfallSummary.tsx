@@ -7,7 +7,7 @@ export default function RainfallSummary({
   now,
 }: {
   currentWeatherData: InstantObservation
-  now: Date
+  now?: Date
 }) {
   const reading = describeStationReading(currentWeatherData.observedAt, now)
   return (
@@ -35,10 +35,7 @@ export default function RainfallSummary({
         </p>
       )}
       <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">
-        A zero rain rate can still accompany rainfall already accumulated.
-      </p>
-      <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">
-        Station readings are collected every minute; dashboard snapshots are published about hourly.
+        Snapshots publish about hourly.
       </p>
     </section>
   )

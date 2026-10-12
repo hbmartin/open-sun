@@ -25,6 +25,12 @@ export async function fetchCurrentWeatherData(): Promise<InstantObservation> {
   const response = await fetch(url)
   const body = await response.json()
   const validatedResponse = CurrentWeatherApiResponseSchema.parse(body)
+  if (
+    body.metadata?.observed_at !== undefined &&
+    validatedResponse.metadata?.observed_at === undefined
+  ) {
+    console.warn("station observed_at rejected; reading time unavailable")
+  }
   return {
     ...validatedResponse.data,
     observedAt: validatedResponse.metadata?.observed_at,

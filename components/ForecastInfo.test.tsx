@@ -105,6 +105,19 @@ describe("ForecastInfo", () => {
     expect(markup).toContain("HTTP 404")
   })
 
+  it.each([ok(), { kind: "unavailable", reason: "HTTP 404" } as ForecastFetchResult])(
+    "explains station snapshots regardless of forecast availability",
+    (forecast) => {
+      const markup = render(forecast)
+      expect(markup).toContain("Station snapshots")
+      expect(markup).toContain("Station readings are collected every minute.")
+      expect(markup).toContain(
+        "Snapshots are published about hourly, and page caching can add delay.",
+      )
+      expect(markup).toContain("A zero rain rate can still accompany rainfall already accumulated.")
+    },
+  )
+
   it("opens with a link to the walkthrough, above the status cards", () => {
     const markup = render(ok())
     expect(markup).toContain("https://www.youtube.com/watch?v=sqhd5yF8Tfg")
