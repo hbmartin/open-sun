@@ -80,22 +80,49 @@ describe("fetchCurrentWeatherData", () => {
     await expect(fetchCurrentWeatherData()).rejects.toThrow()
   })
 
-  it.each(["", "invalid", "2026-10-10T21:46:00", "2026-10-10 21:46:00+00:00", null, 123])(
-    "warns once and preserves usable readings for rejected timestamp %j",
-    async (observed_at) => {
-      const warning = vi.spyOn(console, "warn").mockImplementation(vi.fn())
-      stubFetchJson({ ...currentWeatherFixture, metadata: { observed_at } })
+  it.each([
+    "",
+    "invalid",
+    "2026-10-10T21:46:00",
+    "2026-10-10 21:46:00+00:00",
+    null,
+    123,
+    false,
+    {},
+  ])("warns once and preserves usable readings for rejected timestamp %j", async (observed_at) => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(vi.fn())
+    stubFetchJson({ ...currentWeatherFixture, metadata: { observed_at } })
 
-      const observation = await fetchCurrentWeatherData()
+    const observation = await fetchCurrentWeatherData()
 
-      expect(observation.observedAt).toBeUndefined()
-      expect(observation.outTemp).toBe(64.5)
-      expect(observation.sunTimes.sunrise).toBeInstanceOf(Date)
-      expect(warning).toHaveBeenCalledExactlyOnceWith(
-        "station observed_at rejected; reading time unavailable",
-      )
-    },
-  )
+    expect(observation.observedAt).toBeUndefined()
+    expect(observation.outTemp).toBe(64.5)
+    expect(observation.sunTimes.sunrise).toBeInstanceOf(Date)
+    expect(warning).toHaveBeenCalledExactlyOnceWith(
+      "station observed_at rejected; reading time unavailable",
+      {
+        observed_at,
+        issues: [
+          {
+            path: ["metadata", "observed_at"],
+            code: typeof observed_at === "string" ? "invalid_format" : "invalid_type",
+            message: expect.any(String),
+          },
+        ],
+      },
+    )
+  })
+
+  it("still rejects unrelated schema errors before reporting timestamp diagnostics", async () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(vi.fn())
+    stubFetchJson({
+      ...currentWeatherFixture,
+      data: { ...currentWeatherFixture.data, outTemp: "warm" },
+      metadata: { observed_at: "invalid" },
+    })
+    await expect(fetchCurrentWeatherData()).rejects.toThrow()
+    expect(warning).not.toHaveBeenCalled()
+  })
 
   it.each([undefined, {}, { observed_at: undefined }, { observed_at: "2026-10-10T21:46:00Z" }])(
     "does not warn for missing or valid observation metadata %j",

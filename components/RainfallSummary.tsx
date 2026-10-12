@@ -17,7 +17,9 @@ export default function RainfallSummary({
           <div className="text-lg font-semibold text-blue-600 dark:text-blue-400">
             {formatRainfall(currentWeatherData.rain_total_in)} in
           </div>
-          <div className="text-xs text-gray-500 dark:text-gray-400">{reading.rainLabel}</div>
+          <div className="text-xs leading-4 min-h-8 min-[360px]:min-h-4 text-gray-500 dark:text-gray-400">
+            {reading.rainLabel}
+          </div>
         </div>
         <div>
           <div className="text-lg font-semibold text-blue-600 dark:text-blue-400">
@@ -26,14 +28,21 @@ export default function RainfallSummary({
           <div className="text-xs text-gray-500 dark:text-gray-400">Rain rate</div>
         </div>
       </div>
-      <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">
+      <p className="text-xs leading-4 text-gray-500 dark:text-gray-400 text-center mt-2">
         {reading.timeLabel}
       </p>
-      {reading.older && (
-        <p className="text-xs font-medium text-amber-700 dark:text-amber-400 text-center mt-1">
-          Older snapshot
-        </p>
-      )}
+      <p
+        aria-hidden={reading.ageLabel === undefined}
+        className="text-xs leading-4 min-h-8 text-gray-500 dark:text-gray-400 text-center"
+      >
+        {reading.ageLabel}
+      </p>
+      <p
+        aria-hidden={!reading.older}
+        className="text-xs leading-4 min-h-4 font-medium text-amber-700 dark:text-amber-400 text-center"
+      >
+        {reading.older ? "Older snapshot" : ""}
+      </p>
       <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">
         Snapshots publish about hourly.
       </p>

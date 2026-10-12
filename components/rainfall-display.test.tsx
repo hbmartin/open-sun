@@ -149,9 +149,9 @@ describe("station rainfall display", () => {
     const beforeHydration = renderToStaticMarkup(
       <RainfallSummary currentWeatherData={observation} />,
     )
-    expect(beforeHydration).toContain("Observed: Oct 10, 2026, 2:46 PM PDT")
+    expect(beforeHydration).toMatch(/<p[^>]*>Observed: Oct 10, 2026, 2:46 PM PDT<\/p>/u)
     expect(beforeHydration).toContain("Rain on Oct 10, 2026")
-    expect(beforeHydration).not.toContain("ago")
+    expect(beforeHydration.match(/<p aria-hidden="true"[^>]*><\/p>/gu)).toHaveLength(2)
     expect(beforeHydration).not.toContain("Rain today")
     expect(beforeHydration).not.toContain("Older snapshot")
 

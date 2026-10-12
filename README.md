@@ -60,13 +60,20 @@ The rainfall summary first shows the observation's absolute time and date in
 `America/Los_Angeles`. Relative age and freshness appear only after the screen's
 shared minute clock is corrected on mount, so a cached page cannot initially
 claim an age calculated at regeneration time.
-This clock updates the age display; it does not fetch a new observation.
+The clock's `hasClientTime` flag records that browser time has been read; it
+stays ready across router refreshes. Relative age and its warning have reserved
+space beneath the absolute timestamp so appearing text does not push the
+following content down. This clock updates the age display; it does not fetch
+a new observation.
 Readings older than two hours are labeled **Older snapshot**. After local
 midnight, **Rain today** becomes **Rain on [observation date]** for an older
 day's observation, displayed as a readable date such as **Rain on Oct 10, 2026**.
 Observation timestamps must be ISO datetimes with `Z` or an explicit timezone
-offset. Invalid provided timestamps are discarded with a server warning while
-usable weather readings remain visible. Missing or invalid observation times
+offset. Station and forecast validation share this timestamp rule. Invalid
+provided station timestamps are discarded with one structured server warning
+containing the rejected value and validation issue path, code, and message,
+while usable weather readings remain visible. Missing timestamps are silent.
+Missing or invalid observation times
 show **Reading time unavailable** and **Rain total**. Timestamps up to five
 minutes ahead display **just now**; larger differences are identified as ahead
 of the current time. The summary keeps one cadence note; the Info view's
@@ -82,6 +89,11 @@ stays stdlib-only. Two consequences worth knowing:
 
 Points worth knowing when reading the forecast:
 
+- **Freshness follows the screen's clock.** Forecast and Info warnings are
+  recalculated from the issue time after the browser clock is corrected and on
+  each minute tick, rather than staying frozen at page regeneration. Forecasts
+  remain fresh through three hours, stale through twelve hours, and expired
+  after twelve hours. The Forecast view keeps its absolute update timestamp.
 - **Units are imperial and self-declared.** Every published document carries a `units` block that the zod schema asserts literal-by-literal, so a publisher that started emitting Celsius under `temp_f` would fail validation rather than render 25 as a plausible Fahrenheit reading.
 - **`pop` is a fraction in `[0, 1]`**, never a percent. The view model scales it for display.
 - **`valid_time` is the start of the clock hour.** Variables whose `truth_semantics` is `mean` (`temp_f`, `humidity_pct`, `dew_point_f`, `wind_speed_mph`) are averages over `[valid_time, valid_time + 1h)`; the rest are instantaneous at `valid_time`. This mirrors the pipeline's own `truth_hourly`, which buckets minute observations with `dt.truncate("1h")`.

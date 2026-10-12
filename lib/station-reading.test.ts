@@ -14,7 +14,8 @@ describe("station snapshot description", () => {
   ])("describes age at %s without changing the observation", (now, age) => {
     const reading = describeStationReading(observedAt, new Date(now))
     expect(reading.rainLabel).toBe("Rain today")
-    expect(reading.timeLabel).toBe(`Observed: Oct 10, 2026, 2:46 PM PDT · ${age}`)
+    expect(reading.timeLabel).toBe("Observed: Oct 10, 2026, 2:46 PM PDT")
+    expect(reading.ageLabel).toBe(age)
   })
 
   it("marks snapshots only after two hours", () => {
@@ -46,16 +47,14 @@ describe("station snapshot description", () => {
     "tolerates small future clock differences at %s",
     (now) => {
       const reading = describeStationReading(observedAt, new Date(now))
-      expect(reading.timeLabel).toContain("just now")
-      expect(reading.timeLabel).not.toContain("ahead")
+      expect(reading.ageLabel).toBe("just now")
       expect(reading.older).toBe(false)
     },
   )
 
   it("names a future clock reading beyond five minutes", () => {
     const reading = describeStationReading(observedAt, new Date("2026-10-10T21:40:59.999Z"))
-    expect(reading.timeLabel).toContain("Reading time is ahead of current time")
-    expect(reading.timeLabel).not.toContain("ago")
+    expect(reading.ageLabel).toBe("Reading time is ahead of current time")
     expect(reading.older).toBe(false)
   })
 

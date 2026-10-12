@@ -19,6 +19,7 @@ import { useForegroundRefresh } from "@/components/use-foreground-refresh"
 import { useNow } from "@/components/use-now"
 import WeatherMap from "@/components/WeatherMap"
 import WeeklyWeather from "@/components/WeeklyWeather"
+import { getForecastFreshness } from "@/lib/forecast-mappers"
 import { DisplayMetric, ForecastMetric } from "@/lib/types"
 
 const tab_names: Record<DisplayMetric, string> = {
@@ -79,8 +80,21 @@ export default function WeatherApp({
   const panelId = useId()
   // One clock for the whole screen: the chart's Now line and the twilight strip
   // read the same instant, so they cannot tick a minute apart.
-  const { now, isHydrated } = useNow(currentDate)
-  const stationNow = isHydrated ? now : undefined
+  const { now, hasClientTime } = useNow(currentDate)
+  const stationNow = hasClientTime ? now : undefined
+  // Freshness describes the current clock, not when the cached payload was built.
+  let currentForecast = forecast
+  if (forecast.kind === "ok") {
+    const freshness = getForecastFreshness(forecast.forecast.issuedAt, now)
+    currentForecast = {
+      kind: "ok",
+      forecast: {
+        ...forecast.forecast,
+        ...freshness,
+        info: { ...forecast.forecast.info, ...freshness },
+      },
+    }
+  }
   // The scroll-to-top button watches this block rather than a scroll offset;
   // wrapping here rather than inside NextHoursChart keeps the History view,
   // whose first block is CurrentWeather, behaving identically.
@@ -95,7 +109,7 @@ export default function WeatherApp({
 
   const renderPanel = () => {
     if (isForecast) {
-      return <ForecastWeather metric={activeForecastTab} forecast={forecast} />
+      return <ForecastWeather metric={activeForecastTab} forecast={currentForecast} />
     }
     return (
       <WeeklyWeather
@@ -151,7 +165,7 @@ export default function WeatherApp({
       {hasChrome && (
         <div ref={leadRef}>
           {isForecast ? (
-            <NextHours forecast={forecast} metric={activeForecastTab} now={now} />
+            <NextHours forecast={currentForecast} metric={activeForecastTab} now={now} />
           ) : (
             <CurrentWeather currentWeatherData={currentWeatherData} now={stationNow} />
           )}
@@ -160,7 +174,7 @@ export default function WeatherApp({
 
       {isMap && <WeatherMap />}
 
-      {isInfo && <ForecastInfo forecast={forecast} />}
+      {isInfo && <ForecastInfo forecast={currentForecast} />}
 
       {hasChrome && (
         <div
@@ -178,7 +192,7 @@ export default function WeatherApp({
           now={now}
           currentWeatherData={currentWeatherData}
           lastWeekData={lastWeekData}
-          forecast={forecast}
+          forecast={currentForecast}
         />
       )}
 

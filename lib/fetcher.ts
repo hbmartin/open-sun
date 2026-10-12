@@ -15,6 +15,7 @@ import {
   DailyApiResponseSchema,
   HourlyApiResponseSchema,
 } from "@/lib/schemas"
+import { OffsetDateTimeSchema } from "@/lib/timestamp-schema"
 import { getSunTimes } from "@/lib/utils"
 
 const FORECAST_TIMEOUT_MS = 5000
@@ -29,7 +30,17 @@ export async function fetchCurrentWeatherData(): Promise<InstantObservation> {
     body.metadata?.observed_at !== undefined &&
     validatedResponse.metadata?.observed_at === undefined
   ) {
-    console.warn("station observed_at rejected; reading time unavailable")
+    const timestamp = OffsetDateTimeSchema.safeParse(body.metadata.observed_at)
+    if (!timestamp.success) {
+      console.warn("station observed_at rejected; reading time unavailable", {
+        observed_at: body.metadata.observed_at,
+        issues: timestamp.error.issues.map(({ path, code, message }) => ({
+          path: ["metadata", "observed_at", ...path],
+          code,
+          message,
+        })),
+      })
+    }
   }
   return {
     ...validatedResponse.data,

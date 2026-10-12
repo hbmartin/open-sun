@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { OffsetDateTimeSchema } from "@/lib/timestamp-schema"
 
 export const CurrentWeatherApiResponseSchema = z.object({
   data: z.object({
@@ -23,7 +24,7 @@ export const CurrentWeatherApiResponseSchema = z.object({
   metadata: z
     .object({
       // oxlint-disable-next-line unicorn/prefer-top-level-await, unicorn/no-useless-undefined -- Zod's synchronous catch requires an explicit fallback.
-      observed_at: z.iso.datetime({ offset: true }).optional().catch(undefined),
+      observed_at: OffsetDateTimeSchema.optional().catch(undefined),
     })
     .optional(),
 })
