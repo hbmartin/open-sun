@@ -17,6 +17,7 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "html"],
       include: ["lib/**/*.ts", "app/**/*.{ts,tsx}", "components/**/*.tsx"],
+      exclude: ["lib/__fixtures__/**"],
       // Enforce coverage on the tested business logic in lib/. UI components
       // are intentionally excluded from the gate until they gain tests.
       thresholds: {

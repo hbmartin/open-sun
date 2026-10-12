@@ -19,7 +19,7 @@ import { useForegroundRefresh } from "@/components/use-foreground-refresh"
 import { useNow } from "@/components/use-now"
 import WeatherMap from "@/components/WeatherMap"
 import WeeklyWeather from "@/components/WeeklyWeather"
-import { getForecastFreshness } from "@/lib/forecast-mappers"
+import { withForecastFreshness } from "@/lib/forecast-mappers"
 import { DisplayMetric, ForecastMetric } from "@/lib/types"
 
 const tab_names: Record<DisplayMetric, string> = {
@@ -86,14 +86,9 @@ export default function WeatherApp({
   // from the shared browser clock for every view.
   let currentForecast = forecast
   if (forecast.kind === "ok" && hasClientTime) {
-    const freshness = getForecastFreshness(forecast.forecast.issuedAt, now)
     currentForecast = {
       kind: "ok",
-      forecast: {
-        ...forecast.forecast,
-        ...freshness,
-        info: { ...forecast.forecast.info, ...freshness },
-      },
+      forecast: withForecastFreshness(forecast.forecast, now),
     }
   }
   // The scroll-to-top button watches this block rather than a scroll offset;

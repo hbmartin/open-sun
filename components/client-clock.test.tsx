@@ -67,14 +67,11 @@ function StationClock({ seed }: { seed: Date }) {
 }
 
 async function resumePage(event: "visibilitychange" | "pageshow") {
-  if (event === "visibilitychange") {
-    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible")
-    await act(() => document.dispatchEvent(new Event("visibilitychange")))
-  } else {
-    await act(() =>
-      globalThis.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true })),
-    )
-  }
+  await act(() =>
+    event === "visibilitychange"
+      ? document.dispatchEvent(new Event("visibilitychange"))
+      : globalThis.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true })),
+  )
 }
 
 async function clickNav(name: string) {
@@ -290,7 +287,7 @@ describe("shared client clock", () => {
 })
 
 describe("forecast freshness follows the client clock", () => {
-  it("keeps supplied forecast freshness for server markup before reading browser time", async () => {
+  it("honors the supplied server snapshot contract even with a different clock seed", async () => {
     const app = <App seed={SERVER_TIME} mappedAt={CLIENT_TIME} issuedAt="2026-10-10T19:30:00Z" />
     container.innerHTML = renderToString(app)
     expect(forecastProvenance()?.className).toContain("text-amber-600")
@@ -305,13 +302,37 @@ describe("forecast freshness follows the client clock", () => {
   })
 
   it.each([
-    ["visibilitychange", "2026-10-10T20:00:00Z", "fresh", "stale"],
-    ["pageshow", "2026-10-10T20:00:00Z", "fresh", "stale"],
-    ["visibilitychange", "2026-10-10T11:00:00Z", "stale", "expired"],
-    ["pageshow", "2026-10-10T11:00:00Z", "stale", "expired"],
+    {
+      event: "visibilitychange",
+      boundary: "three-hour",
+      issuedAt: "2026-10-10T20:00:00Z",
+      before: "fresh",
+      after: "stale",
+    },
+    {
+      event: "pageshow",
+      boundary: "three-hour",
+      issuedAt: "2026-10-10T20:00:00Z",
+      before: "fresh",
+      after: "stale",
+    },
+    {
+      event: "visibilitychange",
+      boundary: "twelve-hour",
+      issuedAt: "2026-10-10T11:00:00Z",
+      before: "stale",
+      after: "expired",
+    },
+    {
+      event: "pageshow",
+      boundary: "twelve-hour",
+      issuedAt: "2026-10-10T11:00:00Z",
+      before: "stale",
+      after: "expired",
+    },
   ] as const)(
-    "corrects both forecast views on %s immediately beyond the %s issue boundary",
-    async (event, issuedAt, before, after) => {
+    "corrects both forecast views on $event immediately beyond the $boundary issue boundary",
+    async ({ event, issuedAt, before, after }) => {
       // CLIENT_TIME is exactly three or twelve hours after these issues.
       vi.setSystemTime(new Date(CLIENT_TIME.getTime() - 60_000))
       root = createRoot(container)

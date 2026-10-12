@@ -15,10 +15,10 @@ export default function NextHours({
   metric: ForecastMetric
   now: Date
 }): React.JSX.Element | undefined {
+  const days = forecast.kind === "ok" ? forecast.forecast.days : undefined
   const model = useMemo(
-    () =>
-      forecast.kind === "ok" ? buildNextHours(forecast.forecast.days, now, metric) : undefined,
-    [forecast, now, metric],
+    () => (days === undefined ? undefined : buildNextHours(days, now, metric)),
+    [days, now, metric],
   )
 
   if (forecast.kind === "unavailable") {
