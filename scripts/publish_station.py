@@ -139,7 +139,7 @@ def _import_library() -> tuple[Any, Any, Any]:
     except ImportError as exc:  # pragma: no cover - environment wiring
         msg = (
             f"cannot import ambientweather2sqlite ({exc}); run this under "
-            f"`uv run --project /Volumes/ExtStor/weather/ambientweather2sqlite python ...`"
+            f"`uv run --project /Volumes/Pro2T/weather/ambientweather2sqlite python ...`"
         )
         raise RefusedError(msg) from exc
     return (

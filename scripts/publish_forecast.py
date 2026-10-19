@@ -49,7 +49,7 @@ CONTRACT_VERSION = 1
 SOURCE_SCHEMA_VERSION = 6
 SUPPORTED_SOURCE_SCHEMA_VERSIONS = frozenset({5, SOURCE_SCHEMA_VERSION})
 
-DEFAULT_SOURCE = "/Volumes/ExtStor/weather/grounded-weather-forecast/forecast.json"
+DEFAULT_SOURCE = "/Volumes/Pro2T/weather/grounded-weather-forecast/forecast.json"
 DEFAULT_REMOTE = "git@github.com:hbmartin/open-sun.git"
 DEFAULT_BRANCH = "data"
 
