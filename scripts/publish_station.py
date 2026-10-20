@@ -52,9 +52,8 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
-PUBLISHER_VERSION = "1.1.0"
+PUBLISHER_VERSION = "1.1.1"
 
-DEFAULT_DB = str(Path.home() / "Downloads/ambientweather2sqlite/aw2sqlite.db")
 DEFAULT_PRIOR_DAYS = 7
 
 # lib/utils.ts hardcodes this zone for all hour and day bucketing, so the
@@ -139,7 +138,7 @@ def _import_library() -> tuple[Any, Any, Any]:
     except ImportError as exc:  # pragma: no cover - environment wiring
         msg = (
             f"cannot import ambientweather2sqlite ({exc}); run this under "
-            f"`uv run --project /Volumes/Pro2T/weather/ambientweather2sqlite python ...`"
+            "`uv run --project <ambientweather2sqlite-project> python ...`"
         )
         raise RefusedError(msg) from exc
     return (
@@ -147,6 +146,34 @@ def _import_library() -> tuple[Any, Any, Any]:
         query_daily_aggregated_data,
         query_hourly_aggregated_data,
     )
+
+
+def resolve_database(db_path: str | Path | None = None) -> Path:
+    """Follow the collector's config lookup and working-directory path semantics."""
+    if db_path is None:
+        try:
+            from ambientweather2sqlite.configuration import get_config_path, load_config
+        except ImportError as exc:
+            raise RefusedError(
+                "cannot load collector configuration; run under the ambientweather2sqlite "
+                "project, or provide --db <database> in an environment with its query API"
+            ) from exc
+        try:
+            config = get_config_path()
+            if config is None:
+                raise RefusedError("no collector configuration found; configure aw2sqlite or pass --db")
+            db_path = load_config(config).database_path
+        except (OSError, ValueError, TypeError, KeyError) as exc:
+            raise RefusedError(f"cannot load collector configuration: {exc}") from exc
+    if not isinstance(db_path, (str, Path)) or not str(db_path).strip():
+        raise RefusedError("database path must be nonempty; check collector configuration or --db")
+    try:
+        database = Path(db_path).expanduser().resolve()
+    except (OSError, ValueError, RuntimeError) as exc:
+        raise RefusedError(f"invalid database path: {exc}; check collector configuration or --db") from exc
+    if not database.is_file():
+        raise RefusedError(f"database not found: {database}; check collector configuration or --db")
+    return database
 
 
 def _round(value: Any) -> Any:
@@ -408,7 +435,7 @@ def build_documents(
 
 def run(
     *,
-    db_path: str = DEFAULT_DB,
+    db_path: str | Path | None = None,
     out_dir: str | Path | None = None,
     prior_days: int = DEFAULT_PRIOR_DAYS,
     tz: str = STATION_TIME_ZONE,
@@ -418,7 +445,8 @@ def run(
     _log_stream = sys.stderr if print_payload else sys.stdout
 
     try:
-        documents = build_documents(db_path=db_path, prior_days=prior_days, tz=tz)
+        database = resolve_database(db_path)
+        documents = build_documents(db_path=str(database), prior_days=prior_days, tz=tz)
     except RefusedError as exc:
         print(f"refusing to publish station data: {exc}", file=sys.stderr, flush=True)
         return 2
@@ -456,7 +484,7 @@ def run(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
-    parser.add_argument("--db", default=DEFAULT_DB, help="aw2sqlite database path")
+    parser.add_argument("--db", help="database path (default: existing aw2sqlite configuration)")
     parser.add_argument("--out-dir", help="directory to write the documents into")
     parser.add_argument(
         "--prior-days",
