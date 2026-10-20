@@ -39,17 +39,17 @@ import subprocess
 import sys
 import tempfile
 import time
+import tomllib
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-PUBLISHER_VERSION = "1.3.1"
+PUBLISHER_VERSION = "1.3.2"
 CONTRACT_VERSION = 1
 SOURCE_SCHEMA_VERSION = 6
 SUPPORTED_SOURCE_SCHEMA_VERSIONS = frozenset({5, SOURCE_SCHEMA_VERSION})
 
-DEFAULT_SOURCE = "/Volumes/ExtStor/weather/grounded-weather-forecast/forecast.json"
 DEFAULT_REMOTE = "git@github.com:hbmartin/open-sun.git"
 DEFAULT_BRANCH = "data"
 
@@ -175,6 +175,45 @@ class RefusedError(Exception):
 
 class GitError(Exception):
     """A git subprocess failed."""
+
+
+def resolve_source(source: str | Path | None = None) -> Path:
+    """Use the caller's input, active project, or a validated checkout sibling."""
+    if source is not None:
+        try:
+            return Path(source).expanduser().resolve()
+        except (OSError, ValueError, RuntimeError) as exc:
+            raise RefusedError(f"invalid --source path: {exc}") from exc
+    active = Path.cwd().resolve()
+    candidate = active / "forecast.json"
+    if candidate.is_file():
+        return candidate
+    try:
+        metadata = active / "pyproject.toml"
+        if metadata.is_file():
+            project = tomllib.loads(metadata.read_text(encoding="utf-8")).get("project", {})
+            if project.get("name") == "grounded-weather-forecast":
+                return candidate  # Missing output here must not select another project.
+        sources: set[Path] = set()
+        for checkout in {active, Path(__file__).resolve().parent.parent}:
+            package = checkout / "package.json"
+            if not package.is_file():
+                continue
+            if json.loads(package.read_text(encoding="utf-8")).get("name") != "open-sun":
+                continue
+            sibling = checkout.parent / "grounded-weather-forecast"
+            metadata = sibling / "pyproject.toml"
+            if not metadata.is_file():
+                continue
+            project = tomllib.loads(metadata.read_text(encoding="utf-8")).get("project", {})
+            if project.get("name") == "grounded-weather-forecast":
+                sources.add(sibling.resolve() / "forecast.json")
+    except (OSError, ValueError, AttributeError) as exc:
+        raise RefusedError(f"cannot discover forecast source: {exc}; use --source") from exc
+    if len(sources) == 1:
+        return sources.pop()
+    reason = "multiple forecast projects found" if sources else "no forecast project found"
+    raise RefusedError(f"{reason}; run from the forecast project or pass --source <forecast.json>")
 
 
 # --------------------------------------------------------------------------
@@ -741,7 +780,7 @@ def write_stamp(issued_at: str) -> None:
 
 def run(
     *,
-    source: str | Path = DEFAULT_SOURCE,
+    source: str | Path | None = None,
     remote: str = DEFAULT_REMOTE,
     branch: str = DEFAULT_BRANCH,
     print_payload: bool = False,
@@ -754,7 +793,7 @@ def run(
     _log_stream = sys.stderr if print_payload else sys.stdout
 
     try:
-        document = load_document(Path(source))
+        document = load_document(resolve_source(source))
         payload = transform(document, datetime.now(UTC))
         extra_blobs = collect_extra_blobs(Path(include_dir)) if include_dir else {}
     except RefusedError as exc:
@@ -812,7 +851,7 @@ def run(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
-    parser.add_argument("--source", default=DEFAULT_SOURCE, help="forecast.json to publish")
+    parser.add_argument("--source", help="forecast.json (default: active project or validated checkout sibling)")
     parser.add_argument("--remote", default=DEFAULT_REMOTE, help="git remote to push to")
     parser.add_argument("--branch", default=DEFAULT_BRANCH, help="branch to force-push")
     parser.add_argument("--print", dest="print_payload", action="store_true",

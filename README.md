@@ -116,6 +116,25 @@ cp scripts/publish_forecast.py scripts/publish_station.py \
 
 Both need Python 3.12+ and are invoked through `uv` by the `io.github.hbmartin.grounded-predict` LaunchAgent, via `hourly-predict-publish.py`, which runs `predict`, then the station render, then the publish — one process, so nothing races on a non-atomic write and no two jobs can overwrite each other's files on the branch. `publish_forecast.py` is stdlib-only; `publish_station.py` runs under the aw2sqlite project because it imports that project's aggregation functions.
 
+Publisher inputs are resolved at runtime, without volume or home-directory data
+defaults. `publish_forecast.py --source PATH` always uses that exact input. When
+omitted, it uses `forecast.json` in the working directory, or a validated sibling
+`grounded-weather-forecast` checkout when invoked from an `open-sun` checkout.
+An active forecast project with missing output never falls back to another
+checkout; missing, ambiguous, or malformed discovery inputs are refused with exit
+2 before Git runs or the publication stamp changes. Installed copies should run
+with the forecast project as their working directory, as the LaunchAgent already
+does through `uv --directory`.
+
+`publish_station.py --db PATH` uses the given database. Without it, the script
+uses `ambientweather2sqlite`'s existing configuration discovery (working-directory
+`aw2sqlite.toml`, then `~/.aw2sqlite.toml`) and configured `database_path`.
+Relative database paths follow the collector's working-directory semantics.
+Missing or invalid configuration and databases are refused with exit 2 before
+documents are written. The hourly wrapper instead passes the absolute database
+from the forecast project's `station.db_path`, keeping forecast and station
+publication on the same configured observations.
+
 Useful flags: `publish_forecast.py --dry-run --print` inspects a transformed document without touching git, and `--no-push` builds the commit locally for `git cat-file -p <sha>^{tree}`. `publish_station.py --print` dumps all three station documents to stdout. `publisher_version` appears in every published document, so a stale deployed copy is visible from the raw URL alone.
 
 ## Environment variables
