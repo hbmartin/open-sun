@@ -1,68 +1,257 @@
-"""Contract parity, missing data and absolute-hour regression tests."""
+"""Shared contracts, invalid inputs, and populated DST regression tests."""
+
 import copy
 import json
 import unittest
-import subprocess
-import tempfile
-from datetime import UTC, datetime
+from datetime import timedelta
 from pathlib import Path
 
-from publish_forecast import build_commit, serialise
-from town_card import bands, build_town_card, quantile_at
+from town_card import (
+    TZ,
+    CardInputError,
+    bands,
+    build_town_card,
+    instant,
+    is_daytime,
+    quantile_at,
+    station_sun_times,
+    summary,
+)
 
-FIXTURE = json.loads((Path(__file__).resolve().parent.parent / 'lib/__fixtures__/town-card.json').read_text())
+FIXTURES = Path(__file__).resolve().parent.parent / "lib/__fixtures__"
+FIXTURE = json.loads((FIXTURES / "town-card.json").read_text())
+EDGES = json.loads((FIXTURES / "town-card-edges.json").read_text())
 
 
 class TownCardTest(unittest.TestCase):
-    def test_shared_document(self):
-        self.assertEqual(build_town_card(**FIXTURE['input']), FIXTURE['expected'])
+    def forecast(self):
+        return copy.deepcopy(FIXTURE["input"]["forecast"])
 
-    def test_one_git_commit_contains_forecast_station_and_card(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            git_dir = Path(temporary) / "repo.git"
-            data = FIXTURE["input"]
-            extras = {"current.json": serialise(data["current"]), "daily.json": b'{"data":[]}'}
-            commit = build_commit(serialise(data["forecast"]), git_dir, "data", data["forecast"]["issued_at"], extras)
-            def show(path):
-                return subprocess.check_output(["git", "--git-dir", str(git_dir), "show", f"{commit}:{path}"])
-            self.assertEqual(json.loads(show("town-card.json")), FIXTURE["expected"])
-            self.assertEqual(json.loads(show("current.json")), data["current"])
-            self.assertEqual(show("daily.json"), extras["daily.json"])
-            self.assertEqual(json.loads(show("forecast.json")), data["forecast"])
+    def test_shared_document(self):
+        self.assertEqual(build_town_card(**FIXTURE["input"]), FIXTURE["expected"])
+
+    def assert_bands(self, actual, expected):
+        self.assertEqual(len(actual), len(expected))
+        for a, b in zip(actual, expected):
+            self.assertEqual(a["coverage"], b["coverage"])
+            self.assertAlmostEqual(a["low_f"], b["low_f"])
+            self.assertAlmostEqual(a["high_f"], b["high_f"])
+
+    def test_shared_quantile_edges_and_missing_point_values(self):
+        for case in EDGES["quantiles"]:
+            with self.subTest(case=case["name"]):
+                self.assertAlmostEqual(
+                    quantile_at(case["grid"], case["at"]["probability"]),
+                    case["at"]["value"],
+                )
+                self.assert_bands(bands(case["grid"]), case["card_bands"])
+                forecast = self.forecast()
+                forecast["hourly"][0]["values"]["temp_f"] = case["temp_f"]
+                forecast["hourly"][0]["quantiles"]["temp_f"] = case["grid"]
+                hour = build_town_card(forecast, None)["forecast"]["hours"][0]
+                self.assertEqual(hour["temp_f"], case["temp_f"])
+                self.assert_bands(hour["bands"], case["card_bands"])
+
+    def test_empty_nonfinite_and_single_level_quantiles(self):
+        self.assertEqual(bands({}), [])
+        self.assertEqual(
+            bands({"bad": 4, "0.5": float("nan"), "0.9": float("inf")}), []
+        )
+        self.assertEqual(
+            bands({"0.5": 4}),
+            [
+                {"coverage": coverage, "low_f": 4, "high_f": 4}
+                for coverage in (0.9, 0.6, 0.3)
+            ],
+        )
+        self.assertEqual(quantile_at({"0.1": 10, "0.9": 90}, 0), 10)
+        self.assertEqual(quantile_at({"0.1": 10, "0.9": 90}, 1), 90)
+
+    def test_shared_daylight_edges(self):
+        for case in EDGES["daylight"]:
+            with self.subTest(at=case["valid_time"]):
+                self.assertEqual(
+                    is_daytime(instant(case["valid_time"]), 34.2768, -117.1692),
+                    case["is_daytime"],
+                )
+        at = instant("2026-03-15T14:00:00Z")
+        sunrise, sunset = station_sun_times(
+            at.astimezone(TZ).date(), 34.2768, -117.1692
+        )
+        self.assertEqual(sunrise.isoformat(), "2026-03-15T14:00:32.845000+00:00")
+        for boundary in (sunrise, sunset):
+            self.assertTrue(is_daytime(boundary, 34.2768, -117.1692))
+        self.assertFalse(
+            is_daytime(sunrise - timedelta(milliseconds=1), 34.2768, -117.1692)
+        )
+        self.assertFalse(
+            is_daytime(sunset + timedelta(milliseconds=1), 34.2768, -117.1692)
+        )
 
     def test_missing_station_and_partial_forecast(self):
-        forecast = copy.deepcopy(FIXTURE['input']['forecast'])
-        forecast['hourly'] = forecast['hourly'][7:9]
+        forecast = self.forecast()
+        forecast["hourly"] = forecast["hourly"][7:9]
         result = build_town_card(forecast, None)
-        self.assertIsNone(result['observation'])
-        self.assertEqual(len(result['forecast']['hours']), 24)
-        self.assertIsNone(result['forecast']['hours'][0]['temp_f'])
-        self.assertIsNone(result['forecast']['outlook'])
-        self.assertEqual(result['forecast']['hours'][0]['bands'], [])
+        self.assertIsNone(result["observation"])
+        self.assertEqual(len(result["forecast"]["hours"]), 24)
+        self.assertIsNone(result["forecast"]["hours"][0]["temp_f"])
+        self.assertIsNone(result["forecast"]["outlook"])
+        self.assertEqual(result["forecast"]["hours"][0]["bands"], [])
 
-    def test_quantile_interpolation(self):
-        self.assertAlmostEqual(quantile_at({'0.1': 10, '0.9': 90}, .2), 20)
-        self.assertEqual(bands({}), [])
-        self.assertEqual(len(bands({'0.05': 0, '0.95': 100})), 3)
+    def test_invalid_current_shapes_and_times_have_field_diagnostics(self):
+        cases = [
+            ([], "current"),
+            ({"metadata": []}, "current.metadata"),
+            ({"metadata": None}, "current.metadata"),
+            ({"data": []}, "current.data"),
+        ]
+        for value in ("", 4, "yesterday", "2026-10-22T12:00:00"):
+            cases.append(
+                ({"metadata": {"observed_at": value}}, "current.metadata.observed_at")
+            )
+        for current, field in cases:
+            with (
+                self.subTest(current=current),
+                self.assertRaisesRegex(CardInputError, field),
+            ):
+                build_town_card(self.forecast(), current)
 
-    def test_station_identity_and_expired_forecast(self):
-        forecast = copy.deepcopy(FIXTURE['input']['forecast'])
-        forecast['latitude'] = 40
-        with self.assertRaises(ValueError):
+    def test_invalid_forecast_shapes_and_times_have_field_diagnostics(self):
+        for key, value in [
+            ("published_at", None),
+            ("issued_at", "2026-10-22"),
+            ("hourly", None),
+            ("daily", {}),
+            ("hourly", [None]),
+            ("hourly", [{"valid_time": 3}]),
+            ("daily", [{"date_local": "invalid"}]),
+        ]:
+            with (
+                self.subTest(key=key, value=value),
+                self.assertRaisesRegex(CardInputError, f"forecast.{key}"),
+            ):
+                forecast = self.forecast()
+                forecast[key] = value
+                build_town_card(forecast, None)
+        for key in ("values", "quantiles"):
+            forecast = self.forecast()
+            forecast["hourly"][0][key] = []
+            with self.assertRaisesRegex(CardInputError, key):
+                build_town_card(forecast, None)
+        forecast = self.forecast()
+        forecast["hourly"][0]["quantiles"]["temp_f"] = None
+        with self.assertRaisesRegex(CardInputError, "quantiles.temp_f"):
             build_town_card(forecast, None)
-        forecast['latitude'] = 34.2768
-        forecast['issued_at'] = '2020-01-01T00:00:00Z'
-        self.assertIsNone(build_town_card(forecast, FIXTURE['input']['current'])['forecast'])
 
-    def test_daylight_saving_keeps_24_consecutive_instants(self):
-        forecast = copy.deepcopy(FIXTURE['input']['forecast'])
-        forecast['published_at'] = forecast['issued_at'] = '2026-11-01T07:00:00Z'
-        result = build_town_card(forecast, None)
-        hours = result['forecast']['hours']
-        instants = [datetime.fromisoformat(h['valid_time']).astimezone(UTC).timestamp() for h in hours]
-        self.assertEqual(len(set(instants)), 24)
-        self.assertTrue(all(b - a == 3600 for a, b in zip(instants, instants[1:])))
+    def test_observation_requires_a_finite_reading_but_accepts_zero_and_old_dates(self):
+        forecast = self.forecast()
+        for current in (
+            None,
+            {},
+            {"data": {"outTemp": 50}},
+            {
+                "metadata": {"observed_at": "2020-01-01T00:00:00Z"},
+                "data": {"outTemp": None, "avgwind": True, "gustspeed": float("inf")},
+            },
+        ):
+            self.assertIsNone(build_town_card(forecast, current)["observation"])
+        current = {
+            "metadata": {"observed_at": "2020-01-01T00:00:00Z"},
+            "data": {"rain_total_in": 0},
+        }
+        observation = build_town_card(forecast, current)["observation"]
+        self.assertEqual(observation["rain_total_in"], 0)
+        self.assertEqual(observation["rain_date"], "2019-12-31")
+        self.assertEqual(observation["observed_at"], "2020-01-01T00:00:00+00:00")
+
+    def test_station_identity_and_exact_expiry(self):
+        forecast = self.forecast()
+        forecast["latitude"] = 40
+        with self.assertRaisesRegex(CardInputError, "Lake Arrowhead"):
+            build_town_card(forecast, None)
+        forecast["latitude"] = 34.2768
+        forecast["issued_at"] = (
+            instant(forecast["published_at"]) - timedelta(hours=12)
+        ).isoformat()
+        self.assertIsNotNone(build_town_card(forecast, None)["forecast"])
+        forecast["published_at"] = (
+            instant(forecast["published_at"]) + timedelta(seconds=1)
+        ).isoformat()
+        self.assertIsNone(
+            build_town_card(forecast, FIXTURE["input"]["current"])["forecast"]
+        )
+        with self.assertRaisesRegex(CardInputError, "no usable"):
+            build_town_card(
+                forecast, {"metadata": {"observed_at": forecast["issued_at"]}}
+            )
+
+    def test_next_full_hour_includes_an_exact_hour(self):
+        forecast = self.forecast()
+        for published, expected in [
+            ("2026-10-22T13:00:00Z", "2026-10-22T13:00:00+00:00"),
+            ("2026-10-22T13:00:01Z", "2026-10-22T14:00:00+00:00"),
+        ]:
+            forecast["published_at"] = published
+            self.assertEqual(
+                build_town_card(forecast, None)["forecast"]["hours"][0]["valid_time"],
+                expected,
+            )
+
+    def test_populated_dst_windows_preserve_values_bands_dates_and_summary_groups(self):
+        for case in EDGES["dst"]:
+            with self.subTest(case=case["name"]):
+                forecast = self.forecast()
+                forecast["published_at"] = forecast["issued_at"] = case["published_at"]
+                start = instant(case["published_at"])
+                times = [start + timedelta(hours=i) for i in range(24)]
+                forecast["hourly"] = [
+                    {
+                        "valid_time": at.isoformat(),
+                        "values": {
+                            "temp_f": 40 + i,
+                            "humidity_pct": 30 if at.astimezone(TZ).hour < 6 else 90,
+                        },
+                        "quantiles": {"temp_f": {"0.05": 30 + i, "0.95": 50 + i}},
+                    }
+                    for i, at in enumerate(times)
+                ]
+                day = start.astimezone(TZ).date().isoformat()
+                forecast["daily"] = [
+                    {"date_local": day, "values": {"temp_max_f": 70, "temp_min_f": 30}}
+                ]
+                result = build_town_card(forecast, None)["forecast"]
+                hours = result["hours"]
+                self.assertEqual([instant(h["valid_time"]) for h in hours], times)
+                self.assertEqual(len(set(h["valid_time"] for h in hours)), 24)
+                self.assertEqual([h["temp_f"] for h in hours], list(range(40, 64)))
+                self.assertEqual(
+                    [h["bands"][0]["low_f"] for h in hours], list(range(30, 54))
+                )
+                local_times = [
+                    instant(h["valid_time"]).astimezone(TZ).isoformat() for h in hours
+                ]
+                self.assertEqual(local_times[:4], case["first_local_times"])
+                self.assertEqual(result["date_local"], day)
+                self.assertEqual(result["high_f"], 70)
+                self.assertEqual(
+                    result["outlook"], "Clear skies overnight, cloudy this morning."
+                )
+                # A sparse first morning hour must belong to Morning even at DST.
+                sparse = [
+                    (
+                        at,
+                        "clear-night"
+                        if i == 0
+                        else "rain"
+                        if i == case["morning_offset"]
+                        else None,
+                    )
+                    for i, at in enumerate(times)
+                ]
+                self.assertEqual(
+                    summary(sparse), "Clear skies overnight, rain this morning."
+                )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

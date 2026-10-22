@@ -1,59 +1,181 @@
-import { describe, expect, it } from "vitest"
+import type { mapForecastDocument as MapForecastDocument } from "@/lib/forecast-mappers"
+import type { ForecastDocument } from "@/lib/forecast-schemas"
+import type { QuantileBand } from "@/lib/quantiles"
+import type {
+  getStationDate as GetStationDate,
+  getStationHour as GetStationHour,
+  getStationSunTimes as GetStationSunTimes,
+} from "@/lib/utils"
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
+import { makeDailyRow, makeForecastDocument, makeHourlyRow } from "@/lib/__fixtures__/forecast"
+import edgeFixture from "@/lib/__fixtures__/town-card-edges.json"
 import fixture from "@/lib/__fixtures__/town-card.json"
-import { mapForecastToCondition } from "@/lib/forecast-conditions"
-import { type DayPartRun, type NextHoursPoint, buildSummary } from "@/lib/next-hours"
-import { quantileBands } from "@/lib/quantiles"
-import { getTimes } from "@/lib/suncalc"
+import { buildNextHours, buildSummary } from "@/lib/next-hours"
+import { quantileAt } from "@/lib/quantiles"
+import { ForecastMetric } from "@/lib/types"
 
-// The exact fixture is also consumed by the Python publisher and town Worker.
-describe("town-card publisher parity", () => {
-  it("publishes the same normalized bands as Open Sun", () => {
+interface WireBand {
+  coverage: number
+  low_f: number
+  high_f: number
+}
+// JSON inference makes keys absent in other cases optional. Normalize the
+// grids to numeric records without asserting away those optional properties.
+const edges = {
+  ...edgeFixture,
+  quantiles: edgeFixture.quantiles.map((testCase) => ({
+    name: testCase.name,
+    temp_f: testCase.temp_f,
+    at: testCase.at,
+    ui_bands: testCase.ui_bands,
+    card_bands: testCase.card_bands,
+    grid: Object.fromEntries(
+      Object.entries(testCase.grid).filter(
+        (entry): entry is [string, number] => typeof entry[1] === "number",
+      ),
+    ),
+  })),
+}
+
+let mapForecastDocument: typeof MapForecastDocument
+let getStationDate: typeof GetStationDate
+let getStationHour: typeof GetStationHour
+let getStationSunTimes: typeof GetStationSunTimes
+let parseDocument: (document: unknown) => ForecastDocument
+
+beforeAll(async () => {
+  // This suite's station must not inherit the SF coordinates in global setup.
+  vi.stubEnv("LOCATION_LATITUDE", "34.2768")
+  vi.stubEnv("LOCATION_LONGITUDE", "-117.1692")
+  vi.resetModules()
+  ;({ mapForecastDocument } = await import("@/lib/forecast-mappers"))
+  ;({ getStationDate, getStationHour, getStationSunTimes } = await import("@/lib/utils"))
+  const { ForecastDocumentSchema } = await import("@/lib/forecast-schemas")
+  parseDocument = (document) => ForecastDocumentSchema.parse(document)
+})
+afterAll(() => vi.unstubAllEnvs())
+
+function documentFor(overrides: Record<string, unknown> = {}): ForecastDocument {
+  return parseDocument(
+    makeForecastDocument({
+      ...fixture.input.forecast,
+      hourly: fixture.input.forecast.hourly.map((row) => makeHourlyRow(row)),
+      daily: fixture.input.forecast.daily.map((row) => makeDailyRow(row)),
+      ...overrides,
+    }),
+  )
+}
+
+function expectBands(actual: QuantileBand[], expected: WireBand[]) {
+  expect(actual).toHaveLength(expected.length)
+  for (const [index, band] of actual.entries()) {
+    expect(band.coverage).toBe(expected[index].coverage)
+    expect(band.low).toBeCloseTo(expected[index].low_f, 8)
+    expect(band.high).toBeCloseTo(expected[index].high_f, 8)
+  }
+}
+
+describe("town-card publisher contracts", () => {
+  it("matches mapped UI bands on the shared document", () => {
+    const forecast = mapForecastDocument(
+      documentFor(),
+      new Date(fixture.input.forecast.published_at),
+    )
+    const hours = forecast.days.flatMap((day) => day.hours)
     for (const hour of fixture.expected.forecast.hours) {
-      const raw = fixture.input.forecast.hourly.find(
-        (h) => Date.parse(h.valid_time) === Date.parse(hour.valid_time),
-      )
-      const expected = raw ? quantileBands(raw.quantiles.temp_f) : []
-      for (const [index, band] of hour.bands.entries()) {
-        expect(band.coverage).toBe(expected[index].coverage)
-        expect(band.low_f).toBeCloseTo(expected[index].low, 8)
-        expect(band.high_f).toBeCloseTo(expected[index].high, 8)
-      }
-      expect(hour.bands).toHaveLength(expected.length)
+      const mapped = hours.find((point) => point?.validTime === hour.valid_time)
+      expect(mapped).toBeDefined()
+      expectBands(mapped!.bands[ForecastMetric.TEMP] ?? [], hour.bands)
     }
   })
-  it("publishes the same outlook as Open Sun", () => {
-    const points: NextHoursPoint[] = []
-    const runs: DayPartRun[] = []
-    const labels = ["Overnight", "Morning", "Afternoon", "Evening"] as const
-    const formatter = new Intl.DateTimeFormat("en-US", {
-      timeZone: "America/Los_Angeles",
-      hour: "numeric",
-      hourCycle: "h23",
-    })
-    for (const [offset, hour] of fixture.expected.forecast.hours.entries()) {
-      const raw = fixture.input.forecast.hourly.find(
-        (h) => Date.parse(h.valid_time) === Date.parse(hour.valid_time),
-      )
-      const at = new Date(hour.valid_time)
-      const localHour = Number(formatter.format(at))
-      const label = labels[Math.floor(localHour / 6)]
-      if (runs.at(-1)?.label === label) runs.at(-1)!.endOffset = offset + 1
-      else runs.push({ label, heading: label, startOffset: offset, endOffset: offset + 1 })
-      if (!raw) continue
-      const sun = getTimes(at, 34.2768, -117.1692)
-      points.push({
-        offset,
-        hour: String(localHour),
-        bands: [],
-        condition: mapForecastToCondition({
-          pop: raw.values.pop * 100,
-          precip: raw.values.precip_in,
-          humidity: raw.values.humidity_pct,
-          wind: raw.values.wind_speed_mph,
-          isDaytime: at >= sun.sunrise && at <= sun.sunset,
-        }),
+
+  it("matches the production summary when the windows align", () => {
+    const start = new Date(fixture.expected.forecast.hours[0].valid_time)
+    const forecast = mapForecastDocument(documentFor(), start)
+    const model = buildNextHours(forecast.days, start, ForecastMetric.TEMP)!
+    expect(model.points[0].offset).toBe(0)
+    expect(model.summary).toBe(fixture.expected.forecast.outlook)
+    expect(buildSummary(model.points, model.dayParts)).toBe(fixture.expected.forecast.outlook)
+  })
+
+  it("intentionally starts the card at the next full hour instead of the UI's current hour", () => {
+    const published = new Date(fixture.input.forecast.published_at)
+    const forecast = mapForecastDocument(documentFor(), published)
+    const model = buildNextHours(forecast.days, published, ForecastMetric.TEMP)!
+    expect(model.startHour).toBe(5)
+    expect(model.points[0].offset).toBe(1)
+    expect(Number(getStationHour(new Date(fixture.expected.forecast.hours[0].valid_time)))).toBe(6)
+    expect(model.summary).toBeUndefined() // No published rows for the first Overnight run.
+    expect(fixture.expected.forecast.outlook).toBe("Rain this morning and this afternoon.")
+  })
+
+  it.each(edges.quantiles)(
+    "shares interpolation and explicitly checks card nesting: $name",
+    (testCase) => {
+      expect(quantileAt(testCase.grid, testCase.at.probability)).toBeCloseTo(testCase.at.value, 8)
+      const row = makeHourlyRow({
+        valid_time: fixture.input.forecast.hourly[0].valid_time,
+        values: { temp_f: testCase.temp_f },
+        quantiles: { temp_f: testCase.grid },
       })
-    }
-    expect(buildSummary(points, runs)).toBe(fixture.expected.forecast.outlook)
-  })
+      const mapped = mapForecastDocument(documentFor({ hourly: [row] }), new Date(row.valid_time))
+      const hour = mapped.days.flatMap((day) => day.hours).find((point) => point !== undefined)!
+      expectBands(hour.bands[ForecastMetric.TEMP] ?? [], testCase.ui_bands)
+      if (testCase.name === "crossed nonnested intervals") {
+        expect(testCase.card_bands).toEqual([])
+        expect(testCase.ui_bands[1].low_f).toBeLessThan(testCase.ui_bands[0].low_f)
+      } else {
+        expectBands(hour.bands[ForecastMetric.TEMP] ?? [], testCase.card_bands)
+      }
+      if (testCase.temp_f === null) {
+        expect(hour.temp).toBeUndefined()
+        expect(hour.bands[ForecastMetric.TEMP]).toHaveLength(3)
+      }
+    },
+  )
+
+  it.each(edges.daylight)(
+    "uses the production mapper's sunrise/sunset day: $valid_time",
+    (testCase) => {
+      const at = new Date(testCase.valid_time)
+      const row = makeHourlyRow({ valid_time: testCase.valid_time })
+      const document = documentFor({
+        hourly: [row],
+        daily: [makeDailyRow({ date_local: getStationDate(at) })],
+      })
+      const mapped = mapForecastDocument(document, at)
+      const hour = mapped.days[0].hours[Number(getStationHour(at))]!
+      const sun = getStationSunTimes(getStationDate(at))
+      expect(hour.isDaytime).toBe(testCase.is_daytime)
+      expect(hour.isDaytime).toBe(at >= sun.sunrise && at <= sun.sunset)
+    },
+  )
+
+  it.each(edges.dst)(
+    "documents the UI's fixed local slots versus the card's absolute hours: $name",
+    (testCase) => {
+      const start = new Date(testCase.published_at)
+      const times = Array.from({ length: 24 }, (_, i) => new Date(start.getTime() + i * 3_600_000))
+      const hourly = times.map((at, i) =>
+        makeHourlyRow({ valid_time: at.toISOString(), values: { temp_f: 40 + i } }),
+      )
+      const daily = [...new Set(times.map((at) => getStationDate(at)))].map((day) =>
+        makeDailyRow({ date_local: day }),
+      )
+      const mapped = mapForecastDocument(documentFor({ hourly, daily }), start)
+      const model = buildNextHours(mapped.days, start, ForecastMetric.TEMP)!
+      expect(times.map((at) => at.getTime())).toHaveLength(24)
+      if (testCase.name === "fall back") {
+        expect(new Date(testCase.first_local_times[1]).getTime()).not.toBe(
+          new Date(testCase.first_local_times[2]).getTime(),
+        )
+        expect(model.points.find((point) => point.offset === 1)?.value).toBe(42)
+        expect(mapped.days[0].hours[1]?.validTime).toBe(times[2].toISOString())
+      } else {
+        expect(mapped.days[0].hours[2]).toBeUndefined()
+        expect(model.points.find((point) => point.offset === 2)).toBeUndefined()
+        expect(model.points.find((point) => point.offset === 3)?.value).toBe(42)
+      }
+    },
+  )
 })
