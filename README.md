@@ -30,6 +30,12 @@ Both publishers write into **one commit**, because the branch is force-pushed wh
 
 `main` is never touched by the publishers, and the orphan tree contains no `.github/workflows`, so publishing triggers neither a Vercel build nor a CI run.
 
+### Town homepage document
+
+The publisher also writes `town-card.json` in the same data-branch commit. Schema version 1 supplies the Lake Arrowhead town homepage with explicit station identity and units, timestamped observations, daily rainfall, forecast high/low and outlook, and 24 consecutive UTC-hour entries with fractional rain probability and nested 90%/60%/30% temperature intervals. The window starts at the next full hour at publication time, including across DST transitions; absent hours stay null. Observed rainfall keeps its actual local date. A forecast older than 12 hours is omitted while usable station observations remain available.
+
+`scripts/town_card.py` owns the stdlib-only transformation. Its summary and quantile rules mirror the existing UI helpers, checked against `lib/__fixtures__/town-card.json` by Python tests, TypeScript parity tests, and the town site's consumer tests. Run `python3 -m unittest discover -s scripts -t scripts` in addition to `pnpm test`. Deploy `town_card.py` alongside the forecast publisher; installing only the publisher will fail to import its helper. The town Worker pulls this public file conditionally; Open Sun needs no town-site credential or outgoing webhook.
+
 ### Contract
 
 The forecast publisher accepts grounded-weather-forecast source schemas 5 and
@@ -110,7 +116,7 @@ Points worth knowing when reading the forecast:
 `scripts/publish_forecast.py` and `scripts/publish_station.py` are the reviewed sources of truth; the copies that actually run live outside this repository:
 
 ```bash
-cp scripts/publish_forecast.py scripts/publish_station.py \
+cp scripts/publish_forecast.py scripts/publish_station.py scripts/town_card.py \
    "$HOME/Library/Application Support/grounded-weather-forecast/"
 ```
 

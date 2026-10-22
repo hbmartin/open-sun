@@ -1,5 +1,6 @@
 """Publisher discovery stays local, explicit, and safe across project moves."""
 
+from datetime import UTC, datetime
 import contextlib
 import io
 import json
@@ -138,8 +139,12 @@ class PublisherPathsTests(unittest.TestCase):
         # Locate the reviewed source independently of the patched discovery anchor.
         script = Path(__file__).with_name("publish_forecast.py")
         shutil.copyfile(script, installed / script.name)
+        shutil.copyfile(script.with_name("town_card.py"), installed / "town_card.py")
         active = self.project(self.root)
-        self.document(active / "forecast.json")
+        source = self.document(active / "forecast.json")
+        document = json.loads(source.read_text())
+        document.update(latitude=34.2768, longitude=-117.1692, timezone="America/Los_Angeles", issued_at=datetime.now(UTC).isoformat())
+        source.write_text(json.dumps(document))
         result = subprocess.run(
             [sys.executable, str(installed / script.name), "--dry-run", "--print"],
             cwd=active, capture_output=True, text=True, check=False,

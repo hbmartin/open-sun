@@ -31,6 +31,8 @@ Exit codes:
 
 from __future__ import annotations
 
+from town_card import build_town_card
+
 import argparse
 import json
 import math
@@ -45,7 +47,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-PUBLISHER_VERSION = "1.3.2"
+PUBLISHER_VERSION = "1.4.0"
 CONTRACT_VERSION = 1
 SOURCE_SCHEMA_VERSION = 6
 SUPPORTED_SOURCE_SCHEMA_VERSIONS = frozenset({5, SOURCE_SCHEMA_VERSION})
@@ -577,6 +579,9 @@ units, no minutely block) written hourly by `publish_forecast.py`, which lives
 at `scripts/publish_forecast.py` on `main` and is deployed to
 `~/Library/Application Support/grounded-weather-forecast/`.
 
+`town-card.json` is the versioned, compact Lake Arrowhead homepage document,
+rendered by the stdlib `scripts/town_card.py` helper and committed with these files.
+
 `current.json`, `daily.json` and `hourly.json` are station observations,
 rendered from the ambientweather2sqlite database by `publish_station.py`
 (`scripts/publish_station.py` on `main`) and folded into the same commit. The
@@ -593,7 +598,7 @@ identifies the exact script that produced each document.
 """
 
 # Names this script writes itself; an --include-dir may not shadow them.
-RESERVED_BRANCH_FILES = frozenset({"README.md", "forecast.json", "vercel.json"})
+RESERVED_BRANCH_FILES = frozenset({"README.md", "forecast.json", "vercel.json", "town-card.json"})
 
 DATA_BRANCH_VERCEL = """\
 {
@@ -711,7 +716,10 @@ def build_commit(
     env = _git_env(git_dir)
     _git(["init", "--bare", "--quiet", f"--initial-branch={branch}", str(git_dir)], env)
 
+    station = (extra_blobs or {}).get("current.json")
+    town = build_town_card(json.loads(payload), json.loads(station) if station else None)
     blobs = {
+        "town-card.json": serialise(town),
         "README.md": DATA_BRANCH_README.encode("utf-8"),
         "forecast.json": payload,
         "vercel.json": DATA_BRANCH_VERCEL.encode("utf-8"),
@@ -796,7 +804,9 @@ def run(
         document = load_document(resolve_source(source))
         payload = transform(document, datetime.now(UTC))
         extra_blobs = collect_extra_blobs(Path(include_dir)) if include_dir else {}
-    except RefusedError as exc:
+        station = extra_blobs.get("current.json")
+        build_town_card(payload, json.loads(station) if station else None)
+    except (RefusedError, ValueError, KeyError) as exc:
         print(f"refusing to publish: {exc}", file=sys.stderr, flush=True)
         return 2
 
