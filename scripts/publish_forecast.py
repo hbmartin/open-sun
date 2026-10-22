@@ -23,17 +23,17 @@ destroyed afterwards: no index, no working tree, no state that can wedge between
 unattended runs, and the developer's own open-sun checkout is never touched.
 
 Exit codes:
-    0  published, or skipped because ``issued_at`` had not advanced
+    0  published (possibly without a failed town card), or unchanged output
+    1  unexpected core programming/runtime error (traceback retained)
     2  refused: the source document is missing, malformed, or violates the
        contract (nothing is pushed, so the last good document keeps serving)
-    3  the push failed after retries
+    3  a Git operation failed (pushes are retried)
 """
 
 from __future__ import annotations
 
-from town_card import build_town_card
-
 import argparse
+import hashlib
 import json
 import math
 import shutil
@@ -42,12 +42,13 @@ import sys
 import tempfile
 import time
 import tomllib
+import traceback
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-PUBLISHER_VERSION = "1.4.0"
+PUBLISHER_VERSION = "1.4.1"
 CONTRACT_VERSION = 1
 SOURCE_SCHEMA_VERSION = 6
 SUPPORTED_SOURCE_SCHEMA_VERSIONS = frozenset({5, SOURCE_SCHEMA_VERSION})
@@ -580,7 +581,10 @@ at `scripts/publish_forecast.py` on `main` and is deployed to
 `~/Library/Application Support/grounded-weather-forecast/`.
 
 `town-card.json` is the versioned, compact Lake Arrowhead homepage document,
-rendered by the stdlib `scripts/town_card.py` helper and committed with these files.
+rendered by the stdlib `scripts/town_card.py` helper when available. It is omitted
+on card-generation failure or when no usable observation or forecast remains;
+the forecast and station documents continue publishing. Treat a missing card
+as unavailable rather than retaining previously fetched content indefinitely.
 
 `current.json`, `daily.json` and `hourly.json` are station observations,
 rendered from the ambientweather2sqlite database by `publish_station.py`
@@ -706,25 +710,15 @@ def collect_extra_blobs(include_dir: Path) -> dict[str, bytes]:
 
 
 def build_commit(
-    payload: bytes,
+    blobs: dict[str, bytes],
     git_dir: Path,
     branch: str,
     issued_at: str,
-    extra_blobs: dict[str, bytes] | None = None,
 ) -> str:
-    """Create a bare repo holding one unparented commit with the data tree."""
+    """Commit an already prepared file map; no weather logic belongs here."""
     env = _git_env(git_dir)
     _git(["init", "--bare", "--quiet", f"--initial-branch={branch}", str(git_dir)], env)
 
-    station = (extra_blobs or {}).get("current.json")
-    town = build_town_card(json.loads(payload), json.loads(station) if station else None)
-    blobs = {
-        "town-card.json": serialise(town),
-        "README.md": DATA_BRANCH_README.encode("utf-8"),
-        "forecast.json": payload,
-        "vercel.json": DATA_BRANCH_VERCEL.encode("utf-8"),
-        **(extra_blobs or {}),
-    }
     # mktree wants entries sorted by name.
     entries = "".join(
         f"100644 blob {_git(['hash-object', '-w', '--stdin'], env, stdin=content)}\t{name}\n"
@@ -769,11 +763,102 @@ def push(git_dir: Path, remote: str, branch: str) -> None:
 # --------------------------------------------------------------------------
 
 
-def read_stamp() -> str | None:
+def prepare_town_card(payload: dict[str, Any], station: bytes | None) -> bytes | None:
+    """An optional output may fail without stopping the core publication."""
     try:
-        return STAMP.read_text(encoding="utf-8").strip() or None
-    except OSError:
+        from town_card import CardInputError, build_town_card
+    except Exception:
+        print(
+            "warning: omitting town-card.json: helper unavailable",
+            file=sys.stderr,
+            flush=True,
+        )
+        traceback.print_exc()
         return None
+
+    try:
+        card = build_town_card(payload, json.loads(station) if station else None)
+        if not isinstance(card, dict):
+            raise TypeError("town-card builder must return an object")
+        return serialise(card)
+    except CardInputError as exc:
+        print(f"warning: omitting town-card.json: {exc}", file=sys.stderr, flush=True)
+    except Exception:
+        print(
+            "warning: omitting town-card.json: unexpected error",
+            file=sys.stderr,
+            flush=True,
+        )
+        traceback.print_exc()
+    return None
+
+
+def publication_fingerprint(blobs: dict[str, bytes], remote: str, branch: str) -> str:
+    """Identify the output tree, ignoring only our two publication timestamps."""
+    files = {}
+    for name, content in sorted(blobs.items()):
+        if name in {"forecast.json", "town-card.json"}:
+            document = json.loads(content)
+            document.pop("published_at", None)
+            content = json.dumps(
+                document, sort_keys=True, allow_nan=False, separators=(",", ":")
+            ).encode()
+        files[name] = hashlib.sha256(content).hexdigest()
+    identity = json.dumps(
+        [remote, branch, files], sort_keys=True, separators=(",", ":")
+    ).encode()
+    return hashlib.sha256(identity).hexdigest()
+
+
+def read_publication_state() -> str | None:
+    path = STAMP.with_name("last-published-state.json")
+    try:
+        state = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if (
+        not isinstance(state, dict)
+        or type(state.get("schema_version")) is not int
+        or state["schema_version"] != 1
+    ):
+        return None
+    fingerprint = state.get("fingerprint")
+    if (
+        isinstance(fingerprint, str)
+        and len(fingerprint) == 64
+        and all(c in "0123456789abcdef" for c in fingerprint)
+    ):
+        return fingerprint
+    return None
+
+
+def write_publication_state(fingerprint: str) -> None:
+    """Record a successful push atomically; failure only costs a redundant push."""
+    path = STAMP.with_name("last-published-state.json")
+    partial = None
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            delete=False,
+        ) as output:
+            partial = Path(output.name)
+            json.dump({"schema_version": 1, "fingerprint": fingerprint}, output)
+            output.write("\n")
+        partial.replace(path)
+    except OSError as exc:
+        _log(f"warning: could not write publication state {path}: {exc}")
+    finally:
+        if partial is not None:
+            try:
+                partial.unlink(missing_ok=True)
+            except OSError as exc:
+                _log(
+                    f"warning: could not remove temporary publication state {partial}: {exc}"
+                )
 
 
 def write_stamp(issued_at: str) -> None:
@@ -781,8 +866,8 @@ def write_stamp(issued_at: str) -> None:
         STAMP.parent.mkdir(parents=True, exist_ok=True)
         STAMP.write_text(f"{issued_at}\n", encoding="utf-8")
     except OSError as exc:
-        # The push already succeeded; a stamp we cannot write only costs us one
-        # redundant push next hour.
+        # This legacy issue-time stamp is retained for external observers.
+        # Publication deduplication uses the separate fingerprint state.
         _log(f"warning: could not write stamp {STAMP}: {exc}")
 
 
@@ -796,22 +881,31 @@ def run(
     no_push: bool = False,
     force: bool = False,
     include_dir: str | Path | None = None,
+    now: datetime | None = None,
 ) -> int:
     global _log_stream  # noqa: PLW0603 - one process-wide output channel
     _log_stream = sys.stderr if print_payload else sys.stdout
 
     try:
         document = load_document(resolve_source(source))
-        payload = transform(document, datetime.now(UTC))
+        payload = transform(document, now if now is not None else datetime.now(UTC))
         extra_blobs = collect_extra_blobs(Path(include_dir)) if include_dir else {}
-        station = extra_blobs.get("current.json")
-        build_town_card(payload, json.loads(station) if station else None)
-    except (RefusedError, ValueError, KeyError) as exc:
+    except RefusedError as exc:
         print(f"refusing to publish: {exc}", file=sys.stderr, flush=True)
         return 2
 
     body = serialise(payload)
     issued_at = payload["issued_at"]
+    town = prepare_town_card(payload, extra_blobs.get("current.json"))
+    blobs = {
+        "README.md": DATA_BRANCH_README.encode("utf-8"),
+        "forecast.json": body,
+        "vercel.json": DATA_BRANCH_VERCEL.encode("utf-8"),
+        **extra_blobs,
+    }
+    if town is not None:
+        blobs["town-card.json"] = town
+    fingerprint = publication_fingerprint(blobs, remote, branch)
 
     if print_payload:
         sys.stdout.write(body.decode("utf-8"))
@@ -825,18 +919,14 @@ def run(
         )
         return 0
 
-    # The skip exists so a failed `predict` does not cost a pointless push. It
-    # must not apply when station documents ride along: those advance every
-    # minute, so skipping would freeze observations behind a stale forecast --
-    # the forecast's own issued_at is what surfaces its staleness in the UI.
-    if not force and not extra_blobs and read_stamp() == issued_at:
-        _log(f"{issued_at} already published; skipping")
+    if not force and read_publication_state() == fingerprint:
+        _log(f"{issued_at}: publication state unchanged; skipping")
         return 0
 
     temporary = tempfile.mkdtemp(prefix="grounded-publish.", dir=Path.home() / "Library/Caches")
     try:
         git_dir = Path(temporary) / "repo.git"
-        commit = build_commit(body, git_dir, branch, issued_at, extra_blobs)
+        commit = build_commit(blobs, git_dir, branch, issued_at)
         if no_push:
             # A debugging flag: keep the repo behind so the tree can be inspected.
             _log(f"built {commit} (not pushed); inspect with:")
@@ -851,6 +941,7 @@ def run(
             shutil.rmtree(temporary, ignore_errors=True)
 
     write_stamp(issued_at)
+    write_publication_state(fingerprint)
     _log(
         f"published {issued_at} ({payload['status']}) as {commit[:12]} "
         f"to {branch}: {len(body)} bytes"
@@ -871,7 +962,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-push", action="store_true",
                         help="build the commit locally but do not push")
     parser.add_argument("--force", action="store_true",
-                        help="publish even if issued_at has not advanced")
+                        help="publish even if the output state is unchanged")
     parser.add_argument("--include-dir",
                         help="directory of station .json documents to publish alongside")
     args = parser.parse_args(argv)
