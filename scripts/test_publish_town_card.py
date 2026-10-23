@@ -28,7 +28,6 @@ class PublisherTownCardTest(unittest.TestCase):
         self.root = Path(temporary.name)
         (self.root / "Library/Caches").mkdir(parents=True)
         self.stamp = self.root / "state/last-published"
-        self.state = self.stamp.with_name("last-published-state.json")
         for patcher in (
             patch.object(Path, "home", return_value=self.root),
             patch.dict(os.environ, {"HOME": str(self.root)}),
@@ -36,6 +35,9 @@ class PublisherTownCardTest(unittest.TestCase):
         ):
             patcher.start()
             self.addCleanup(patcher.stop)
+        self.state = publisher.publication_state_path(
+            publisher.DEFAULT_REMOTE, publisher.DEFAULT_BRANCH
+        )
         self.addCleanup(setattr, publisher, "_log_stream", publisher._log_stream)
         self.source = self.root / "forecast.json"
         self.document = {
@@ -119,7 +121,7 @@ class PublisherTownCardTest(unittest.TestCase):
         for name in ("current.json", "daily.json", "hourly.json"):
             self.assertEqual(self.trees[-1][name], (self.staged / name).read_bytes())
         self.assertEqual(
-            json.loads(self.trees[-1]["forecast.json"])["publisher_version"], "1.4.1"
+            json.loads(self.trees[-1]["forecast.json"])["publisher_version"], "1.4.2"
         )
 
     def test_single_card_build_and_one_commit_contains_all_documents(self):
@@ -137,7 +139,7 @@ class PublisherTownCardTest(unittest.TestCase):
         self.assertEqual(self.stamp.read_text(), self.document["issued_at"] + "\n")
         self.assertEqual(json.loads(self.state.read_text())["schema_version"], 1)
 
-    def test_invalid_current_and_wrong_station_only_omit_card(self):
+    def test_invalid_current_recovers_observation_and_wrong_station_omits_card(self):
         for current in (
             [],
             {"metadata": None},
@@ -149,9 +151,12 @@ class PublisherTownCardTest(unittest.TestCase):
                 (self.staged / "current.json").write_bytes(publisher.serialise(current))
                 code, _, error = self.invoke()
                 self.assertEqual(code, 0)
-                self.assertIn("omitting town-card.json", error)
+                self.assertIn("warning: town-card.json: current", error)
                 self.assertNotIn("Traceback", error)
-                self.assert_core_files(card=False)
+                self.assert_core_files(card=True)
+                card = json.loads(self.trees[-1]["town-card.json"])
+                self.assertIsNone(card["observation"])
+                self.assertIsNotNone(card["forecast"])
         self.document["latitude"] = 40
         self.save_source()
         code, _, error = self.invoke()
@@ -230,14 +235,18 @@ class PublisherTownCardTest(unittest.TestCase):
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(
-                    json.loads(result.stdout)["publisher_version"], "1.4.1"
+                    json.loads(result.stdout)["publisher_version"], "1.4.2"
                 )
                 self.assertIn(
                     "ZoneInfoNotFoundError" if helper else "ModuleNotFoundError",
                     result.stderr,
                 )
-        self.assertFalse(self.stamp.exists())
-        self.assertFalse(self.state.exists())
+        actual_state_dir = (
+            self.root / "Library/Application Support/grounded-weather-forecast"
+        )
+        self.assertFalse((actual_state_dir / "last-published").exists())
+        self.assertFalse((actual_state_dir / "last-published-states").exists())
+        self.assertFalse((actual_state_dir / "last-published-state.json").exists())
 
     def test_core_refusals_do_not_publish_but_core_programming_errors_propagate(self):
         self.document["schema_version"] = 999
@@ -252,6 +261,114 @@ class PublisherTownCardTest(unittest.TestCase):
                 self.invoke()
         self.push.assert_not_called()
         self.assertFalse(self.stamp.exists())
+
+    def test_invalid_utf8_source_is_a_clean_refusal(self):
+        self.source.write_bytes(b"\xff\xfe")
+        code, _, error = self.invoke()
+        self.assertEqual(code, 2)
+        self.assertIn("cannot read", error)
+        self.assertNotIn("Traceback", error)
+        self.push.assert_not_called()
+        self.assertFalse(self.stamp.exists())
+        self.assertFalse(self.state.exists())
+
+    def test_invalid_station_json_remains_a_core_refusal(self):
+        (self.staged / "current.json").write_bytes(b"{truncated")
+        self.assertEqual(self.invoke()[0], 2)
+        self.push.assert_not_called()
+        self.assertFalse(self.state.exists())
+
+    def test_no_push_builds_unchanged_tree_without_force(self):
+        for station in (True, False):
+            with self.subTest(station=station):
+                self.invoke(station=station, force=True)
+                previous = self.stamp.read_bytes(), self.state.read_bytes()
+                count = self.push.call_count
+                with patch.object(
+                    publisher, "build_commit", wraps=publisher.build_commit
+                ) as build:
+                    code, log, _ = self.invoke(station=station, no_push=True)
+                self.assertEqual(code, 0)
+                self.assertIn("not pushed", log)
+                build.assert_called_once()
+                _, git_dir, branch, _ = build.call_args.args
+                self.assertTrue(git_dir.is_dir())
+                self.capture_tree(git_dir, publisher.DEFAULT_REMOTE, branch)
+                self.assertIn("forecast.json", self.trees[-1])
+                self.assertIn("town-card.json", self.trees[-1])
+                self.assertEqual("current.json" in self.trees[-1], station)
+                self.assertEqual(self.push.call_count, count)
+                self.assertEqual(
+                    (self.stamp.read_bytes(), self.state.read_bytes()), previous
+                )
+        with patch.object(publisher, "build_commit") as build:
+            self.invoke(dry_run=True, no_push=True)
+        build.assert_not_called()
+
+    def test_station_json_is_parsed_once_and_card_uses_parsed_current(self):
+        current_bytes = (self.staged / "current.json").read_bytes()
+        with (
+            patch.object(publisher.json, "loads", wraps=json.loads) as loads,
+            patch.object(
+                town_card, "build_town_card", wraps=town_card.build_town_card
+            ) as build,
+        ):
+            self.invoke()
+        self.assertEqual(
+            sum(call.args[0] == current_bytes for call in loads.call_args_list), 1
+        )
+        self.assertEqual(build.call_args.args[1], self.current)
+
+    def test_no_forecast_content_keeps_observations_or_omits_card(self):
+        for row in self.document["hourly"]:
+            row["values"] = {"temp_c": None}
+            row["quantiles"] = {}
+        self.document["daily"][0]["values"] = {}
+        self.save_source()
+        self.invoke()
+        self.assert_core_files(card=True)
+        card = json.loads(self.trees[-1]["town-card.json"])
+        self.assertIsNone(card["forecast"])
+        self.assertIsNotNone(card["observation"])
+        self.invoke(station=False)
+        self.assertNotIn("town-card.json", self.trees[-1])
+
+    def test_destinations_retain_independent_publication_state(self):
+        self.invoke()
+        production = self.state.read_bytes()
+        for options in ({"remote": "alternate"}, {"branch": "alternate"}):
+            with self.subTest(options=options):
+                remote = options.get("remote", publisher.DEFAULT_REMOTE)
+                branch = options.get("branch", publisher.DEFAULT_BRANCH)
+                self.invoke(**options)
+                alternate_path = publisher.publication_state_path(remote, branch)
+                alternate = alternate_path.read_bytes()
+                count = self.push.call_count
+                self.invoke()
+                self.invoke(**options)
+                self.assertEqual(self.push.call_count, count)
+                self.assertEqual(self.state.read_bytes(), production)
+                self.assertEqual(alternate_path.read_bytes(), alternate)
+        self.push.side_effect = publisher.GitError("failed alternate push")
+        self.assertEqual(self.invoke(branch="failed")[0], 3)
+        self.assertFalse(
+            publisher.publication_state_path(
+                publisher.DEFAULT_REMOTE, "failed"
+            ).exists()
+        )
+        self.assertEqual(self.state.read_bytes(), production)
+
+    def test_legacy_singleton_does_not_skip_the_first_scoped_publication(self):
+        self.invoke()
+        legacy = self.stamp.with_name("last-published-state.json")
+        legacy_bytes = self.state.read_bytes()
+        legacy.write_bytes(legacy_bytes)
+        self.state.unlink()
+        count = self.push.call_count
+        self.invoke()
+        self.assertEqual(self.push.call_count, count + 1)
+        self.assertTrue(self.state.exists())
+        self.assertEqual(legacy.read_bytes(), legacy_bytes)
 
     def test_identical_state_skips_with_or_without_station_files(self):
         for station in (True, False):
@@ -338,6 +455,9 @@ class PublisherTownCardTest(unittest.TestCase):
             "[]",
             json.dumps(dict(valid_state, schema_version=2)),
             json.dumps(dict(valid_state, schema_version=True)),
+            json.dumps(dict(valid_state, remote="wrong")),
+            json.dumps(dict(valid_state, branch="wrong")),
+            json.dumps(dict(valid_state, fingerprint="F" * 64)),
             '{"schema_version":1,"fingerprint":"bad"}',
         ):
             with self.subTest(contents=contents):
@@ -377,12 +497,14 @@ class PublisherTownCardTest(unittest.TestCase):
             patch.object(Path, "replace", side_effect=OSError("atomic replace failed")),
             patch.object(publisher, "_log_stream", io.StringIO()) as out,
         ):
-            publisher.write_publication_state("f" * 64)
+            publisher.write_publication_state(
+                "f" * 64, publisher.DEFAULT_REMOTE, publisher.DEFAULT_BRANCH
+            )
         self.assertEqual(self.state.read_bytes(), previous)
         self.assertIn("could not write publication state", out.getvalue())
         self.assertEqual(
             sorted(p.name for p in self.state.parent.iterdir()),
-            ["last-published", "last-published-state.json"],
+            [self.state.name],
         )
 
     def test_fingerprint_excludes_only_owned_top_level_publication_times(self):
@@ -392,16 +514,16 @@ class PublisherTownCardTest(unittest.TestCase):
             "nested": {"published_at": "keep"},
         }
         blobs = {
-            "forecast.json": publisher.serialise(payload),
-            "town-card.json": publisher.serialise(payload),
-            "current.json": b'{"published_at":"a"}',
-            "README.md": b"readme",
-            "vercel.json": b"{}",
+            "forecast.json": publisher.PreparedFile.document(payload),
+            "town-card.json": publisher.PreparedFile.document(payload),
+            "current.json": publisher.PreparedFile.raw(b'{"published_at":"a"}'),
+            "README.md": publisher.PreparedFile.raw(b"readme"),
+            "vercel.json": publisher.PreparedFile.raw(b"{}"),
         }
         fingerprint = publisher.publication_fingerprint(blobs, "remote", "data")
         same = dict(blobs)
         for name in ("forecast.json", "town-card.json"):
-            same[name] = publisher.serialise(
+            same[name] = publisher.PreparedFile.document(
                 dict(reversed(list(dict(payload, published_at="b").items())))
             )
         self.assertEqual(
@@ -410,11 +532,11 @@ class PublisherTownCardTest(unittest.TestCase):
         for name in blobs:
             changed = dict(blobs)
             if name in ("forecast.json", "town-card.json"):
-                changed[name] = publisher.serialise(
+                changed[name] = publisher.PreparedFile.document(
                     dict(payload, nested={"published_at": "changed"})
                 )
             else:
-                changed[name] += b" "
+                changed[name] = publisher.PreparedFile.raw(changed[name].content + b" ")
             self.assertNotEqual(
                 publisher.publication_fingerprint(changed, "remote", "data"),
                 fingerprint,
@@ -423,6 +545,26 @@ class PublisherTownCardTest(unittest.TestCase):
             self.assertNotEqual(
                 publisher.publication_fingerprint(blobs, remote, branch), fingerprint
             )
+        # Normalization is attached to the entry, not inferred from a filename.
+        renamed = {"another-name.json": publisher.PreparedFile.document(payload)}
+        with patch.object(
+            publisher.json, "loads", side_effect=AssertionError("reparsed")
+        ):
+            before = publisher.publication_fingerprint(renamed, "remote", "data")
+            renamed["another-name.json"] = publisher.PreparedFile.document(
+                dict(payload, published_at="b")
+            )
+            self.assertEqual(
+                publisher.publication_fingerprint(renamed, "remote", "data"), before
+            )
+
+    def test_fingerprint_preserves_duplicate_quantile_order(self):
+        grid = {"0.10": 10, "0.1": 20, "0.9": 90}
+        payload = {"published_at": "a", "hourly": [{"quantiles": {"temp_f": grid}}]}
+        first = publisher.PreparedFile.document(payload)
+        payload["hourly"][0]["quantiles"]["temp_f"] = dict(reversed(list(grid.items())))
+        second = publisher.PreparedFile.document(payload)
+        self.assertNotEqual(first.comparison_digest, second.comparison_digest)
 
 
 if __name__ == "__main__":

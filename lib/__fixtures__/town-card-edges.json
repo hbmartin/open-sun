@@ -176,6 +176,248 @@
         }
       ],
       "card_bands": []
+    },
+    {
+      "name": "empty and whitespace probabilities",
+      "grid": {
+        "": 0,
+        " \t": 12,
+        "0.9": 90
+      },
+      "temp_f": 50,
+      "at": {
+        "probability": 0.2,
+        "value": 29.333333333333336
+      },
+      "ui_bands": [
+        {
+          "coverage": 0.9,
+          "low_f": 16.333333333333332,
+          "high_f": 90
+        },
+        {
+          "coverage": 0.6,
+          "low_f": 29.333333333333336,
+          "high_f": 81.33333333333334
+        },
+        {
+          "coverage": 0.3,
+          "low_f": 42.33333333333333,
+          "high_f": 68.33333333333334
+        }
+      ],
+      "card_bands": [
+        {
+          "coverage": 0.9,
+          "low_f": 16.333333333333332,
+          "high_f": 90
+        },
+        {
+          "coverage": 0.6,
+          "low_f": 29.333333333333336,
+          "high_f": 81.33333333333334
+        },
+        {
+          "coverage": 0.3,
+          "low_f": 42.33333333333333,
+          "high_f": 68.33333333333334
+        }
+      ]
+    },
+    {
+      "name": "radix keys and integer property ordering",
+      "grid": {
+        "0": 10,
+        "1": 120,
+        "0x0": 0,
+        "0b1": 100,
+        "0o1": 110,
+        "0.50": 50
+      },
+      "temp_f": 50,
+      "at": {
+        "probability": 0,
+        "value": 10
+      },
+      "ui_bands": [
+        {
+          "coverage": 0.9,
+          "low_f": 4.999999999999999,
+          "high_f": 113
+        },
+        {
+          "coverage": 0.6,
+          "low_f": 20,
+          "high_f": 92
+        },
+        {
+          "coverage": 0.3,
+          "low_f": 35,
+          "high_f": 71
+        }
+      ],
+      "card_bands": [
+        {
+          "coverage": 0.9,
+          "low_f": 4.999999999999999,
+          "high_f": 113
+        },
+        {
+          "coverage": 0.6,
+          "low_f": 20,
+          "high_f": 92
+        },
+        {
+          "coverage": 0.3,
+          "low_f": 35,
+          "high_f": 71
+        }
+      ]
+    },
+    {
+      "name": "Python-only numeric spellings are rejected",
+      "grid": {
+        "1_0": 999,
+        "０.５": 999,
+        "0.1_0": 999,
+        "0.1": 10,
+        "0.9": 90
+      },
+      "temp_f": 50,
+      "at": {
+        "probability": 0.2,
+        "value": 20
+      },
+      "ui_bands": [
+        {
+          "coverage": 0.9,
+          "low_f": 10,
+          "high_f": 90
+        },
+        {
+          "coverage": 0.6,
+          "low_f": 20,
+          "high_f": 80
+        },
+        {
+          "coverage": 0.3,
+          "low_f": 35,
+          "high_f": 65
+        }
+      ],
+      "card_bands": [
+        {
+          "coverage": 0.9,
+          "low_f": 10,
+          "high_f": 90
+        },
+        {
+          "coverage": 0.6,
+          "low_f": 20,
+          "high_f": 80
+        },
+        {
+          "coverage": 0.3,
+          "low_f": 35,
+          "high_f": 65
+        }
+      ]
+    },
+    {
+      "name": "ECMAScript whitespace",
+      "grid": {
+        "﻿0.1 ": 10,
+        "0.9": 90,
+        "0.5": 999
+      },
+      "temp_f": 50,
+      "at": {
+        "probability": 0.2,
+        "value": 20
+      },
+      "ui_bands": [
+        {
+          "coverage": 0.9,
+          "low_f": 10,
+          "high_f": 90
+        },
+        {
+          "coverage": 0.6,
+          "low_f": 20,
+          "high_f": 80
+        },
+        {
+          "coverage": 0.3,
+          "low_f": 35,
+          "high_f": 65
+        }
+      ],
+      "card_bands": [
+        {
+          "coverage": 0.9,
+          "low_f": 10,
+          "high_f": 90
+        },
+        {
+          "coverage": 0.6,
+          "low_f": 20,
+          "high_f": 80
+        },
+        {
+          "coverage": 0.3,
+          "low_f": 35,
+          "high_f": 65
+        }
+      ]
+    },
+    {
+      "name": "signed decimal and exponent notation",
+      "grid": {
+        "-.1": -10,
+        "+0.5e0": 50,
+        "1.": 100,
+        "+0x1": 999,
+        "-0b1": 999
+      },
+      "temp_f": 50,
+      "at": {
+        "probability": 0.2,
+        "value": 20.000000000000007
+      },
+      "ui_bands": [
+        {
+          "coverage": 0.9,
+          "low_f": 5,
+          "high_f": 95
+        },
+        {
+          "coverage": 0.6,
+          "low_f": 20.000000000000007,
+          "high_f": 80
+        },
+        {
+          "coverage": 0.3,
+          "low_f": 35,
+          "high_f": 65
+        }
+      ],
+      "card_bands": [
+        {
+          "coverage": 0.9,
+          "low_f": 5,
+          "high_f": 95
+        },
+        {
+          "coverage": 0.6,
+          "low_f": 20.000000000000007,
+          "high_f": 80
+        },
+        {
+          "coverage": 0.3,
+          "low_f": 35,
+          "high_f": 65
+        }
+      ]
     }
   ],
   "daylight": [
@@ -197,6 +439,78 @@
     },
     {
       "valid_time": "2026-10-22T07:00:00+00:00",
+      "is_daytime": false
+    },
+    {
+      "valid_time": "2026-01-21T14:53:43.892Z",
+      "is_daytime": false
+    },
+    {
+      "valid_time": "2026-01-21T14:53:43.893Z",
+      "is_daytime": true
+    },
+    {
+      "valid_time": "2026-01-21T14:53:43.894Z",
+      "is_daytime": true
+    },
+    {
+      "valid_time": "2026-01-22T01:08:32.329Z",
+      "is_daytime": true
+    },
+    {
+      "valid_time": "2026-01-22T01:08:32.330Z",
+      "is_daytime": true
+    },
+    {
+      "valid_time": "2026-01-22T01:08:32.331Z",
+      "is_daytime": false
+    },
+    {
+      "valid_time": "2026-03-07T14:11:19.852Z",
+      "is_daytime": false
+    },
+    {
+      "valid_time": "2026-03-07T14:11:19.853Z",
+      "is_daytime": true
+    },
+    {
+      "valid_time": "2026-03-07T14:11:19.854Z",
+      "is_daytime": true
+    },
+    {
+      "valid_time": "2026-03-08T01:50:56.590Z",
+      "is_daytime": true
+    },
+    {
+      "valid_time": "2026-03-08T01:50:56.591Z",
+      "is_daytime": true
+    },
+    {
+      "valid_time": "2026-03-08T01:50:56.592Z",
+      "is_daytime": false
+    },
+    {
+      "valid_time": "2026-04-04T13:32:55.540Z",
+      "is_daytime": false
+    },
+    {
+      "valid_time": "2026-04-04T13:32:55.541Z",
+      "is_daytime": true
+    },
+    {
+      "valid_time": "2026-04-04T13:32:55.542Z",
+      "is_daytime": true
+    },
+    {
+      "valid_time": "2026-04-05T02:12:35.001Z",
+      "is_daytime": true
+    },
+    {
+      "valid_time": "2026-04-05T02:12:35.002Z",
+      "is_daytime": true
+    },
+    {
+      "valid_time": "2026-04-05T02:12:35.003Z",
       "is_daytime": false
     }
   ],
@@ -222,6 +536,23 @@
         "2026-03-08T04:00:00-07:00"
       ],
       "morning_offset": 5
+    }
+  ],
+  "sun_events": [
+    {
+      "date_local": "2026-01-21",
+      "sunrise": "2026-01-21T14:53:43.893Z",
+      "sunset": "2026-01-22T01:08:32.330Z"
+    },
+    {
+      "date_local": "2026-03-07",
+      "sunrise": "2026-03-07T14:11:19.853Z",
+      "sunset": "2026-03-08T01:50:56.591Z"
+    },
+    {
+      "date_local": "2026-04-04",
+      "sunrise": "2026-04-04T13:32:55.541Z",
+      "sunset": "2026-04-05T02:12:35.002Z"
     }
   ]
 }

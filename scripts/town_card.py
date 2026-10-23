@@ -7,7 +7,9 @@ additionally requires nested bands and uses a next-full-hour UTC window.
 from __future__ import annotations
 
 import math
+import re
 from collections import Counter
+from collections.abc import Callable
 from datetime import UTC, date, datetime, time, timedelta
 from functools import lru_cache
 from typing import Any
@@ -15,6 +17,21 @@ from zoneinfo import ZoneInfo
 
 TZ = ZoneInfo("America/Los_Angeles")
 COVERAGES = (0.9, 0.6, 0.3)
+WEATHER_FIELDS = (
+    "temp_f",
+    "pop",
+    "humidity_pct",
+    "wind_speed_mph",
+    "wind_gust_mph",
+    "dew_point_f",
+    "pressure_sea_inhg",
+    "precip_in",
+)
+# ECMAScript WhiteSpace and LineTerminator characters; Python's strip/float
+# accept a different language (including underscores and Unicode digits).
+JS_WHITESPACE = "\t\n\v\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
+DECIMAL_KEY = re.compile(r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?\Z")
+INDEX_KEY = re.compile(r"(?:0|[1-9][0-9]{0,9})\Z")
 
 
 class CardInputError(ValueError):
@@ -51,17 +68,44 @@ def instant(value: Any, field: str = "timestamp") -> datetime:
         ) from exc
 
 
+def probability_key(key: str) -> float | None:
+    """The finite subset of JavaScript Number(string), for JSON object keys."""
+    text = key.strip(JS_WHITESPACE)
+    if not text:
+        return 0.0
+    try:
+        for prefix, digits, base in (
+            ("0x", "[0-9a-fA-F]+", 16),
+            ("0b", "[01]+", 2),
+            ("0o", "[0-7]+", 8),
+        ):
+            if text.lower().startswith(prefix):
+                return (
+                    number(int(text[2:], base))
+                    if re.fullmatch(digits, text[2:])
+                    else None
+                )
+        return number(float(text)) if DECIMAL_KEY.fullmatch(text) else None
+    except (ValueError, OverflowError):
+        return None
+
+
+def property_order(key: str) -> tuple[int, int]:
+    # Object.entries enumerates array-index properties first, in numeric order.
+    if INDEX_KEY.fullmatch(key) and int(key) < 2**32 - 1:
+        return (0, int(key))
+    return (1, 0)
+
+
 def quantile_at(grid: dict[str, float], probability: float) -> float | None:
     levels = []
-    for key, value in object_value(grid, "quantiles.temp_f").items():
-        try:
-            level = float(key)
-        except (ValueError, TypeError, OverflowError):
-            continue
+    entries = object_value(grid, "quantiles.temp_f").items()
+    for key, value in sorted(entries, key=lambda entry: property_order(entry[0])):
+        level = probability_key(key)
         numeric = number(value)
-        if math.isfinite(level) and numeric is not None:
+        if level is not None and numeric is not None:
             levels.append((level, numeric))
-    # Sort only by probability: duplicate levels retain input order, like JS.
+    # Duplicate levels retain Object.entries order, followed by a stable sort.
     levels.sort(key=lambda item: item[0])
     if not levels:
         return None
@@ -108,7 +152,7 @@ def station_sun_times(
     """
     rad = math.pi / 180
     anchor = datetime.combine(day, time(12), tzinfo=UTC)
-    d = anchor.timestamp() / 86400 + 2440587.5 - 2451545
+    d = anchor.timestamp() / 86400 - 0.5 + 2440588 - 2451545
     lw, phi = -longitude * rad, latitude * rad
     cycle = math.floor(d - 0.0009 - lw / (2 * math.pi) + 0.5)
     transit = 0.0009 + lw / (2 * math.pi) + cycle
@@ -120,13 +164,23 @@ def station_sun_times(
     )
     solar_longitude = anomaly + center + rad * 102.9372 + math.pi
     declination = math.asin(math.sin(solar_longitude) * math.sin(rad * 23.4397))
-    correction = 0.0053 * math.sin(anomaly) - 0.0069 * math.sin(2 * solar_longitude)
-    noon = 2451545 + transit + correction
+
+    def solar_transit(ds: float) -> float:
+        # Keep the vendored expression's evaluation order: regrouping the small
+        # corrections changes the millisecond produced from a large Julian day.
+        return (
+            2451545
+            + ds
+            + 0.0053 * math.sin(anomaly)
+            - 0.0069 * math.sin(2 * solar_longitude)
+        )
+
+    noon = solar_transit(transit)
     angle = math.acos(
         (math.sin(-0.833 * rad) - math.sin(phi) * math.sin(declination))
         / (math.cos(phi) * math.cos(declination))
     )
-    sunset = 2451545 + (0.0009 + (angle + lw) / (2 * math.pi) + cycle) + correction
+    sunset = solar_transit(0.0009 + (angle + lw) / (2 * math.pi) + cycle)
     sunrise = noon - (sunset - noon)
 
     def from_julian(julian: float) -> datetime:
@@ -193,8 +247,149 @@ def summary(points: list[tuple[datetime, str | None]]) -> str | None:
     return f"{first} {parts[a]}, {second.lower()} {parts[b]}."
 
 
+def build_observation(current: Any) -> dict[str, Any] | None:
+    if current is None:
+        return None
+    current = object_value(current, "current")
+    metadata = object_value(current.get("metadata", {}), "current.metadata")
+    data = object_value(current.get("data", {}), "current.data")
+    observed_at = metadata.get("observed_at")
+    if observed_at is None:
+        return None
+    observed = instant(observed_at, "current.metadata.observed_at")
+    readings = {
+        "temp_f": number(data.get("outTemp")),
+        "wind_mph": number(data.get("avgwind")),
+        "gust_mph": number(data.get("gustspeed")),
+        "rain_total_in": number(data.get("rain_total_in")),
+    }
+    if not any(value is not None for value in readings.values()):
+        return None
+    return {
+        "observed_at": observed.isoformat(),
+        **readings,
+        "rain_date": observed.astimezone(TZ).date().isoformat(),
+    }
+
+
+def product_rows(forecast: dict[str, Any], product: str) -> list[Any]:
+    rows = forecast.get(product, [])
+    if not isinstance(rows, list):
+        raise CardInputError(f"forecast.{product}: expected an array")
+    return rows
+
+
+def build_card_forecast(
+    forecast: dict[str, Any],
+    published: datetime,
+    issued: datetime,
+    lat: float,
+    lon: float,
+    report: Callable[[str], None],
+) -> dict[str, Any] | None:
+    # Expired rows cannot contribute anything; do not validate unused products.
+    if published - issued > timedelta(hours=12):
+        return None
+    start = published.replace(minute=0, second=0, microsecond=0)
+    if start < published:
+        start += timedelta(hours=1)
+    times = [start + timedelta(hours=i) for i in range(24)]
+    wanted = set(times)
+    rows = {}
+    try:
+        hourly = product_rows(forecast, "hourly")
+    except CardInputError as exc:
+        report(str(exc))
+        hourly = []
+    for index, raw in enumerate(hourly):
+        field = f"forecast.hourly[{index}]"
+        try:
+            row = object_value(raw, field)
+            at = instant(row.get("valid_time"), f"{field}.valid_time")
+            if at not in wanted:
+                continue
+            values = object_value(row.get("values", {}), f"{field}.values")
+        except CardInputError as exc:
+            report(str(exc))
+            continue
+        try:
+            quantiles = object_value(row.get("quantiles", {}), f"{field}.quantiles")
+            grid = object_value(
+                quantiles.get("temp_f", {}), f"{field}.quantiles.temp_f"
+            )
+        except CardInputError as exc:
+            report(str(exc))
+            grid = {}
+        intervals = bands(grid)
+        has_reading = any(number(values.get(key)) is not None for key in WEATHER_FIELDS)
+        if has_reading or intervals:
+            # A malformed/empty duplicate must not erase an earlier usable row.
+            rows[at] = (values, intervals, has_reading)
+
+    daily = {}
+    date_local = published.astimezone(TZ).date().isoformat()
+    try:
+        daily_rows = product_rows(forecast, "daily")
+    except CardInputError as exc:
+        report(str(exc))
+        daily_rows = []
+    for index, raw in enumerate(daily_rows):
+        field = f"forecast.daily[{index}]"
+        try:
+            row = object_value(raw, field)
+        except CardInputError as exc:
+            report(str(exc))
+            continue
+        if row.get("date_local") != date_local:
+            continue
+        try:
+            daily = object_value(row.get("values", {}), f"{field}.values")
+        except CardInputError as exc:
+            report(str(exc))
+        # The first matching row is authoritative, even when empty or malformed.
+        break
+
+    hours, skies = [], []
+    for at in times:
+        values, intervals, has_reading = rows.get(at, ({}, [], False))
+        hours.append(
+            {
+                "valid_time": at.isoformat(),
+                "temp_f": number(values.get("temp_f")),
+                "pop": number(values.get("pop")),
+                "bands": intervals,
+            }
+        )
+        skies.append(
+            (at, condition(values, is_daytime(at, lat, lon)) if has_reading else None)
+        )
+    high, low = number(daily.get("temp_max_f")), number(daily.get("temp_min_f"))
+    outlook = summary(skies)
+    if (
+        high is None
+        and low is None
+        and outlook is None
+        and not any(
+            hour["temp_f"] is not None or hour["pop"] is not None or hour["bands"]
+            for hour in hours
+        )
+    ):
+        return None
+    return {
+        "issued_at": forecast["issued_at"],
+        "date_local": date_local,
+        "high_f": high,
+        "low_f": low,
+        "outlook": outlook,
+        "hours": hours,
+    }
+
+
 def build_town_card(
-    forecast: dict[str, Any], current: dict[str, Any] | None
+    forecast: dict[str, Any],
+    current: Any,
+    *,
+    diagnostic: Callable[[str], None] | None = None,
 ) -> dict[str, Any]:
     forecast = object_value(forecast, "forecast")
     lat, lon = number(forecast.get("latitude")), number(forecast.get("longitude"))
@@ -210,82 +405,13 @@ def build_town_card(
         )
     published = instant(forecast.get("published_at"), "forecast.published_at")
     issued = instant(forecast.get("issued_at"), "forecast.issued_at")
-    observation = None
-    if current is not None:
-        current = object_value(current, "current")
-        metadata = object_value(current.get("metadata", {}), "current.metadata")
-        data = object_value(current.get("data", {}), "current.data")
-        observed_at = metadata.get("observed_at")
-        if observed_at is not None:
-            observed = instant(observed_at, "current.metadata.observed_at")
-            readings = {
-                "temp_f": number(data.get("outTemp")),
-                "wind_mph": number(data.get("avgwind")),
-                "gust_mph": number(data.get("gustspeed")),
-                "rain_total_in": number(data.get("rain_total_in")),
-            }
-            if any(value is not None for value in readings.values()):
-                observation = {
-                    "observed_at": observed.isoformat(),
-                    **readings,
-                    "rain_date": observed.astimezone(TZ).date().isoformat(),
-                }
-
-    # UTC arithmetic gives 24 real hours even when the local clock repeats/skips.
-    start = published.replace(minute=0, second=0, microsecond=0)
-    if start < published:
-        start += timedelta(hours=1)
-    rows = {}
-    for product in ("hourly", "daily"):
-        if not isinstance(forecast.get(product, []), list):
-            raise CardInputError(f"forecast.{product}: expected an array")
-    for index, raw in enumerate(forecast.get("hourly", [])):
-        field = f"forecast.hourly[{index}]"
-        row = object_value(raw, field)
-        object_value(row.get("values", {}), f"{field}.values")
-        quantiles = object_value(row.get("quantiles", {}), f"{field}.quantiles")
-        object_value(quantiles.get("temp_f", {}), f"{field}.quantiles.temp_f")
-        rows[instant(row.get("valid_time"), f"{field}.valid_time")] = row
-    daily = {}
-    date_local = published.astimezone(TZ).date().isoformat()
-    for index, raw in enumerate(forecast.get("daily", [])):
-        field = f"forecast.daily[{index}]"
-        row = object_value(raw, field)
-        values = object_value(row.get("values", {}), f"{field}.values")
-        day = row.get("date_local")
-        try:
-            date.fromisoformat(day)
-        except (TypeError, ValueError) as exc:
-            raise CardInputError(f"{field}.date_local: expected an ISO date") from exc
-        if day == date_local and not daily:
-            daily = values
-
-    hours, skies = [], []
-    for i in range(24):
-        at = start + timedelta(hours=i)
-        row = rows.get(at, {})
-        values = row.get("values", {})
-        hours.append(
-            {
-                "valid_time": at.isoformat(),
-                "temp_f": number(values.get("temp_f")),
-                "pop": number(values.get("pop")),
-                "bands": bands(row.get("quantiles", {}).get("temp_f", {})),
-            }
-        )
-        skies.append(
-            (at, condition(values, is_daytime(at, lat, lon)) if values else None)
-        )
-    view = {
-        "issued_at": forecast["issued_at"],
-        "date_local": date_local,
-        "high_f": number(daily.get("temp_max_f")),
-        "low_f": number(daily.get("temp_min_f")),
-        "outlook": summary(skies),
-        "hours": hours,
-    }
-    if published - issued > timedelta(hours=12):
-        view = None
+    report = diagnostic if diagnostic is not None else lambda message: None
+    try:
+        observation = build_observation(current)
+    except CardInputError as exc:
+        report(str(exc))
+        observation = None
+    view = build_card_forecast(forecast, published, issued, lat, lon, report)
     if observation is None and view is None:
         raise CardInputError("no usable town-card observations or forecast")
     return {

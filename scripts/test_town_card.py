@@ -74,6 +74,12 @@ class TownCardTest(unittest.TestCase):
                     is_daytime(instant(case["valid_time"]), 34.2768, -117.1692),
                     case["is_daytime"],
                 )
+        for case in EDGES["sun_events"]:
+            rise, sunset = station_sun_times(
+                instant(case["sunrise"]).astimezone(TZ).date(), 34.2768, -117.1692
+            )
+            self.assertEqual(rise, instant(case["sunrise"]))
+            self.assertEqual(sunset, instant(case["sunset"]))
         at = instant("2026-03-15T14:00:00Z")
         sunrise, sunset = station_sun_times(
             at.astimezone(TZ).date(), 34.2768, -117.1692
@@ -110,21 +116,19 @@ class TownCardTest(unittest.TestCase):
                 ({"metadata": {"observed_at": value}}, "current.metadata.observed_at")
             )
         for current, field in cases:
-            with (
-                self.subTest(current=current),
-                self.assertRaisesRegex(CardInputError, field),
-            ):
-                build_town_card(self.forecast(), current)
+            with self.subTest(current=current):
+                diagnostics = []
+                card = build_town_card(
+                    self.forecast(), current, diagnostic=diagnostics.append
+                )
+                self.assertIsNone(card["observation"])
+                self.assertIsNotNone(card["forecast"])
+                self.assertTrue(any(field in message for message in diagnostics))
 
     def test_invalid_forecast_shapes_and_times_have_field_diagnostics(self):
         for key, value in [
             ("published_at", None),
             ("issued_at", "2026-10-22"),
-            ("hourly", None),
-            ("daily", {}),
-            ("hourly", [None]),
-            ("hourly", [{"valid_time": 3}]),
-            ("daily", [{"date_local": "invalid"}]),
         ]:
             with (
                 self.subTest(key=key, value=value),
@@ -133,15 +137,138 @@ class TownCardTest(unittest.TestCase):
                 forecast = self.forecast()
                 forecast[key] = value
                 build_town_card(forecast, None)
-        for key in ("values", "quantiles"):
+
+    def test_bad_product_arrays_and_rows_preserve_other_data(self):
+        for key, value in [
+            ("hourly", None),
+            ("daily", {}),
+            ("hourly", [None]),
+            ("hourly", [{"valid_time": 3}]),
+        ]:
+            with self.subTest(key=key, value=value):
+                forecast = self.forecast()
+                forecast[key] = value
+                diagnostics = []
+                card = build_town_card(forecast, None, diagnostic=diagnostics.append)
+                self.assertIsNotNone(card["forecast"])
+                self.assertTrue(
+                    any(f"forecast.{key}" in message for message in diagnostics)
+                )
+
+    def test_bad_values_leave_gaps_and_bad_quantiles_only_remove_bands(self):
+        for key in ("values", "quantiles", "temp_f"):
             forecast = self.forecast()
-            forecast["hourly"][0][key] = []
-            with self.assertRaisesRegex(CardInputError, key):
-                build_town_card(forecast, None)
+            original = forecast["hourly"][0]["values"]["temp_f"]
+            if key == "temp_f":
+                forecast["hourly"][0]["quantiles"][key] = None
+            else:
+                forecast["hourly"][0][key] = []
+            diagnostics = []
+            hour = build_town_card(forecast, None, diagnostic=diagnostics.append)[
+                "forecast"
+            ]["hours"][0]
+            self.assertEqual(hour["temp_f"], None if key == "values" else original)
+            self.assertEqual(hour["bands"], [])
+            self.assertTrue(any(key in message for message in diagnostics))
+
+    def test_irrelevant_rows_and_expired_forecast_are_not_validated(self):
         forecast = self.forecast()
-        forecast["hourly"][0]["quantiles"]["temp_f"] = None
-        with self.assertRaisesRegex(CardInputError, "quantiles.temp_f"):
-            build_town_card(forecast, None)
+        expected = build_town_card(forecast, None)
+        forecast["hourly"].append(
+            {"valid_time": "2027-01-01T00:00:00Z", "values": [], "quantiles": []}
+        )
+        forecast["daily"].insert(0, {"date_local": "2027-01-01", "values": []})
+        diagnostics = []
+        self.assertEqual(
+            build_town_card(forecast, None, diagnostic=diagnostics.append), expected
+        )
+        self.assertEqual(diagnostics, [])
+        forecast["published_at"] = (
+            instant(forecast["issued_at"]) + timedelta(hours=12, seconds=1)
+        ).isoformat()
+        forecast["hourly"] = forecast["daily"] = None
+        card = build_town_card(
+            forecast, FIXTURE["input"]["current"], diagnostic=diagnostics.append
+        )
+        self.assertIsNone(card["forecast"])
+        self.assertIsNotNone(card["observation"])
+        self.assertEqual(diagnostics, [])
+
+    def test_daily_first_match_is_authoritative_even_if_empty_or_bad(self):
+        for first in ({}, None, []):
+            with self.subTest(first=first):
+                forecast = self.forecast()
+                row = forecast["daily"][0]
+                forecast["daily"] = [dict(row, values=first), row]
+                diagnostics = []
+                view = build_town_card(forecast, None, diagnostic=diagnostics.append)[
+                    "forecast"
+                ]
+                self.assertIsNone(view["high_f"])
+                self.assertIsNone(view["low_f"])
+                self.assertEqual(
+                    bool(diagnostics), first is None or isinstance(first, list)
+                )
+
+    def test_last_usable_hourly_duplicate_wins(self):
+        forecast = self.forecast()
+        first = forecast["hourly"][0]
+        later = copy.deepcopy(first)
+        later["values"]["temp_f"] = 99
+        forecast["hourly"].extend(
+            [later, dict(first, values=[]), dict(first, values={}, quantiles={})]
+        )
+        diagnostics = []
+        hour = build_town_card(forecast, None, diagnostic=diagnostics.append)[
+            "forecast"
+        ]["hours"][0]
+        self.assertEqual(hour["temp_f"], 99)
+        self.assertTrue(any("values" in message for message in diagnostics))
+
+    def test_empty_or_all_null_forecast_is_absent(self):
+        for values in (
+            {},
+            {"temp_f": None, "humidity_pct": None},
+            {"temp_f": float("nan")},
+        ):
+            with self.subTest(values=values):
+                forecast = self.forecast()
+                forecast["daily"] = []
+                for row in forecast["hourly"]:
+                    row["values"] = values
+                    row["quantiles"] = {}
+                card = build_town_card(forecast, FIXTURE["input"]["current"])
+                self.assertIsNone(card["forecast"])
+                with self.assertRaisesRegex(CardInputError, "no usable"):
+                    build_town_card(forecast, None)
+
+    def test_each_exported_forecast_kind_makes_a_section_usable(self):
+        for kind in ("high", "low", "temp", "pop", "bands", "outlook"):
+            with self.subTest(kind=kind):
+                forecast = self.forecast()
+                forecast["daily"] = []
+                for row in forecast["hourly"]:
+                    row["values"] = {}
+                    row["quantiles"] = {}
+                if kind in ("high", "low"):
+                    forecast["daily"] = [
+                        {
+                            "date_local": "2026-10-22",
+                            "values": {
+                                f"temp_{'max' if kind == 'high' else 'min'}_f": 0
+                            },
+                        }
+                    ]
+                elif kind == "bands":
+                    forecast["hourly"][0]["quantiles"] = {"temp_f": {"0.5": 40}}
+                elif kind == "outlook":
+                    for row in forecast["hourly"]:
+                        row["values"] = {"humidity_pct": 90}
+                else:
+                    forecast["hourly"][0]["values"] = {
+                        "temp_f" if kind == "temp" else "pop": 0
+                    }
+                self.assertIsNotNone(build_town_card(forecast, None)["forecast"])
 
     def test_observation_requires_a_finite_reading_but_accepts_zero_and_old_dates(self):
         forecast = self.forecast()
