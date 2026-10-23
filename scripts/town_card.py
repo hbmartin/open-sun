@@ -1,7 +1,8 @@
 """Version-one Lake Arrowhead homepage document. No network or runtime dependencies.
 
-Condition, interpolation and summary rules follow the UI helpers. The card
-additionally requires nested bands and uses a next-full-hour UTC window.
+Condition thresholds, interpolation and summary rules follow the UI helpers.
+The card additionally requires condition evidence and nested bands, and uses
+a next-full-hour UTC window.
 """
 
 from __future__ import annotations
@@ -16,17 +17,8 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 TZ = ZoneInfo("America/Los_Angeles")
+TOWN_CARD_API_VERSION = 1
 COVERAGES = (0.9, 0.6, 0.3)
-WEATHER_FIELDS = (
-    "temp_f",
-    "pop",
-    "humidity_pct",
-    "wind_speed_mph",
-    "wind_gust_mph",
-    "dew_point_f",
-    "pressure_sea_inhg",
-    "precip_in",
-)
 # ECMAScript WhiteSpace and LineTerminator characters; Python's strip/float
 # accept a different language (including underscores and Unicode digits).
 JS_WHITESPACE = "\t\n\v\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
@@ -195,11 +187,15 @@ def is_daytime(at: datetime, latitude: float, longitude: float) -> bool:
     return sunrise <= at <= sunset
 
 
-def condition(values: dict[str, Any], daytime: bool) -> str:
-    precip = number(values.get("precip_in")) or 0
-    pop = (number(values.get("pop")) or 0) * 100
-    humidity = number(values.get("humidity_pct")) or 0
-    windy = (number(values.get("wind_speed_mph")) or 0) >= 20
+def condition(values: dict[str, Any], daytime: bool) -> str | None:
+    precip = number(values.get("precip_in"))
+    pop = number(values.get("pop"))
+    humidity = number(values.get("humidity_pct"))
+    wind = number(values.get("wind_speed_mph"))
+    if all(value is None for value in (precip, pop, humidity, wind)):
+        return None
+    precip, pop, humidity = precip or 0, (pop or 0) * 100, humidity or 0
+    windy = (wind or 0) >= 20
     if precip > 0.01:
         return "rain-wind" if windy else "rain"
     if precip > 0 or pop >= 50:
@@ -321,10 +317,15 @@ def build_card_forecast(
             report(str(exc))
             grid = {}
         intervals = bands(grid)
-        has_reading = any(number(values.get(key)) is not None for key in WEATHER_FIELDS)
-        if has_reading or intervals:
+        sky = condition(values, is_daytime(at, lat, lon))
+        if (
+            number(values.get("temp_f")) is not None
+            or number(values.get("pop")) is not None
+            or intervals
+            or sky is not None
+        ):
             # A malformed/empty duplicate must not erase an earlier usable row.
-            rows[at] = (values, intervals, has_reading)
+            rows[at] = (values, intervals, sky)
 
     daily = {}
     date_local = published.astimezone(TZ).date().isoformat()
@@ -351,7 +352,7 @@ def build_card_forecast(
 
     hours, skies = [], []
     for at in times:
-        values, intervals, has_reading = rows.get(at, ({}, [], False))
+        values, intervals, sky = rows.get(at, ({}, [], None))
         hours.append(
             {
                 "valid_time": at.isoformat(),
@@ -360,9 +361,7 @@ def build_card_forecast(
                 "bands": intervals,
             }
         )
-        skies.append(
-            (at, condition(values, is_daytime(at, lat, lon)) if has_reading else None)
-        )
+        skies.append((at, sky))
     high, low = number(daily.get("temp_max_f")), number(daily.get("temp_min_f"))
     outlook = summary(skies)
     if (

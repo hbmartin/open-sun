@@ -11,6 +11,7 @@ from town_card import (
     CardInputError,
     bands,
     build_town_card,
+    condition,
     instant,
     is_daytime,
     quantile_at,
@@ -29,6 +30,73 @@ class TownCardTest(unittest.TestCase):
 
     def test_shared_document(self):
         self.assertEqual(build_town_card(**FIXTURE["input"]), FIXTURE["expected"])
+
+    def test_condition_requires_one_of_its_actual_inputs(self):
+        inputs = {
+            "precip_in": (0.1, "rain"),
+            "pop": (0.6, "drizzle"),
+            "humidity_pct": (90, "cloudy"),
+            "wind_speed_mph": (25, "wind"),
+        }
+        for field, (finite, expected) in inputs.items():
+            with self.subTest(field=field):
+                self.assertEqual(condition({field: finite}, True), expected)
+                self.assertEqual(condition({field: 0}, True), "sunny")
+                self.assertEqual(condition({field: 0}, False), "clear-night")
+                for absent in (
+                    None,
+                    float("nan"),
+                    float("inf"),
+                    -float("inf"),
+                    True,
+                    "0",
+                ):
+                    self.assertIsNone(condition({field: absent}, True))
+                    self.assertIsNone(condition({field: absent}, False))
+        self.assertIsNone(condition({}, True))
+        self.assertIsNone(condition({"temp_f": 50, "pressure_sea_inhg": 30}, False))
+
+    def test_non_condition_readings_cannot_invent_an_outlook(self):
+        for field in (
+            "pressure_sea_inhg",
+            "dew_point_f",
+            "wind_gust_mph",
+            "temp_f",
+            "bands",
+        ):
+            with self.subTest(field=field):
+                forecast = self.forecast()
+                forecast["daily"] = []
+                for row in forecast["hourly"]:
+                    row["values"] = {field: 30} if field != "bands" else {}
+                    row["quantiles"] = (
+                        {"temp_f": {"0.5": 40}} if field == "bands" else {}
+                    )
+                card = build_town_card(forecast, FIXTURE["input"]["current"])
+                if field in ("temp_f", "bands"):
+                    view = card["forecast"]
+                    self.assertIsNotNone(view)
+                    self.assertIsNone(view["outlook"])
+                    if field == "temp_f":
+                        self.assertEqual(
+                            [hour["temp_f"] for hour in view["hours"]], [30] * 24
+                        )
+                    else:
+                        self.assertTrue(all(hour["bands"] for hour in view["hours"]))
+                else:
+                    self.assertIsNone(card["forecast"])
+                    with self.assertRaisesRegex(CardInputError, "no usable"):
+                        build_town_card(forecast, None)
+
+    def test_non_exportable_duplicate_cannot_replace_temperature(self):
+        for field in ("pressure_sea_inhg", "dew_point_f", "wind_gust_mph"):
+            with self.subTest(field=field):
+                forecast = self.forecast()
+                first = forecast["hourly"][0]
+                expected = first["values"]["temp_f"]
+                forecast["hourly"].append(dict(first, values={field: 30}, quantiles={}))
+                hour = build_town_card(forecast, None)["forecast"]["hours"][0]
+                self.assertEqual(hour["temp_f"], expected)
 
     def assert_bands(self, actual, expected):
         self.assertEqual(len(actual), len(expected))
