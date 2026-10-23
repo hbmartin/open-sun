@@ -49,7 +49,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-PUBLISHER_VERSION = "1.4.2"
+PUBLISHER_VERSION = "1.4.3"
+SUPPORTED_TOWN_CARD_API_VERSION = 1
 CONTRACT_VERSION = 1
 SOURCE_SCHEMA_VERSION = 6
 SUPPORTED_SOURCE_SCHEMA_VERSIONS = frozenset({5, SOURCE_SCHEMA_VERSION})
@@ -295,9 +296,9 @@ UNITS: dict[str, str] = {
 def _convert(value: Any, conversion: Conversion) -> float | None:
     """Convert one value, mapping null and non-finite alike to None.
 
-    Non-finite input cannot reach us through the pipeline's own writer (it uses
-    allow_nan=False) but a hand-edited file could carry it, and bare NaN in the
-    output would be invalid JSON that kills the whole forecast client-side.
+    File inputs reject non-finite numbers before transformation. Keep this
+    defensive cleanup for in-memory callers too: bare NaN in the output would
+    be invalid JSON that kills the whole forecast client-side.
     """
     if value is None:
         return None
@@ -537,19 +538,44 @@ def transform(document: dict[str, Any], published_at: datetime) -> dict[str, Any
     }
 
 
+def _finite_json_float(token: str) -> float:
+    value = float(token)
+    if not math.isfinite(value):
+        raise ValueError(f"number exceeds the finite range: {token[:80]}")
+    return value
+
+
+def _finite_json_int(token: str) -> int:
+    # Preserve integer precision, but refuse integers that overflow a browser's
+    # floating-point representation just as we refuse overflowing exponents.
+    _finite_json_float(token)
+    return int(token)
+
+
+def _reject_json_constant(token: str) -> None:
+    raise ValueError(f"nonstandard numeric constant: {token}")
+
+
+def strict_json_loads(content: str | bytes, source: Path) -> Any:
+    """Validate untrusted publication input at its parsing boundary."""
+    try:
+        return json.loads(
+            content,
+            parse_constant=_reject_json_constant,
+            parse_float=_finite_json_float,
+            parse_int=_finite_json_int,
+        )
+    except ValueError as exc:
+        raise RefusedError(f"{source} is not valid JSON: {exc}") from exc
+
+
 def load_document(source: Path) -> dict[str, Any]:
     try:
         raw = source.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
         msg = f"cannot read {source}: {exc}"
         raise RefusedError(msg) from exc
-    try:
-        document = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        # predict writes forecast.json non-atomically, so a truncated read is a
-        # real possibility rather than a theoretical one.
-        msg = f"{source} is not valid JSON (truncated write?): {exc}"
-        raise RefusedError(msg) from exc
+    document = strict_json_loads(raw, source)
     if not isinstance(document, dict):
         msg = f"{source} does not contain a JSON object"
         raise RefusedError(msg)
@@ -722,11 +748,7 @@ def collect_extra_blobs(include_dir: Path) -> tuple[dict[str, PreparedFile], Any
         content = path.read_bytes()
         # Refuse rather than publish a file the consumer cannot parse; a stale
         # document keeps the page working, a truncated one does not.
-        try:
-            document = json.loads(content)
-        except ValueError as exc:
-            msg = f"{path.name} in {include_dir} is not valid JSON: {exc}"
-            raise RefusedError(msg) from exc
+        document = strict_json_loads(content, path)
         blobs[path.name] = PreparedFile.raw(content)
         if path.name == "current.json":
             current = document
@@ -794,6 +816,7 @@ def push(git_dir: Path, remote: str, branch: str) -> None:
 def prepare_town_card(payload: dict[str, Any], current: Any) -> PreparedFile | None:
     """An optional output may fail without stopping the core publication."""
     try:
+        import town_card as helper
         from town_card import CardInputError, build_town_card
     except Exception:
         print(
@@ -802,6 +825,17 @@ def prepare_town_card(payload: dict[str, Any], current: Any) -> PreparedFile | N
             flush=True,
         )
         traceback.print_exc()
+        return None
+
+    api_version = getattr(helper, "TOWN_CARD_API_VERSION", None)
+    if type(api_version) is not int or api_version != SUPPORTED_TOWN_CARD_API_VERSION:
+        print(
+            "warning: omitting town-card.json: incompatible helper API "
+            f"(expected {SUPPORTED_TOWN_CARD_API_VERSION}, actual {api_version!r}, "
+            f"helper {getattr(helper, '__file__', '<unknown>')})",
+            file=sys.stderr,
+            flush=True,
+        )
         return None
 
     try:
@@ -910,7 +944,7 @@ def write_stamp(issued_at: str) -> None:
         STAMP.parent.mkdir(parents=True, exist_ok=True)
         STAMP.write_text(f"{issued_at}\n", encoding="utf-8")
     except OSError as exc:
-        # This legacy issue-time stamp is retained for external observers.
+        # This legacy issue-time stamp is retained for production observers.
         # Publication deduplication uses the separate fingerprint state.
         _log(f"warning: could not write stamp {STAMP}: {exc}")
 
@@ -998,7 +1032,8 @@ def run(
         if not no_push:
             shutil.rmtree(temporary, ignore_errors=True)
 
-    write_stamp(issued_at)
+    if remote == DEFAULT_REMOTE and branch == DEFAULT_BRANCH:
+        write_stamp(issued_at)
     write_publication_state(fingerprint, remote, branch)
     _log(
         f"published {issued_at} ({payload['status']}) as {commit[:12]} "
