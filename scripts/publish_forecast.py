@@ -44,11 +44,12 @@ import time
 import tomllib
 import traceback
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-PUBLISHER_VERSION = "1.4.1"
+PUBLISHER_VERSION = "1.4.2"
 CONTRACT_VERSION = 1
 SOURCE_SCHEMA_VERSION = 6
 SUPPORTED_SOURCE_SCHEMA_VERSIONS = frozenset({5, SOURCE_SCHEMA_VERSION})
@@ -539,7 +540,7 @@ def transform(document: dict[str, Any], published_at: datetime) -> dict[str, Any
 def load_document(source: Path) -> dict[str, Any]:
     try:
         raw = source.read_text(encoding="utf-8")
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         msg = f"cannot read {source}: {exc}"
         raise RefusedError(msg) from exc
     try:
@@ -564,6 +565,30 @@ def serialise(payload: dict[str, Any]) -> bytes:
     """
     text = json.dumps(payload, allow_nan=False, separators=(",", ":"))
     return text.encode("utf-8") + b"\n"
+
+
+@dataclass(frozen=True)
+class PreparedFile:
+    """Exact Git bytes and an explicitly prepared comparison digest."""
+
+    content: bytes
+    comparison_digest: str
+
+    @classmethod
+    def raw(cls, content: bytes) -> PreparedFile:
+        return cls(content, hashlib.sha256(content).hexdigest())
+
+    @classmethod
+    def document(cls, payload: dict[str, Any]) -> PreparedFile:
+        comparison = {
+            key: payload[key] for key in sorted(payload) if key != "published_at"
+        }
+        # Nested order can affect interpolation between duplicate probabilities.
+        # Normalize root field order only; preserve all nested maps as supplied.
+        canonical = json.dumps(
+            comparison, allow_nan=False, separators=(",", ":")
+        ).encode("utf-8")
+        return cls(serialise(payload), hashlib.sha256(canonical).hexdigest())
 
 
 # --------------------------------------------------------------------------
@@ -673,7 +698,7 @@ def _git(
     return result.stdout.decode("utf-8").strip()
 
 
-def collect_extra_blobs(include_dir: Path) -> dict[str, bytes]:
+def collect_extra_blobs(include_dir: Path) -> tuple[dict[str, PreparedFile], Any]:
     """Read the station documents that share this commit.
 
     The branch is one unparented commit force-pushed wholesale, so anything not
@@ -686,7 +711,8 @@ def collect_extra_blobs(include_dir: Path) -> dict[str, bytes]:
         msg = f"--include-dir {include_dir} is not a directory"
         raise RefusedError(msg)
 
-    blobs: dict[str, bytes] = {}
+    blobs: dict[str, PreparedFile] = {}
+    current = None
     for path in sorted(include_dir.glob("*.json")):
         if path.name in RESERVED_BRANCH_FILES:
             # Silently overwriting forecast.json with a station document would
@@ -697,16 +723,18 @@ def collect_extra_blobs(include_dir: Path) -> dict[str, bytes]:
         # Refuse rather than publish a file the consumer cannot parse; a stale
         # document keeps the page working, a truncated one does not.
         try:
-            json.loads(content)
+            document = json.loads(content)
         except ValueError as exc:
             msg = f"{path.name} in {include_dir} is not valid JSON: {exc}"
             raise RefusedError(msg) from exc
-        blobs[path.name] = content
+        blobs[path.name] = PreparedFile.raw(content)
+        if path.name == "current.json":
+            current = document
 
     if not blobs:
         msg = f"--include-dir {include_dir} contains no .json files"
         raise RefusedError(msg)
-    return blobs
+    return blobs, current
 
 
 def build_commit(
@@ -763,7 +791,7 @@ def push(git_dir: Path, remote: str, branch: str) -> None:
 # --------------------------------------------------------------------------
 
 
-def prepare_town_card(payload: dict[str, Any], station: bytes | None) -> bytes | None:
+def prepare_town_card(payload: dict[str, Any], current: Any) -> PreparedFile | None:
     """An optional output may fail without stopping the core publication."""
     try:
         from town_card import CardInputError, build_town_card
@@ -777,10 +805,16 @@ def prepare_town_card(payload: dict[str, Any], station: bytes | None) -> bytes |
         return None
 
     try:
-        card = build_town_card(payload, json.loads(station) if station else None)
+        card = build_town_card(
+            payload,
+            current,
+            diagnostic=lambda message: print(
+                f"warning: town-card.json: {message}", file=sys.stderr, flush=True
+            ),
+        )
         if not isinstance(card, dict):
             raise TypeError("town-card builder must return an object")
-        return serialise(card)
+        return PreparedFile.document(card)
     except CardInputError as exc:
         print(f"warning: omitting town-card.json: {exc}", file=sys.stderr, flush=True)
     except Exception:
@@ -793,25 +827,25 @@ def prepare_town_card(payload: dict[str, Any], station: bytes | None) -> bytes |
     return None
 
 
-def publication_fingerprint(blobs: dict[str, bytes], remote: str, branch: str) -> str:
-    """Identify the output tree, ignoring only our two publication timestamps."""
-    files = {}
-    for name, content in sorted(blobs.items()):
-        if name in {"forecast.json", "town-card.json"}:
-            document = json.loads(content)
-            document.pop("published_at", None)
-            content = json.dumps(
-                document, sort_keys=True, allow_nan=False, separators=(",", ":")
-            ).encode()
-        files[name] = hashlib.sha256(content).hexdigest()
+def publication_fingerprint(
+    files: dict[str, PreparedFile], remote: str, branch: str
+) -> str:
+    """Identify the destination and prepared comparisons without reparsing files."""
+    digests = {name: entry.comparison_digest for name, entry in files.items()}
     identity = json.dumps(
-        [remote, branch, files], sort_keys=True, separators=(",", ":")
+        [remote, branch, digests], sort_keys=True, separators=(",", ":")
     ).encode()
     return hashlib.sha256(identity).hexdigest()
 
 
-def read_publication_state() -> str | None:
-    path = STAMP.with_name("last-published-state.json")
+def publication_state_path(remote: str, branch: str) -> Path:
+    destination = json.dumps([remote, branch], separators=(",", ":")).encode("utf-8")
+    name = hashlib.sha256(destination).hexdigest()
+    return STAMP.with_name("last-published-states") / f"{name}.json"
+
+
+def read_publication_state(remote: str, branch: str) -> str | None:
+    path = publication_state_path(remote, branch)
     try:
         state = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -820,6 +854,8 @@ def read_publication_state() -> str | None:
         not isinstance(state, dict)
         or type(state.get("schema_version")) is not int
         or state["schema_version"] != 1
+        or state.get("remote") != remote
+        or state.get("branch") != branch
     ):
         return None
     fingerprint = state.get("fingerprint")
@@ -832,9 +868,9 @@ def read_publication_state() -> str | None:
     return None
 
 
-def write_publication_state(fingerprint: str) -> None:
+def write_publication_state(fingerprint: str, remote: str, branch: str) -> None:
     """Record a successful push atomically; failure only costs a redundant push."""
-    path = STAMP.with_name("last-published-state.json")
+    path = publication_state_path(remote, branch)
     partial = None
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -846,7 +882,15 @@ def write_publication_state(fingerprint: str) -> None:
             delete=False,
         ) as output:
             partial = Path(output.name)
-            json.dump({"schema_version": 1, "fingerprint": fingerprint}, output)
+            json.dump(
+                {
+                    "schema_version": 1,
+                    "remote": remote,
+                    "branch": branch,
+                    "fingerprint": fingerprint,
+                },
+                output,
+            )
             output.write("\n")
         partial.replace(path)
     except OSError as exc:
@@ -889,23 +933,26 @@ def run(
     try:
         document = load_document(resolve_source(source))
         payload = transform(document, now if now is not None else datetime.now(UTC))
-        extra_blobs = collect_extra_blobs(Path(include_dir)) if include_dir else {}
+        extra_blobs, current = (
+            collect_extra_blobs(Path(include_dir)) if include_dir else ({}, None)
+        )
     except RefusedError as exc:
         print(f"refusing to publish: {exc}", file=sys.stderr, flush=True)
         return 2
 
-    body = serialise(payload)
+    forecast_file = PreparedFile.document(payload)
+    body = forecast_file.content
     issued_at = payload["issued_at"]
-    town = prepare_town_card(payload, extra_blobs.get("current.json"))
-    blobs = {
-        "README.md": DATA_BRANCH_README.encode("utf-8"),
-        "forecast.json": body,
-        "vercel.json": DATA_BRANCH_VERCEL.encode("utf-8"),
+    town = prepare_town_card(payload, current)
+    files = {
+        "README.md": PreparedFile.raw(DATA_BRANCH_README.encode("utf-8")),
+        "forecast.json": forecast_file,
+        "vercel.json": PreparedFile.raw(DATA_BRANCH_VERCEL.encode("utf-8")),
         **extra_blobs,
     }
     if town is not None:
-        blobs["town-card.json"] = town
-    fingerprint = publication_fingerprint(blobs, remote, branch)
+        files["town-card.json"] = town
+    fingerprint = publication_fingerprint(files, remote, branch)
 
     if print_payload:
         sys.stdout.write(body.decode("utf-8"))
@@ -919,14 +966,25 @@ def run(
         )
         return 0
 
-    if not force and read_publication_state() == fingerprint:
+    if (
+        not force
+        and not no_push
+        and read_publication_state(remote, branch) == fingerprint
+    ):
         _log(f"{issued_at}: publication state unchanged; skipping")
         return 0
 
-    temporary = tempfile.mkdtemp(prefix="grounded-publish.", dir=Path.home() / "Library/Caches")
+    temporary = tempfile.mkdtemp(
+        prefix="grounded-publish.", dir=Path.home() / "Library/Caches"
+    )
     try:
         git_dir = Path(temporary) / "repo.git"
-        commit = build_commit(blobs, git_dir, branch, issued_at)
+        commit = build_commit(
+            {name: entry.content for name, entry in files.items()},
+            git_dir,
+            branch,
+            issued_at,
+        )
         if no_push:
             # A debugging flag: keep the repo behind so the tree can be inspected.
             _log(f"built {commit} (not pushed); inspect with:")
@@ -941,7 +999,7 @@ def run(
             shutil.rmtree(temporary, ignore_errors=True)
 
     write_stamp(issued_at)
-    write_publication_state(fingerprint)
+    write_publication_state(fingerprint, remote, branch)
     _log(
         f"published {issued_at} ({payload['status']}) as {commit[:12]} "
         f"to {branch}: {len(body)} bytes"
@@ -960,7 +1018,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dry-run", action="store_true",
                         help="transform only: no git, no network, no stamp")
     parser.add_argument("--no-push", action="store_true",
-                        help="build the commit locally but do not push")
+                        help="always build the commit locally but do not push")
     parser.add_argument("--force", action="store_true",
                         help="publish even if the output state is unchanged")
     parser.add_argument("--include-dir",

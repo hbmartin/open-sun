@@ -313,7 +313,7 @@ class ReleaseCohortTest(unittest.TestCase):
             self._transform(release_ids="2a2b510af0e95621")
 
     def test_the_publisher_version_names_this_contract(self) -> None:
-        self.assertEqual(self._transform()["publisher_version"], "1.4.1")
+        self.assertEqual(self._transform()["publisher_version"], "1.4.2")
 
 
     def test_schema_six_preserves_hourly_values_and_release_attribution(self) -> None:

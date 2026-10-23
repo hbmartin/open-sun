@@ -53,7 +53,10 @@ beforeAll(async () => {
   const { ForecastDocumentSchema } = await import("@/lib/forecast-schemas")
   parseDocument = (document) => ForecastDocumentSchema.parse(document)
 })
-afterAll(() => vi.unstubAllEnvs())
+afterAll(() => {
+  vi.unstubAllEnvs()
+  vi.resetModules()
+})
 
 function documentFor(overrides: Record<string, unknown> = {}): ForecastDocument {
   return parseDocument(
@@ -122,8 +125,9 @@ describe("town-card publisher contracts", () => {
       const hour = mapped.days.flatMap((day) => day.hours).find((point) => point !== undefined)!
       expectBands(hour.bands[ForecastMetric.TEMP] ?? [], testCase.ui_bands)
       if (testCase.name === "crossed nonnested intervals") {
-        expect(testCase.card_bands).toEqual([])
-        expect(testCase.ui_bands[1].low_f).toBeLessThan(testCase.ui_bands[0].low_f)
+        const mappedBands = hour.bands[ForecastMetric.TEMP]!
+        expect(mappedBands).toHaveLength(3)
+        expect(mappedBands[1].low).toBeLessThan(mappedBands[0].low)
       } else {
         expectBands(hour.bands[ForecastMetric.TEMP] ?? [], testCase.card_bands)
       }
@@ -131,6 +135,15 @@ describe("town-card publisher contracts", () => {
         expect(hour.temp).toBeUndefined()
         expect(hour.bands[ForecastMetric.TEMP]).toHaveLength(3)
       }
+    },
+  )
+
+  it.each(edges.sun_events)(
+    "matches shared SunCalc event milliseconds: $date_local",
+    (testCase) => {
+      const sun = getStationSunTimes(testCase.date_local)
+      expect(sun.sunrise.toISOString()).toBe(testCase.sunrise)
+      expect(sun.sunset.toISOString()).toBe(testCase.sunset)
     },
   )
 
@@ -157,18 +170,46 @@ describe("town-card publisher contracts", () => {
       const start = new Date(testCase.published_at)
       const times = Array.from({ length: 24 }, (_, i) => new Date(start.getTime() + i * 3_600_000))
       const hourly = times.map((at, i) =>
-        makeHourlyRow({ valid_time: at.toISOString(), values: { temp_f: 40 + i } }),
+        makeHourlyRow({
+          valid_time: at.toISOString(),
+          values: {
+            temp_f: 40 + i,
+            humidity_pct: Number(getStationHour(at)) < 6 ? 30 : 90,
+          },
+          quantiles: { temp_f: { "0.05": 30 + i, "0.95": 50 + i } },
+        }),
       )
       const daily = [...new Set(times.map((at) => getStationDate(at)))].map((day) =>
         makeDailyRow({ date_local: day }),
       )
       const mapped = mapForecastDocument(documentFor({ hourly, daily }), start)
       const model = buildNextHours(mapped.days, start, ForecastMetric.TEMP)!
-      expect(times.map((at) => at.getTime())).toHaveLength(24)
+      const fallBack = testCase.name === "fall back"
+      const retainedIndices = Array.from({ length: 24 }, (_, i) => i).filter(
+        (i) => !fallBack || i !== 1,
+      )
+      const expectedOffsets = retainedIndices.map((i) => {
+        if (fallBack) {
+          return Math.max(0, i - 1)
+        }
+        return i < 2 ? i : i + 1
+      })
+      expect(model.points.map((point) => point.offset)).toEqual(expectedOffsets)
+      expect(model.points.map((point) => point.value)).toEqual(retainedIndices.map((i) => 40 + i))
+      expect(model.points.map((point) => point.bands[0].low)).toEqual(
+        retainedIndices.map((i) => 30 + i),
+      )
+      const mappedHours = mapped.days
+        .flatMap((day) => day.hours)
+        .filter((hour) => hour !== undefined)
+      expect(mappedHours.map((hour) => hour.validTime)).toEqual(
+        retainedIndices.map((i) => times[i].toISOString()),
+      )
+      expect(mapped.days.map((day) => day.date)).toEqual(
+        fallBack ? ["2026-11-01"] : ["2026-03-08", "2026-03-09"],
+      )
+      expect(model.summary).toBe("Clear skies overnight, cloudy this morning.")
       if (testCase.name === "fall back") {
-        expect(new Date(testCase.first_local_times[1]).getTime()).not.toBe(
-          new Date(testCase.first_local_times[2]).getTime(),
-        )
         expect(model.points.find((point) => point.offset === 1)?.value).toBe(42)
         expect(mapped.days[0].hours[1]?.validTime).toBe(times[2].toISOString())
       } else {
