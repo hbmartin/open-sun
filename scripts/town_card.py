@@ -320,7 +320,6 @@ def build_card_forecast(
         sky = condition(values, is_daytime(at, lat, lon))
         if (
             number(values.get("temp_f")) is not None
-            or number(values.get("pop")) is not None
             or intervals
             or sky is not None
         ):

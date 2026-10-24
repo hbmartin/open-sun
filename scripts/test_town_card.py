@@ -293,6 +293,45 @@ class TownCardTest(unittest.TestCase):
         self.assertEqual(hour["temp_f"], 99)
         self.assertTrue(any("values" in message for message in diagnostics))
 
+    def test_condition_only_duplicate_replaces_the_whole_hour(self):
+        for case in EDGES["condition_only_duplicates"]:
+            with self.subTest(name=case["name"]):
+                forecast = self.forecast()
+                first = forecast["hourly"][0]
+                forecast["hourly"].append(
+                    dict(first, values=case["values"], quantiles={})
+                )
+                hour = build_town_card(forecast, None)["forecast"]["hours"][0]
+                self.assertEqual(
+                    hour,
+                    {
+                        "valid_time": first["valid_time"],
+                        "temp_f": None,
+                        "pop": None,
+                        "bands": [],
+                    },
+                )
+
+    def test_temperature_only_policy_keeps_values_without_ui_default_outlook(self):
+        case = EDGES["temperature_only"]
+        forecast = self.forecast()
+        forecast["published_at"] = FIXTURE["expected"]["forecast"]["hours"][0][
+            "valid_time"
+        ]
+        forecast["hourly"] = [
+            dict(
+                valid_time=hour["valid_time"],
+                values={"temp_f": case["temp_f"]},
+                quantiles={},
+            )
+            for hour in FIXTURE["expected"]["forecast"]["hours"]
+        ]
+        view = build_town_card(forecast, None)["forecast"]
+        self.assertEqual(view["outlook"], case["card_outlook"])
+        self.assertEqual(
+            [hour["temp_f"] for hour in view["hours"]], [case["temp_f"]] * 24
+        )
+
     def test_empty_or_all_null_forecast_is_absent(self):
         for values in (
             {},

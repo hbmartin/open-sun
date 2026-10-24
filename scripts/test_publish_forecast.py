@@ -22,6 +22,7 @@ import unittest
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import publish_forecast
 from publish_forecast import (
@@ -80,7 +81,7 @@ class RememberGoodTest(HoldTestCase):
         self.write_candidate(_document("ready"))
         self.assertFalse(self.held.parent.exists())
 
-        remember_good(self.candidate, self.held)
+        remember_good(self.candidate, self.held, now=NOW)
 
         self.assertEqual(json.loads(self.held.read_text()), _document("ready"))
 
@@ -88,10 +89,69 @@ class RememberGoodTest(HoldTestCase):
         self.write_held(_document("ready", NOW - timedelta(hours=3)))
         self.write_candidate(_document("ready"))
 
-        remember_good(self.candidate, self.held)
+        remember_good(self.candidate, self.held, now=NOW)
 
         self.assertEqual(json.loads(self.held.read_text()), _document("ready"))
         self.assertFalse(self.held.with_suffix(".partial").exists())
+
+    def test_remembers_exact_validated_bytes_even_if_source_changes(self) -> None:
+        content = (json.dumps(_document("ready"), indent=2) + "\r\n").encode()
+        self.candidate.write_bytes(content)
+        original = publish_forecast.prepare_forecast
+
+        def prepare_then_change_source(*args):
+            result = original(*args)
+            self.candidate.write_text('{"status":"ready","bad":NaN}')
+            return result
+
+        with patch.object(
+            publish_forecast, "prepare_forecast", side_effect=prepare_then_change_source
+        ):
+            self.choose()
+        self.assertEqual(self.held.read_bytes(), content)
+        self.assertNotEqual(self.candidate.read_bytes(), content)
+
+    def test_failed_cache_write_or_replace_preserves_previous_snapshot(self) -> None:
+        self.write_held(_document("ready", NOW - timedelta(hours=1)))
+        previous = self.held.read_bytes()
+        self.write_candidate(_document("ready"))
+        partial = self.held.with_suffix(".partial")
+        original_write = Path.write_bytes
+
+        def truncated_write(path, data):
+            original_write(path, data[:10])
+            raise OSError("injected incomplete cache write")
+
+        for operation, replacement in (
+            ("write_bytes", truncated_write),
+            ("replace", OSError("injected rename failure")),
+        ):
+            with self.subTest(operation=operation):
+                with patch.object(
+                    Path, operation, side_effect=replacement, autospec=True
+                ):
+                    self.assertEqual(self.choose(), self.candidate)
+                self.assertEqual(self.held.read_bytes(), previous)
+                self.assertFalse(partial.exists())
+                self.assertIn("could not remember", self.logs.getvalue())
+
+    def test_unexpected_core_errors_are_not_hidden_by_hold_guard(self) -> None:
+        self.write_held(_document("ready", NOW - timedelta(hours=1)))
+        previous = self.held.read_bytes()
+        for status in ("ready", "degraded"):
+            self.write_candidate(_document(status))
+            for function, error in (
+                ("transform", RuntimeError("programming failure")),
+                ("transform", OSError("unexpected core I/O failure")),
+                ("serialise", ValueError("serialization failure")),
+            ):
+                with self.subTest(status=status, function=function):
+                    with (
+                        patch.object(publish_forecast, function, side_effect=error),
+                        self.assertRaises(type(error)),
+                    ):
+                        self.choose()
+                    self.assertEqual(self.held.read_bytes(), previous)
 
 
 class ChooseSourceReadyTest(HoldTestCase):
@@ -130,11 +190,12 @@ class ChooseSourceDegradedTest(HoldTestCase):
         self.assertEqual(self.choose(), self.candidate)
         self.assertIn("too old (7.0h)", self.logs.getvalue())
 
-    def test_treats_a_naive_issued_at_as_utc(self) -> None:
+    def test_naive_held_timestamp_falls_back_to_candidate(self) -> None:
         self.write_candidate(_document("degraded"))
         self.write_held(_document("ready", "2026-08-08T12:00:00"))
 
-        self.assertEqual(self.choose(), self.held)
+        self.assertEqual(self.choose(), self.candidate)
+        self.assertIn("issued_at has no UTC offset", self.logs.getvalue())
 
     def test_refuses_to_hold_a_degraded_document(self) -> None:
         self.write_candidate(_document("degraded"))
@@ -147,7 +208,7 @@ class ChooseSourceDegradedTest(HoldTestCase):
         self.write_candidate(_document("degraded"))
 
         self.assertEqual(self.choose(), self.candidate)
-        self.assertIn("no held ready document", self.logs.getvalue())
+        self.assertIn("no usable held ready document", self.logs.getvalue())
 
     def test_publishes_the_candidate_when_the_held_document_is_unusable(self) -> None:
         self.write_candidate(_document("degraded"))
@@ -180,6 +241,18 @@ class ClockSkewTest(HoldTestCase):
         self.choose()
 
         self.assertNotIn("-", self.logs.getvalue().rsplit("status=", 1)[-1])
+
+    def test_hold_and_skew_boundaries_are_inclusive(self) -> None:
+        self.write_candidate(_document("degraded"))
+        for age, expected in (
+            (21600, self.held),
+            (21601, self.candidate),
+            (-300, self.held),
+            (-301, self.candidate),
+        ):
+            with self.subTest(age=age):
+                self.write_held(_document("ready", NOW - timedelta(seconds=age)))
+                self.assertEqual(self.choose(), expected)
 
 
 class MalformedCandidateTest(HoldTestCase):
@@ -313,8 +386,7 @@ class ReleaseCohortTest(unittest.TestCase):
             self._transform(release_ids="2a2b510af0e95621")
 
     def test_the_publisher_version_names_this_contract(self) -> None:
-        self.assertEqual(self._transform()["publisher_version"], "1.4.3")
-
+        self.assertEqual(self._transform()["publisher_version"], "1.4.4")
 
     def test_schema_six_preserves_hourly_values_and_release_attribution(self) -> None:
         row = LeadBucketTest._row("0-1h")

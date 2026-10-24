@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -176,7 +177,7 @@ class PublisherTownCardTest(unittest.TestCase):
         for name in ("current.json", "daily.json", "hourly.json"):
             self.assertEqual(self.trees[-1][name], (self.staged / name).read_bytes())
         self.assertEqual(
-            json.loads(self.trees[-1]["forecast.json"])["publisher_version"], "1.4.3"
+            json.loads(self.trees[-1]["forecast.json"])["publisher_version"], "1.4.4"
         )
 
     def test_single_card_build_and_one_commit_contains_all_documents(self):
@@ -290,7 +291,7 @@ class PublisherTownCardTest(unittest.TestCase):
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(
-                    json.loads(result.stdout)["publisher_version"], "1.4.3"
+                    json.loads(result.stdout)["publisher_version"], "1.4.4"
                 )
                 self.assertIn(
                     "ZoneInfoNotFoundError" if helper else "ModuleNotFoundError",
@@ -366,9 +367,11 @@ class PublisherTownCardTest(unittest.TestCase):
         harness = self.install_harness()
         helper_path = harness.with_name("town_card.py")
         stub = "class CardInputError(ValueError): pass\ndef build_town_card(forecast, current):\n    raise AssertionError('incompatible helper was called')\n"
-        for index, marker in enumerate(("", "TOWN_CARD_API_VERSION = 2\n")):
-            with self.subTest(marker=marker):
-                helper_path.write_text(marker + stub, encoding="utf-8")
+        for index, source in enumerate(
+            (stub, "TOWN_CARD_API_VERSION = 2\n" + stub, "TOWN_CARD_API_VERSION = 2\n")
+        ):
+            with self.subTest(source=source):
+                helper_path.write_text(source, encoding="utf-8")
                 home = self.root / f"mismatched-home-{index}"
                 result = self.invoke_installed(harness, home, "publish")
                 self.assertEqual(result.returncode, 0, result.stderr)
@@ -492,6 +495,149 @@ class PublisherTownCardTest(unittest.TestCase):
             json.loads(self.trees[-1]["forecast.json"])["hourly"][0]["values"]["temp_f"]
         )
 
+    def test_invalid_ready_inputs_cannot_poison_or_pin_the_hold_cache(self):
+        self.invoke()
+        valid = self.source.read_bytes()
+        held = self.root / "held/last-good-forecast.json"
+        invalid = []
+        for name in ("NaN", "1e999", "conversion", "schema", "bucket", "metadata"):
+            document = json.loads(valid)
+            if name in ("NaN", "1e999"):
+                document["latitude"] = "__BAD_NUMBER__"
+            elif name == "conversion":
+                document["hourly"][0]["values"] = {"temp_c": 1e308}
+            elif name == "schema":
+                document["schema_version"] = 999
+            elif name == "bucket":
+                document["hourly"][0]["lead_bucket"] = "168-240h"
+            else:
+                document["hourly"][0]["methods"] = {"temp_c": 3}
+            content = json.dumps(document).replace('"__BAD_NUMBER__"', name).encode()
+            invalid.append((name, content))
+
+        for name, content in invalid:
+            with self.subTest(name=name):
+                self.source.write_bytes(valid)
+                with contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(
+                        publisher.choose_source(self.source, held, now=NOW), self.source
+                    )
+                self.assertEqual(held.read_bytes(), valid)
+                previous = self.stamp.read_bytes(), self.state.read_bytes()
+                pushes = self.push.call_count
+                self.source.write_bytes(content)
+                with patch.object(publisher, "_log_stream", io.StringIO()) as logs:
+                    selected = publisher.choose_source(self.source, held, now=NOW)
+                self.assertEqual(selected, self.source)
+                self.assertEqual(held.read_bytes(), valid)
+                self.assertTrue(logs.getvalue())
+                with patch.object(publisher, "build_commit") as build:
+                    code, _, error = self.invoke(source=selected)
+                self.assertEqual(code, 2)
+                self.assertIn("refusing to publish", error)
+                self.assertNotIn("Traceback", error)
+                build.assert_not_called()
+                self.assertEqual(self.push.call_count, pushes)
+                self.assertEqual(
+                    (self.stamp.read_bytes(), self.state.read_bytes()), previous
+                )
+
+                degraded = json.loads(valid)
+                degraded.update(
+                    status="degraded", issued_at=(NOW + timedelta(hours=1)).isoformat()
+                )
+                self.source.write_text(json.dumps(degraded), encoding="utf-8")
+                clock = NOW + timedelta(hours=1)
+                with contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(
+                        publisher.choose_source(self.source, held, now=clock), held
+                    )
+                # A poisoned cache left by an older publisher must not pin valid input.
+                held.write_bytes(content)
+                with patch.object(publisher, "_log_stream", io.StringIO()) as logs:
+                    selected = publisher.choose_source(self.source, held, now=clock)
+                self.assertEqual(selected, self.source)
+                self.assertIn("no usable held ready document", logs.getvalue())
+                code, _, error = self.invoke(source=selected, now=clock, force=True)
+                self.assertEqual(code, 0, error)
+                published = json.loads(self.trees[-1]["forecast.json"])
+                self.assertEqual(published["status"], "degraded")
+                self.assertEqual(published["issued_at"], degraded["issued_at"])
+                self.assert_core_files(card=True)
+
+    def test_conversion_overflow_refuses_actual_values_and_quantiles_before_git(self):
+        self.invoke()
+        previous = self.stamp.read_bytes(), self.state.read_bytes()
+        pushes = self.push.call_count
+        for product, variables in (
+            ("hourly", ("temp_c", "dew_point_c", "wind_speed_ms", "wind_gust_ms")),
+            ("daily", ("temp_max_c", "temp_min_c")),
+        ):
+            for variable in variables:
+                for container in ("values", "quantiles"):
+                    for value in (1e308, -1e308):
+                        with self.subTest(
+                            product=product,
+                            variable=variable,
+                            container=container,
+                            value=value,
+                        ):
+                            document = json.loads(json.dumps(self.document))
+                            document[product][0][container] = {
+                                variable: value
+                                if container == "values"
+                                else {"0.5": value}
+                            }
+                            self.source.write_text(
+                                json.dumps(document), encoding="utf-8"
+                            )
+                            with patch.object(publisher, "build_commit") as build:
+                                code, _, error = self.invoke()
+                            self.assertEqual(code, 2)
+                            self.assertIn(f"{product} {container}.{variable}", error)
+                            self.assertIn("non-finite", error)
+                            self.assertNotIn("Traceback", error)
+                            build.assert_not_called()
+                            self.assertEqual(self.push.call_count, pushes)
+                            self.assertEqual(
+                                (self.stamp.read_bytes(), self.state.read_bytes()),
+                                previous,
+                            )
+
+    def test_station_read_failures_refuse_before_git_without_changing_state(self):
+        self.invoke()
+        previous = self.stamp.read_bytes(), self.state.read_bytes()
+        pushes = self.push.call_count
+        read_bytes = Path.read_bytes
+        for name in ("current.json", "daily.json", "hourly.json"):
+            target = self.staged / name
+            content = target.read_bytes()
+            for failure in ("disappeared", "permissions"):
+                with self.subTest(name=name, failure=failure):
+
+                    def read(path):
+                        if path == target:
+                            if failure == "permissions":
+                                raise PermissionError("injected permissions")
+                            path.unlink()
+                        return read_bytes(path)
+
+                    with (
+                        patch.object(Path, "read_bytes", read),
+                        patch.object(publisher, "build_commit") as build,
+                    ):
+                        code, _, error = self.invoke()
+                    self.assertEqual(code, 2)
+                    self.assertIn(str(target), error)
+                    self.assertIn("cannot read", error)
+                    self.assertNotIn("Traceback", error)
+                    build.assert_not_called()
+                    self.assertEqual(self.push.call_count, pushes)
+                    self.assertEqual(
+                        (self.stamp.read_bytes(), self.state.read_bytes()), previous
+                    )
+                    target.write_bytes(content)
+
     def test_unexpected_core_serialization_errors_keep_their_traceback(self):
         original = publisher.transform
 
@@ -533,6 +679,44 @@ class PublisherTownCardTest(unittest.TestCase):
         # A compatible helper restores the card even with the same issue/window.
         self.invoke()
         self.assert_core_files(card=True)
+
+    def test_incompatible_helper_is_checked_before_resolving_any_exports(self):
+        for api in (None, 2, "1", True):
+            helper = types.ModuleType("town_card")
+            helper.__file__ = str(self.root / "future-helper.py")
+            if api is not None:
+                helper.TOWN_CARD_API_VERSION = api
+            with self.subTest(api=api), patch.dict(sys.modules, {"town_card": helper}):
+                code, _, error = self.invoke(force=True)
+            self.assertEqual(code, 0)
+            self.assertIn("incompatible helper API", error)
+            self.assertIn("expected 1", error)
+            self.assertIn(f"actual {api!r}", error)
+            self.assertIn(helper.__file__, error)
+            self.assertNotIn("Traceback", error)
+            self.assert_core_files(card=False)
+        self.invoke()
+        self.assert_core_files(card=True)
+
+    def test_supported_helper_with_broken_exports_is_an_unexpected_card_failure(self):
+        for missing in ("build_town_card", "CardInputError", "invalid_exports"):
+            helper = types.ModuleType("town_card")
+            helper.TOWN_CARD_API_VERSION = 1
+            helper.build_town_card = town_card.build_town_card
+            helper.CardInputError = town_card.CardInputError
+            if missing == "invalid_exports":
+                helper.CardInputError = None
+            else:
+                delattr(helper, missing)
+            with (
+                self.subTest(missing=missing),
+                patch.dict(sys.modules, {"town_card": helper}),
+            ):
+                code, _, error = self.invoke(force=True)
+            self.assertEqual(code, 0)
+            self.assertIn("unexpected error", error)
+            self.assertIn("Traceback", error)
+            self.assert_core_files(card=False)
 
     def test_alternate_destinations_cannot_advance_production_stamp(self):
         self.invoke()

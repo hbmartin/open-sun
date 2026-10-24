@@ -554,5 +554,30 @@
       "sunrise": "2026-04-04T13:32:55.541Z",
       "sunset": "2026-04-05T02:12:35.002Z"
     }
-  ]
+  ],
+  "condition_only_duplicates": [
+    {
+      "name": "humidity-only replacement",
+      "values": {
+        "humidity_pct": 0
+      }
+    },
+    {
+      "name": "wind-only replacement",
+      "values": {
+        "wind_speed_mph": 0
+      }
+    },
+    {
+      "name": "precipitation-only replacement",
+      "values": {
+        "precip_in": 0
+      }
+    }
+  ],
+  "temperature_only": {
+    "temp_f": 50,
+    "card_outlook": null,
+    "ui_outlook": "Clear skies this morning and this afternoon."
+  }
 }
