@@ -49,7 +49,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-PUBLISHER_VERSION = "1.4.4"
+PUBLISHER_VERSION = "1.4.5"
 SUPPORTED_TOWN_CARD_API_VERSION = 1
 CONTRACT_VERSION = 1
 SOURCE_SCHEMA_VERSION = 6
@@ -107,22 +107,37 @@ CLOCK_SKEW_TOLERANCE_SECONDS = 300
 def _write_held_snapshot(content: bytes, held: Path) -> None:
     """Atomically retain the exact source bytes already validated by the caller."""
     held.parent.mkdir(parents=True, exist_ok=True)
-    partial = held.with_suffix(".partial")
+    partial = None
     try:
-        partial.write_bytes(content)
+        with tempfile.NamedTemporaryFile(
+            dir=held.parent, prefix=f".{held.name}.", suffix=".partial", delete=False
+        ) as output:
+            partial = Path(output.name)
+            output.write(content)
         partial.replace(held)
     finally:
-        partial.unlink(missing_ok=True)
+        if partial is not None:
+            try:
+                partial.unlink(missing_ok=True)
+            except OSError as exc:
+                _log(f"could not remove temporary held snapshot {partial}: {exc}")
+
+
+def _validated_snapshot(source: Path, clock: datetime) -> tuple[bytes, dict[str, Any]]:
+    content, document = _read_document(source)
+    prepare_forecast(document, clock)
+    return content, document
 
 
 def remember_good(
     source: Path, held: Path = HELD_GOOD, *, now: datetime | None = None
 ) -> None:
     """Keep a core-valid ready document, independently of publication success."""
-    content, document = _read_document(source)
+    content, document = _validated_snapshot(
+        source, now if now is not None else datetime.now(UTC)
+    )
     if document.get("status") != "ready":
         raise RefusedError("only a ready forecast may enter the hold cache")
-    prepare_forecast(document, now if now is not None else datetime.now(UTC))
     _write_held_snapshot(content, held)
 
 
@@ -143,53 +158,52 @@ def choose_source(
     ready document is better until it is genuinely stale, at which point
     degraded-but-current beats ready-but-old. A held document dated further than
     CLOCK_SKEW_TOLERANCE_SECONDS into the future is refused too: its age is not
-    trustworthy, so it cannot be judged stale. Expected read or validation
-    failures return the candidate for normal publication/refusal. Unexpected
-    core programming errors retain their traceback.
+    trustworthy, so it cannot be judged stale. Expected incoming read or
+    validation failures also consult the hold. Without an eligible, core-valid
+    hold, return the candidate for normal publication/refusal. Unexpected core
+    programming errors retain their traceback.
     """
     clock = now if now is not None else datetime.now(UTC)
     try:
-        content, candidate_doc = _read_document(candidate)
+        content, candidate_doc = _validated_snapshot(candidate, clock)
     except RefusedError as exc:
-        _log(f"cannot inspect candidate {candidate}: {exc}; publishing the candidate")
-        return candidate
-    status = candidate_doc.get("status")
-    if status == "ready":
-        try:
-            prepare_forecast(candidate_doc, clock)
-        except RefusedError as exc:
-            _log(f"not remembering invalid ready document {candidate}: {exc}")
+        _log(
+            f"rejected incoming document {candidate}: {exc}; checking the held snapshot"
+        )
+        status = "invalid"
+    else:
+        status = candidate_doc["status"]
+        if status == "ready":
+            try:
+                _write_held_snapshot(content, held)
+            except OSError as exc:
+                _log(f"could not remember the ready document: {exc}")
             return candidate
-        try:
-            _write_held_snapshot(content, held)
-        except OSError as exc:
-            _log(f"could not remember the ready document: {exc}")
-        return candidate
     try:
         held_doc = load_document(held)
-        payload, _ = prepare_forecast(held_doc, clock)
+        if held_doc.get("status") != "ready":
+            raise RefusedError(
+                f"held document is {held_doc.get('status')!r}, not ready"
+            )
+        issued = datetime.fromisoformat(
+            _normalise_timestamp(held_doc.get("issued_at"), "held.issued_at")
+        )
+        age = (clock - issued).total_seconds()
+        if age < -CLOCK_SKEW_TOLERANCE_SECONDS:
+            raise RefusedError(f"held document is dated {-age / 60:.0f}m in the future")
+        if age > max_age_seconds:
+            raise RefusedError(f"held document too old ({age / 3600:.1f}h)")
+        prepare_forecast(held_doc, clock)
     except RefusedError as exc:
         _log(
             f"status={status}; no usable held ready document: {exc} — publishing the candidate"
         )
         return candidate
-    issued = datetime.fromisoformat(payload["issued_at"])
-    age = (clock - issued).total_seconds()
-    within_hold_window = -CLOCK_SKEW_TOLERANCE_SECONDS <= age <= max_age_seconds
-    if held_doc.get("status") == "ready" and within_hold_window:
-        _log(
-            f"status={status}; holding last ready document issued "
-            f"{held_doc['issued_at']} ({age / 60:.0f}m old)"
-        )
-        return held
-    if held_doc.get("status") != "ready":
-        reason = f"held document is {held_doc.get('status')!r}, not ready"
-    elif age < 0:
-        reason = f"held document is dated {-age / 60:.0f}m in the future"
-    else:
-        reason = f"held document too old ({age / 3600:.1f}h)"
-    _log(f"status={status}; {reason} — publishing the candidate honestly")
-    return candidate
+    _log(
+        f"status={status}; holding last ready document issued "
+        f"{held_doc['issued_at']} ({age / 60:.0f}m old)"
+    )
+    return held
 
 
 class RefusedError(Exception):
@@ -323,13 +337,14 @@ def _convert(
     if value is None:
         return None
     if not isinstance(value, (int, float)) or isinstance(value, bool):
-        msg = f"expected a number, got {value!r}"
+        msg = f"{field}: expected a number, got {value!r}"
         raise RefusedError(msg)
-    if not math.isfinite(value):
-        return None
     target, convert, digits = conversion
     try:
-        converted = convert(float(value))
+        number = float(value)
+        if not math.isfinite(number):
+            return None
+        converted = convert(number)
         if not math.isfinite(converted):
             raise RefusedError(
                 f"{field}: conversion to {target} produced a non-finite value"
@@ -338,8 +353,6 @@ def _convert(
         rounded = round(converted, digits) + 0.0
     except OverflowError as exc:
         raise RefusedError(f"{field}: conversion to {target} overflowed") from exc
-    if not math.isfinite(rounded):
-        raise RefusedError(f"{field}: rounded {target} is non-finite")
     return rounded
 
 
@@ -406,7 +419,7 @@ def _convert_quantiles(source: Any, table: dict[str, Conversion], product: str) 
     native distribution. Keys stay verbatim decimal probability strings; the
     consumer interpolates rather than indexing fixed levels.
     """
-    if not source:
+    if source is None:
         return {}
     if not isinstance(source, dict):
         msg = f"{product} row has a non-object quantiles map"
@@ -459,6 +472,23 @@ def _normalise_optional_timestamp(value: Any, field: str) -> str | None:
     return _normalise_timestamp(value, field)
 
 
+def _object(value: Any, field: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise RefusedError(f"{field}: expected an object, got {type(value).__name__}")
+    return value
+
+
+def _product_rows(document: dict[str, Any], product: str) -> list[dict[str, Any]]:
+    rows = document.get(product)
+    if rows is None:
+        return []
+    if not isinstance(rows, list):
+        raise RefusedError(f"{product}: expected an array, got {type(rows).__name__}")
+    for index, row in enumerate(rows):
+        _object(row, f"{product}[{index}]")
+    return rows
+
+
 def _truth_semantics(document: dict[str, Any]) -> dict[str, str]:
     """Hoist the per-row truth_semantics maps to a single per-variable block.
 
@@ -474,12 +504,21 @@ def _truth_semantics(document: dict[str, Any]) -> dict[str, str]:
     """
     semantics: dict[str, str] = {}
     for product, table in (("hourly", HOURLY_VARIABLES), ("daily", DAILY_VARIABLES)):
-        for row in document.get(product) or []:
-            for variable, value in (row.get("truth_semantics") or {}).items():
-                name = _lookup(variable, table, product)[0]
+        for index, row in enumerate(_product_rows(document, product)):
+            field = f"{product}[{index}].truth_semantics"
+            source = row.get("truth_semantics")
+            for variable, value in (
+                {} if source is None else _object(source, field)
+            ).items():
+                if not isinstance(value, str):
+                    raise RefusedError(f"{field}[{variable!r}]: expected a string")
+                try:
+                    name = _lookup(variable, table, product)[0]
+                except RefusedError as exc:
+                    raise RefusedError(f"{field}: {exc}") from exc
                 if semantics.setdefault(name, value) != value:
                     msg = (
-                        f"truth_semantics for {name!r} is not constant across rows "
+                        f"{field}: truth_semantics for {name!r} is not constant across rows "
                         f"({semantics[name]!r} vs {value!r})"
                     )
                     raise RefusedError(msg)
@@ -487,8 +526,9 @@ def _truth_semantics(document: dict[str, Any]) -> dict[str, str]:
 
 
 def _hourly_row(row: dict[str, Any]) -> dict[str, Any]:
+    _object(row, "hourly row")
     bucket = row.get("lead_bucket")
-    if bucket not in KNOWN_LEAD_BUCKETS:
+    if not isinstance(bucket, str) or bucket not in KNOWN_LEAD_BUCKETS:
         msg = (
             f"unknown lead_bucket {bucket!r}; the pipeline's horizon changed and "
             f"the consumer's enum would reject the whole document"
@@ -509,6 +549,7 @@ def _hourly_row(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def _daily_row(row: dict[str, Any]) -> dict[str, Any]:
+    _object(row, "daily row")
     date_local = row.get("date_local")
     if not isinstance(date_local, str):
         msg = "daily row has no date_local"
@@ -526,12 +567,27 @@ def _daily_row(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _transform_rows(
+    document: dict[str, Any],
+    product: str,
+    builder: Callable[[dict[str, Any]], dict[str, Any]],
+) -> list[dict[str, Any]]:
+    result = []
+    for index, row in enumerate(_product_rows(document, product)):
+        try:
+            result.append(builder(row))
+        except RefusedError as exc:
+            raise RefusedError(f"{product}[{index}]: {exc}") from exc
+    return result
+
+
 def transform(document: dict[str, Any], published_at: datetime) -> dict[str, Any]:
     """Map the reviewed schema-v5/v6 shapes onto the open-sun contract.
 
     Schema 6 changes minutely release attribution. The published hourly/daily
     shape is compatible with schema 5; minutely rows are deliberately omitted.
     """
+    _object(document, "forecast")
     version = document.get("schema_version")
     if type(version) is not int or version not in SUPPORTED_SOURCE_SCHEMA_VERSIONS:
         msg = (
@@ -541,7 +597,7 @@ def transform(document: dict[str, Any], published_at: datetime) -> dict[str, Any
         raise RefusedError(msg)
 
     status = document.get("status")
-    if status not in {"ready", "degraded"}:
+    if not isinstance(status, str) or status not in {"ready", "degraded"}:
         msg = f"unknown status {status!r}"
         raise RefusedError(msg)
 
@@ -572,8 +628,8 @@ def transform(document: dict[str, Any], published_at: datetime) -> dict[str, Any
         "status_reason": status_reason,
         "units": dict(UNITS),
         "truth_semantics": _truth_semantics(document),
-        "hourly": [_hourly_row(row) for row in document.get("hourly") or []],
-        "daily": [_daily_row(row) for row in document.get("daily") or []],
+        "hourly": _transform_rows(document, "hourly", _hourly_row),
+        "daily": _transform_rows(document, "daily", _daily_row),
     }
 
 
@@ -870,17 +926,18 @@ def push(git_dir: Path, remote: str, branch: str) -> None:
 # --------------------------------------------------------------------------
 
 
+def _report_card_failure(reason: str) -> None:
+    """Report an unexpected optional-helper failure from its exception handler."""
+    print(f"warning: omitting town-card.json: {reason}", file=sys.stderr, flush=True)
+    traceback.print_exc()
+
+
 def prepare_town_card(payload: dict[str, Any], current: Any) -> PreparedFile | None:
     """An optional output may fail without stopping the core publication."""
     try:
         import town_card as helper
     except Exception:
-        print(
-            "warning: omitting town-card.json: helper unavailable",
-            file=sys.stderr,
-            flush=True,
-        )
-        traceback.print_exc()
+        _report_card_failure("helper unavailable")
         return None
 
     api_version = getattr(helper, "TOWN_CARD_API_VERSION", None)
@@ -901,15 +958,13 @@ def prepare_town_card(payload: dict[str, Any], current: Any) -> PreparedFile | N
             not callable(build_town_card)
             or not isinstance(CardInputError, type)
             or not issubclass(CardInputError, Exception)
+            or CardInputError.__module__ == "builtins"
         ):
-            raise TypeError("helper API exports must be a builder and exception class")
+            raise TypeError(
+                "helper API exports must be a builder and custom exception class"
+            )
     except Exception:
-        print(
-            "warning: omitting town-card.json: unexpected error",
-            file=sys.stderr,
-            flush=True,
-        )
-        traceback.print_exc()
+        _report_card_failure("unexpected error")
         return None
 
     try:
@@ -926,12 +981,7 @@ def prepare_town_card(payload: dict[str, Any], current: Any) -> PreparedFile | N
     except CardInputError as exc:
         print(f"warning: omitting town-card.json: {exc}", file=sys.stderr, flush=True)
     except Exception:
-        print(
-            "warning: omitting town-card.json: unexpected error",
-            file=sys.stderr,
-            flush=True,
-        )
-        traceback.print_exc()
+        _report_card_failure("unexpected error")
     return None
 
 
