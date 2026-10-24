@@ -49,7 +49,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-PUBLISHER_VERSION = "1.4.3"
+PUBLISHER_VERSION = "1.4.4"
 SUPPORTED_TOWN_CARD_API_VERSION = 1
 CONTRACT_VERSION = 1
 SOURCE_SCHEMA_VERSION = 6
@@ -104,12 +104,26 @@ HOLD_MAX_AGE_SECONDS = 6 * 3600
 CLOCK_SKEW_TOLERANCE_SECONDS = 300
 
 
-def remember_good(source: Path, held: Path = HELD_GOOD) -> None:
-    """Keep a copy of the newest ready document for degraded-window holds."""
+def _write_held_snapshot(content: bytes, held: Path) -> None:
+    """Atomically retain the exact source bytes already validated by the caller."""
     held.parent.mkdir(parents=True, exist_ok=True)
     partial = held.with_suffix(".partial")
-    shutil.copyfile(source, partial)
-    partial.replace(held)
+    try:
+        partial.write_bytes(content)
+        partial.replace(held)
+    finally:
+        partial.unlink(missing_ok=True)
+
+
+def remember_good(
+    source: Path, held: Path = HELD_GOOD, *, now: datetime | None = None
+) -> None:
+    """Keep a core-valid ready document, independently of publication success."""
+    content, document = _read_document(source)
+    if document.get("status") != "ready":
+        raise RefusedError("only a ready forecast may enter the hold cache")
+    prepare_forecast(document, now if now is not None else datetime.now(UTC))
+    _write_held_snapshot(content, held)
 
 
 def choose_source(
@@ -129,34 +143,38 @@ def choose_source(
     ready document is better until it is genuinely stale, at which point
     degraded-but-current beats ready-but-old. A held document dated further than
     CLOCK_SKEW_TOLERANCE_SECONDS into the future is refused too: its age is not
-    trustworthy, so it cannot be judged stale. Any read or parse problem
-    publishes the candidate unchanged: this guard must never block a publish.
+    trustworthy, so it cannot be judged stale. Expected read or validation
+    failures return the candidate for normal publication/refusal. Unexpected
+    core programming errors retain their traceback.
     """
+    clock = now if now is not None else datetime.now(UTC)
     try:
-        candidate_doc = json.loads(candidate.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return candidate
-    if not isinstance(candidate_doc, dict):
-        # Valid JSON that is not an object: load_document refuses it downstream
-        # with a clean message and exit 2. Returning it here rather than letting
-        # .get() raise AttributeError is what keeps that refusal clean.
+        content, candidate_doc = _read_document(candidate)
+    except RefusedError as exc:
+        _log(f"cannot inspect candidate {candidate}: {exc}; publishing the candidate")
         return candidate
     status = candidate_doc.get("status")
     if status == "ready":
         try:
-            remember_good(candidate, held)
+            prepare_forecast(candidate_doc, clock)
+        except RefusedError as exc:
+            _log(f"not remembering invalid ready document {candidate}: {exc}")
+            return candidate
+        try:
+            _write_held_snapshot(content, held)
         except OSError as exc:
             _log(f"could not remember the ready document: {exc}")
         return candidate
     try:
-        held_doc = json.loads(held.read_text(encoding="utf-8"))
-        issued = datetime.fromisoformat(str(held_doc["issued_at"]))
-    except (OSError, ValueError, KeyError, TypeError):
-        _log(f"status={status}; no held ready document — publishing the candidate")
+        held_doc = load_document(held)
+        payload, _ = prepare_forecast(held_doc, clock)
+    except RefusedError as exc:
+        _log(
+            f"status={status}; no usable held ready document: {exc} — publishing the candidate"
+        )
         return candidate
-    if issued.tzinfo is None:
-        issued = issued.replace(tzinfo=UTC)
-    age = ((now or datetime.now(UTC)) - issued).total_seconds()
+    issued = datetime.fromisoformat(payload["issued_at"])
+    age = (clock - issued).total_seconds()
     within_hold_window = -CLOCK_SKEW_TOLERANCE_SECONDS <= age <= max_age_seconds
     if held_doc.get("status") == "ready" and within_hold_window:
         _log(
@@ -293,8 +311,10 @@ UNITS: dict[str, str] = {
 }
 
 
-def _convert(value: Any, conversion: Conversion) -> float | None:
-    """Convert one value, mapping null and non-finite alike to None.
+def _convert(
+    value: Any, conversion: Conversion, *, field: str = "value"
+) -> float | None:
+    """Map null/non-finite inputs to None; refuse a finite input's overflow.
 
     File inputs reject non-finite numbers before transformation. Keep this
     defensive cleanup for in-memory callers too: bare NaN in the output would
@@ -307,9 +327,20 @@ def _convert(value: Any, conversion: Conversion) -> float | None:
         raise RefusedError(msg)
     if not math.isfinite(value):
         return None
-    _, convert, digits = conversion
-    # `+ 0.0` normalises the -0.0 that round() produces for small negatives.
-    return round(convert(float(value)), digits) + 0.0
+    target, convert, digits = conversion
+    try:
+        converted = convert(float(value))
+        if not math.isfinite(converted):
+            raise RefusedError(
+                f"{field}: conversion to {target} produced a non-finite value"
+            )
+        # `+ 0.0` normalises the -0.0 that round() produces for small negatives.
+        rounded = round(converted, digits) + 0.0
+    except OverflowError as exc:
+        raise RefusedError(f"{field}: conversion to {target} overflowed") from exc
+    if not math.isfinite(rounded):
+        raise RefusedError(f"{field}: rounded {target} is non-finite")
+    return rounded
 
 
 def _lookup(variable: str, table: dict[str, Conversion], product: str) -> Conversion:
@@ -361,7 +392,9 @@ def _convert_values(source: Any, table: dict[str, Conversion], product: str) -> 
     converted: dict[str, Any] = {}
     for variable, value in source.items():
         conversion = _lookup(variable, table, product)
-        converted[conversion[0]] = _convert(value, conversion)
+        converted[conversion[0]] = _convert(
+            value, conversion, field=f"{product} values.{variable}"
+        )
     return converted
 
 
@@ -386,7 +419,13 @@ def _convert_quantiles(source: Any, table: dict[str, Conversion], product: str) 
             raise RefusedError(msg)
         levels: dict[str, float] = {}
         for level, value in grid.items():
-            if (converted_value := _convert(value, conversion)) is not None:
+            if (
+                converted_value := _convert(
+                    value,
+                    conversion,
+                    field=f"{product} quantiles.{variable}[{level!r}]",
+                )
+            ) is not None:
                 levels[level] = converted_value
         if levels:
             converted[conversion[0]] = levels
@@ -569,9 +608,11 @@ def strict_json_loads(content: str | bytes, source: Path) -> Any:
         raise RefusedError(f"{source} is not valid JSON: {exc}") from exc
 
 
-def load_document(source: Path) -> dict[str, Any]:
+def _read_document(source: Path) -> tuple[bytes, dict[str, Any]]:
+    """Keep the original bytes alongside the strictly parsed source object."""
     try:
-        raw = source.read_text(encoding="utf-8")
+        content = source.read_bytes()
+        raw = content.decode("utf-8")
     except (OSError, UnicodeDecodeError) as exc:
         msg = f"cannot read {source}: {exc}"
         raise RefusedError(msg) from exc
@@ -579,7 +620,11 @@ def load_document(source: Path) -> dict[str, Any]:
     if not isinstance(document, dict):
         msg = f"{source} does not contain a JSON object"
         raise RefusedError(msg)
-    return document
+    return content, document
+
+
+def load_document(source: Path) -> dict[str, Any]:
+    return _read_document(source)[1]
 
 
 def serialise(payload: dict[str, Any]) -> bytes:
@@ -617,6 +662,14 @@ class PreparedFile:
         return cls(serialise(payload), hashlib.sha256(canonical).hexdigest())
 
 
+def prepare_forecast(
+    document: dict[str, Any], published_at: datetime
+) -> tuple[dict[str, Any], PreparedFile]:
+    """The same core transform/serialization checks for publication and holds."""
+    payload = transform(document, published_at)
+    return payload, PreparedFile.document(payload)
+
+
 # --------------------------------------------------------------------------
 # Git
 # --------------------------------------------------------------------------
@@ -648,8 +701,9 @@ no history and no diffs -- every file must be rewritten together or the ones
 left out are deleted. `vercel.json` here disables deployments for the branch.
 
 The contracts are consumed by `lib/forecast-schemas.ts` and `lib/schemas.ts` on
-`main`; publisher and consumer must change together. `publisher_version`
-identifies the exact script that produced each document.
+`main`; publisher and consumer must change together. `forecast.json` includes
+`publisher_version`, identifying the forecast publisher release. The card and
+station documents do not carry that release marker.
 """
 
 # Names this script writes itself; an --include-dir may not shadow them.
@@ -745,7 +799,10 @@ def collect_extra_blobs(include_dir: Path) -> tuple[dict[str, PreparedFile], Any
             # be an unusually quiet way to lose the forecast.
             msg = f"{path.name} in {include_dir} collides with a file this script owns"
             raise RefusedError(msg)
-        content = path.read_bytes()
+        try:
+            content = path.read_bytes()
+        except OSError as exc:
+            raise RefusedError(f"cannot read {path}: {exc}") from exc
         # Refuse rather than publish a file the consumer cannot parse; a stale
         # document keeps the page working, a truncated one does not.
         document = strict_json_loads(content, path)
@@ -817,7 +874,6 @@ def prepare_town_card(payload: dict[str, Any], current: Any) -> PreparedFile | N
     """An optional output may fail without stopping the core publication."""
     try:
         import town_card as helper
-        from town_card import CardInputError, build_town_card
     except Exception:
         print(
             "warning: omitting town-card.json: helper unavailable",
@@ -836,6 +892,24 @@ def prepare_town_card(payload: dict[str, Any], current: Any) -> PreparedFile | N
             file=sys.stderr,
             flush=True,
         )
+        return None
+
+    try:
+        build_town_card = helper.build_town_card
+        CardInputError = helper.CardInputError
+        if (
+            not callable(build_town_card)
+            or not isinstance(CardInputError, type)
+            or not issubclass(CardInputError, Exception)
+        ):
+            raise TypeError("helper API exports must be a builder and exception class")
+    except Exception:
+        print(
+            "warning: omitting town-card.json: unexpected error",
+            file=sys.stderr,
+            flush=True,
+        )
+        traceback.print_exc()
         return None
 
     try:
@@ -966,7 +1040,9 @@ def run(
 
     try:
         document = load_document(resolve_source(source))
-        payload = transform(document, now if now is not None else datetime.now(UTC))
+        payload, forecast_file = prepare_forecast(
+            document, now if now is not None else datetime.now(UTC)
+        )
         extra_blobs, current = (
             collect_extra_blobs(Path(include_dir)) if include_dir else ({}, None)
         )
@@ -974,7 +1050,6 @@ def run(
         print(f"refusing to publish: {exc}", file=sys.stderr, flush=True)
         return 2
 
-    forecast_file = PreparedFile.document(payload)
     body = forecast_file.content
     issued_at = payload["issued_at"]
     town = prepare_town_card(payload, current)

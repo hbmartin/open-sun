@@ -79,6 +79,51 @@ function expectBands(actual: QuantileBand[], expected: WireBand[]) {
 }
 
 describe("town-card publisher contracts", () => {
+  it.each(edges.condition_only_duplicates)(
+    "uses whole-row last-usable replacement for $name",
+    (testCase) => {
+      const original = documentFor()
+      const first = original.hourly[0]
+      const replacement = makeHourlyRow({
+        ...first,
+        values: testCase.values,
+        quantiles: {},
+      })
+      const mapped = mapForecastDocument(
+        documentFor({ hourly: [...original.hourly, replacement] }),
+        new Date(first.valid_time),
+      )
+      const hour = mapped.days
+        .flatMap((day) => day.hours)
+        .find((point) => point?.validTime === first.valid_time)!
+      expect(hour.temp).toBeUndefined()
+      expect(hour.pop).toBeUndefined()
+      expect(hour.bands[ForecastMetric.TEMP]).toEqual([])
+    },
+  )
+
+  it("intentionally keeps the UI's clear-sky fallback for temperature-only hours", () => {
+    const testCase = edges.temperature_only
+    const hours = fixture.expected.forecast.hours
+    const start = new Date(hours[0].valid_time)
+    const hourly = hours.map((hour) =>
+      makeHourlyRow({
+        valid_time: hour.valid_time,
+        values: { temp_f: testCase.temp_f },
+        quantiles: {},
+      }),
+    )
+    const mapped = mapForecastDocument(documentFor({ hourly }), start)
+    const model = buildNextHours(mapped.days, start, ForecastMetric.TEMP)!
+    expect(model.points).toHaveLength(24)
+    expect(model.points.map((point) => point.value)).toEqual(
+      Array.from({ length: 24 }, () => testCase.temp_f),
+    )
+    expect(model.summary).toBe(testCase.ui_outlook)
+    expect(buildSummary(model.points, model.dayParts)).toBe(testCase.ui_outlook)
+    expect(model.summary).not.toBe(testCase.card_outlook)
+  })
+
   it("matches mapped UI bands on the shared document", () => {
     const forecast = mapForecastDocument(
       documentFor(),
