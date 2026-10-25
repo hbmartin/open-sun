@@ -50,10 +50,21 @@ class PublisherPathsTests(unittest.TestCase):
         return project
 
     def document(self, path):
-        path.write_text(json.dumps({
-            "schema_version": 6, "status": "ready",
-            "issued_at": "2026-10-19T18:35:00+00:00", "hourly": [], "daily": [],
-        }))
+        path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 6,
+                    "status": "ready",
+                    "timezone": "America/Los_Angeles",
+                    "latitude": 34.2768,
+                    "longitude": -117.1692,
+                    "dataset_fingerprint": "test",
+                    "issued_at": "2026-10-19T18:35:00+00:00",
+                    "hourly": [],
+                    "daily": [],
+                }
+            )
+        )
         return path
 
     def checkout(self, parent):

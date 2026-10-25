@@ -27,29 +27,34 @@ Exit codes:
     1  unexpected core programming/runtime error (traceback retained)
     2  refused: the source document is missing, malformed, or violates the
        contract (nothing is pushed, so the last good document keeps serving)
-    3  a Git operation failed (pushes are retried)
+    3  a Git operation or publication lock failed (pushes are retried)
 """
 
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import json
 import math
+import os
+import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
 import time
 import tomllib
 import traceback
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
-PUBLISHER_VERSION = "1.4.5"
+PUBLISHER_VERSION = "1.4.6"
 SUPPORTED_TOWN_CARD_API_VERSION = 1
 CONTRACT_VERSION = 1
 SOURCE_SCHEMA_VERSION = 6
@@ -57,6 +62,9 @@ SUPPORTED_SOURCE_SCHEMA_VERSIONS = frozenset({5, SOURCE_SCHEMA_VERSION})
 
 DEFAULT_REMOTE = "git@github.com:hbmartin/open-sun.git"
 DEFAULT_BRANCH = "data"
+STATION_TIME_ZONE = "America/Los_Angeles"
+MAX_SAFE_INTEGER = 2**53 - 1
+PUBLICATION_LOCK_TIMEOUT_S = 30
 
 STAMP = Path.home() / "Library/Application Support/grounded-weather-forecast/last-published"
 
@@ -107,12 +115,17 @@ CLOCK_SKEW_TOLERANCE_SECONDS = 300
 def _write_held_snapshot(content: bytes, held: Path) -> None:
     """Atomically retain the exact source bytes already validated by the caller."""
     held.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        mode = stat.S_IMODE(held.stat().st_mode)
+    except FileNotFoundError:
+        mode = 0o600
     partial = None
     try:
         with tempfile.NamedTemporaryFile(
             dir=held.parent, prefix=f".{held.name}.", suffix=".partial", delete=False
         ) as output:
             partial = Path(output.name)
+            os.fchmod(output.fileno(), mode)
             output.write(content)
         partial.replace(held)
     finally:
@@ -133,11 +146,10 @@ def remember_good(
     source: Path, held: Path = HELD_GOOD, *, now: datetime | None = None
 ) -> None:
     """Keep a core-valid ready document, independently of publication success."""
-    content, document = _validated_snapshot(
-        source, now if now is not None else datetime.now(UTC)
-    )
+    content, document = _read_document(source)
     if document.get("status") != "ready":
         raise RefusedError("only a ready forecast may enter the hold cache")
+    prepare_forecast(document, now if now is not None else datetime.now(UTC))
     _write_held_snapshot(content, held)
 
 
@@ -147,6 +159,8 @@ def choose_source(
     *,
     max_age_seconds: float = HOLD_MAX_AGE_SECONDS,
     now: datetime | None = None,
+    remote: str = DEFAULT_REMOTE,
+    branch: str = DEFAULT_BRANCH,
 ) -> Path:
     """The document to publish: hold the last ready one through degraded windows.
 
@@ -193,6 +207,10 @@ def choose_source(
             raise RefusedError(f"held document is dated {-age / 60:.0f}m in the future")
         if age > max_age_seconds:
             raise RefusedError(f"held document too old ({age / 3600:.1f}h)")
+        floor = publication_floor(
+            remote, branch, read_publication_state(remote, branch)
+        )
+        refuse_rollback(issued, floor)
         prepare_forecast(held_doc, clock)
     except RefusedError as exc:
         _log(
@@ -390,12 +408,51 @@ def _rename_map(source: Any, table: dict[str, Conversion], product: str) -> dict
 
 def _release_id_list(value: Any) -> list[str]:
     """The top-level promoted-release cohort; absent means an empty cohort."""
+    return _string_list(value, "release_ids")
+
+
+def _string_list(value: Any, field: str) -> list[str]:
     if value is None:
         return []
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
-        msg = f"release_ids is not a list of strings: {value!r}"
+        msg = f"{field} is not a list of strings"
         raise RefusedError(msg)
     return list(value)
+
+
+def _number(
+    value: Any,
+    field: str,
+    minimum: float,
+    maximum: float = math.inf,
+    *,
+    integer: bool = False,
+) -> int | float:
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        raise RefusedError(f"{field}: expected a number")
+    try:
+        finite = math.isfinite(float(value))
+    except OverflowError:
+        finite = False
+    if not finite:
+        raise RefusedError(f"{field}: expected a finite number")
+    if value < minimum or value > maximum:
+        raise RefusedError(f"{field}: must be between {minimum} and {maximum}")
+    if integer and value != int(value):
+        raise RefusedError(f"{field}: expected an integer")
+    return value
+
+
+# Point-value constraints in ForecastHourlyValuesSchema/ForecastDailyValuesSchema.
+# Quantile grids intentionally have no corresponding physical range checks.
+VALUE_RANGES = {
+    "humidity_pct": (0, 100),
+    "pop": (0, 1),
+    "wind_speed_mph": (0, math.inf),
+    "wind_gust_mph": (0, math.inf),
+    "precip_in": (0, math.inf),
+    "precip_sum_in": (0, math.inf),
+}
 
 
 def _convert_values(source: Any, table: dict[str, Conversion], product: str) -> dict[str, Any]:
@@ -408,6 +465,11 @@ def _convert_values(source: Any, table: dict[str, Conversion], product: str) -> 
         converted[conversion[0]] = _convert(
             value, conversion, field=f"{product} values.{variable}"
         )
+        target = conversion[0]
+        if converted[target] is not None and target in VALUE_RANGES:
+            _number(
+                converted[target], f"{product} values.{target}", *VALUE_RANGES[target]
+            )
     return converted
 
 
@@ -463,6 +525,8 @@ def _normalise_timestamp(value: Any, field: str) -> str:
     if parsed.tzinfo is None:
         msg = f"{field} has no UTC offset: {value!r}"
         raise RefusedError(msg)
+    if parsed.utcoffset().total_seconds() % 60:
+        raise RefusedError(f"{field}: UTC offset must use whole minutes")
     return parsed.replace(microsecond=0).isoformat()
 
 
@@ -536,12 +600,14 @@ def _hourly_row(row: dict[str, Any]) -> dict[str, Any]:
         raise RefusedError(msg)
     return {
         "valid_time": _normalise_timestamp(row.get("valid_time"), "hourly.valid_time"),
-        "lead_hours": row.get("lead_hours"),
+        "lead_hours": _number(row.get("lead_hours"), "hourly.lead_hours", 0),
         "lead_bucket": bucket,
         "values": _convert_values(row.get("values"), HOURLY_VARIABLES, "hourly"),
         "methods": _rename_map(row.get("methods"), HOURLY_VARIABLES, "hourly"),
         "release_ids": _rename_map(row.get("release_ids"), HOURLY_VARIABLES, "hourly"),
-        "quantiles": _convert_quantiles(row.get("quantiles"), HOURLY_VARIABLES, "hourly"),
+        "quantiles": _convert_quantiles(
+            row.get("quantiles"), HOURLY_VARIABLES, "hourly"
+        ),
         "selection_reasons": _rename_map(
             row.get("selection_reasons"), HOURLY_VARIABLES, "hourly"
         ),
@@ -554,9 +620,19 @@ def _daily_row(row: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(date_local, str):
         msg = "daily row has no date_local"
         raise RefusedError(msg)
+    try:
+        if not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", date_local):
+            raise ValueError("expected YYYY-MM-DD")
+        date.fromisoformat(date_local)
+    except ValueError as exc:
+        raise RefusedError(
+            f"daily.date_local: invalid calendar date {date_local!r}"
+        ) from exc
     return {
         "date_local": date_local,
-        "lead_days": row.get("lead_days"),
+        "lead_days": _number(
+            row.get("lead_days"), "daily.lead_days", 0, MAX_SAFE_INTEGER, integer=True
+        ),
         "values": _convert_values(row.get("values"), DAILY_VARIABLES, "daily"),
         "methods": _rename_map(row.get("methods"), DAILY_VARIABLES, "daily"),
         "release_ids": _rename_map(row.get("release_ids"), DAILY_VARIABLES, "daily"),
@@ -605,8 +681,16 @@ def transform(document: dict[str, Any], published_at: datetime) -> dict[str, Any
     # fallback methods and says so in status/status_reason; blanking the site
     # over an evidence-gate trip would be the worse failure.
     status_reason = document.get("status_reason")
+    if status_reason is not None and not isinstance(status_reason, str):
+        raise RefusedError("status_reason: expected a string or null")
     if status == "degraded" and not status_reason:
         status_reason = "serving gate reported no usable backtest evidence"
+
+    if document.get("timezone") != STATION_TIME_ZONE:
+        raise RefusedError(f"timezone: expected {STATION_TIME_ZONE!r}")
+    fingerprint = document.get("dataset_fingerprint")
+    if not isinstance(fingerprint, str) or not fingerprint:
+        raise RefusedError("dataset_fingerprint: expected a nonempty string")
 
     return {
         "schema_version": CONTRACT_VERSION,
@@ -619,10 +703,10 @@ def transform(document: dict[str, Any], published_at: datetime) -> dict[str, Any
         ),
         "issue_interval_seconds": ISSUE_INTERVAL_SECONDS,
         "timezone": document.get("timezone"),
-        "latitude": document.get("latitude"),
-        "longitude": document.get("longitude"),
-        "dataset_fingerprint": document.get("dataset_fingerprint"),
-        "sources": document.get("sources") or [],
+        "latitude": _number(document.get("latitude"), "latitude", -90, 90),
+        "longitude": _number(document.get("longitude"), "longitude", -180, 180),
+        "dataset_fingerprint": fingerprint,
+        "sources": _string_list(document.get("sources"), "sources"),
         "release_ids": _release_id_list(document.get("release_ids")),
         "status": status,
         "status_reason": status_reason,
@@ -660,7 +744,7 @@ def strict_json_loads(content: str | bytes, source: Path) -> Any:
             parse_float=_finite_json_float,
             parse_int=_finite_json_int,
         )
-    except ValueError as exc:
+    except (ValueError, RecursionError) as exc:
         raise RefusedError(f"{source} is not valid JSON: {exc}") from exc
 
 
@@ -1002,16 +1086,22 @@ def publication_state_path(remote: str, branch: str) -> Path:
     return STAMP.with_name("last-published-states") / f"{name}.json"
 
 
-def read_publication_state(remote: str, branch: str) -> str | None:
+@dataclass(frozen=True)
+class PublicationState:
+    fingerprint: str
+    issued_at: str
+
+
+def read_publication_state(remote: str, branch: str) -> PublicationState | None:
     path = publication_state_path(remote, branch)
     try:
-        state = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        state = strict_json_loads(path.read_bytes(), path)
+    except (OSError, RefusedError):
         return None
     if (
         not isinstance(state, dict)
         or type(state.get("schema_version")) is not int
-        or state["schema_version"] != 1
+        or state["schema_version"] != 2
         or state.get("remote") != remote
         or state.get("branch") != branch
     ):
@@ -1022,12 +1112,73 @@ def read_publication_state(remote: str, branch: str) -> str | None:
         and len(fingerprint) == 64
         and all(c in "0123456789abcdef" for c in fingerprint)
     ):
-        return fingerprint
+        try:
+            issued_at = _normalise_timestamp(state.get("issued_at"), "state.issued_at")
+        except RefusedError:
+            return None
+        return PublicationState(fingerprint, issued_at)
     return None
 
 
-def write_publication_state(fingerprint: str, remote: str, branch: str) -> None:
-    """Record a successful push atomically; failure only costs a redundant push."""
+def publication_floor(
+    remote: str, branch: str, state: PublicationState | None
+) -> datetime | None:
+    """The newest trustworthy local issue time for this exact destination."""
+    floors = [datetime.fromisoformat(state.issued_at)] if state is not None else []
+    if remote == DEFAULT_REMOTE and branch == DEFAULT_BRANCH:
+        try:
+            stamped = _normalise_timestamp(
+                STAMP.read_text(encoding="utf-8").strip(), "stamp"
+            )
+        except (OSError, UnicodeError, RefusedError):
+            pass
+        else:
+            floors.append(datetime.fromisoformat(stamped))
+    return max(floors) if floors else None
+
+
+def refuse_rollback(issued: datetime, floor: datetime | None) -> None:
+    if floor is not None and issued < floor:
+        raise RefusedError(
+            f"issued_at {issued.isoformat()} is older than the last known publication "
+            f"{floor.isoformat()}"
+        )
+
+
+@contextmanager
+def publication_lock(remote: str, branch: str) -> Iterator[None]:
+    """Serialize cooperating publishers without replacing/removing the lock inode."""
+    path = publication_state_path(remote, branch).with_suffix(".lock")
+    descriptor = None
+    try:
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            descriptor = os.open(path, os.O_CREAT | os.O_RDWR, 0o600)
+            deadline = time.monotonic() + PUBLICATION_LOCK_TIMEOUT_S
+            while True:
+                try:
+                    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise GitError(f"timed out waiting for publication lock {path}")
+                    time.sleep(min(0.05, remaining))
+        except OSError as exc:
+            raise GitError(f"cannot acquire publication lock {path}: {exc}") from exc
+        yield
+    finally:
+        if descriptor is not None:
+            try:
+                os.close(descriptor)
+            except OSError as exc:
+                _log(f"warning: could not close publication lock {path}: {exc}")
+
+
+def write_publication_state(
+    fingerprint: str, remote: str, branch: str, issued_at: str
+) -> None:
+    """Record a successful push; write failure weakens local rollback protection."""
     path = publication_state_path(remote, branch)
     partial = None
     try:
@@ -1042,10 +1193,11 @@ def write_publication_state(fingerprint: str, remote: str, branch: str) -> None:
             partial = Path(output.name)
             json.dump(
                 {
-                    "schema_version": 1,
+                    "schema_version": 2,
                     "remote": remote,
                     "branch": branch,
                     "fingerprint": fingerprint,
+                    "issued_at": issued_at,
                 },
                 output,
             )
@@ -1125,41 +1277,51 @@ def run(
         )
         return 0
 
-    if (
-        not force
-        and not no_push
-        and read_publication_state(remote, branch) == fingerprint
-    ):
-        _log(f"{issued_at}: publication state unchanged; skipping")
-        return 0
-
-    temporary = tempfile.mkdtemp(
-        prefix="grounded-publish.", dir=Path.home() / "Library/Caches"
-    )
     try:
-        git_dir = Path(temporary) / "repo.git"
-        commit = build_commit(
-            {name: entry.content for name, entry in files.items()},
-            git_dir,
-            branch,
-            issued_at,
-        )
-        if no_push:
-            # A debugging flag: keep the repo behind so the tree can be inspected.
-            _log(f"built {commit} (not pushed); inspect with:")
-            _log(f"  git --git-dir {git_dir} cat-file -p {commit}^{{tree}}")
-            return 0
-        push(git_dir, remote, branch)
+        with nullcontext() if no_push else publication_lock(remote, branch):
+            if not no_push:
+                state = read_publication_state(remote, branch)
+                floor = publication_floor(remote, branch, state)
+                if floor is None:
+                    _log(
+                        f"no trustworthy publication history for {remote} {branch}; "
+                        "local rollback protection unavailable"
+                    )
+                refuse_rollback(datetime.fromisoformat(issued_at), floor)
+                if not force and state is not None and state.fingerprint == fingerprint:
+                    _log(f"{issued_at}: publication state unchanged; skipping")
+                    return 0
+
+            temporary = tempfile.mkdtemp(
+                prefix="grounded-publish.", dir=Path.home() / "Library/Caches"
+            )
+            try:
+                git_dir = Path(temporary) / "repo.git"
+                commit = build_commit(
+                    {name: entry.content for name, entry in files.items()},
+                    git_dir,
+                    branch,
+                    issued_at,
+                )
+                if no_push:
+                    # Keep the debug repo so operators can inspect its tree.
+                    _log(f"built {commit} (not pushed); inspect with:")
+                    _log(f"  git --git-dir {git_dir} cat-file -p {commit}^{{tree}}")
+                    return 0
+                push(git_dir, remote, branch)
+            finally:
+                if not no_push:
+                    shutil.rmtree(temporary, ignore_errors=True)
+
+            if remote == DEFAULT_REMOTE and branch == DEFAULT_BRANCH:
+                write_stamp(issued_at)
+            write_publication_state(fingerprint, remote, branch, issued_at)
+    except RefusedError as exc:
+        print(f"refusing to publish: {exc}", file=sys.stderr, flush=True)
+        return 2
     except GitError as exc:
         print(f"publish failed: {exc}", file=sys.stderr, flush=True)
         return 3
-    finally:
-        if not no_push:
-            shutil.rmtree(temporary, ignore_errors=True)
-
-    if remote == DEFAULT_REMOTE and branch == DEFAULT_BRANCH:
-        write_stamp(issued_at)
-    write_publication_state(fingerprint, remote, branch)
     _log(
         f"published {issued_at} ({payload['status']}) as {commit[:12]} "
         f"to {branch}: {len(body)} bytes"

@@ -75,6 +75,7 @@ class PublisherTownCardTest(unittest.TestCase):
             "latitude": 34.2768,
             "longitude": -117.1692,
             "timezone": "America/Los_Angeles",
+            "dataset_fingerprint": "test",
             "hourly": [
                 {
                     "valid_time": (
@@ -90,6 +91,7 @@ class PublisherTownCardTest(unittest.TestCase):
             "daily": [
                 {
                     "date_local": "2026-10-22",
+                    "lead_days": 0,
                     "values": {"temp_max_c": 20, "temp_min_c": 5},
                 }
             ],
@@ -177,7 +179,7 @@ class PublisherTownCardTest(unittest.TestCase):
         for name in ("current.json", "daily.json", "hourly.json"):
             self.assertEqual(self.trees[-1][name], (self.staged / name).read_bytes())
         self.assertEqual(
-            json.loads(self.trees[-1]["forecast.json"])["publisher_version"], "1.4.5"
+            json.loads(self.trees[-1]["forecast.json"])["publisher_version"], "1.4.6"
         )
 
     def test_single_card_build_and_one_commit_contains_all_documents(self):
@@ -193,7 +195,7 @@ class PublisherTownCardTest(unittest.TestCase):
             card["forecast"]["hours"][0]["valid_time"], "2026-10-22T13:00:00+00:00"
         )
         self.assertEqual(self.stamp.read_text(), self.document["issued_at"] + "\n")
-        self.assertEqual(json.loads(self.state.read_text())["schema_version"], 1)
+        self.assertEqual(json.loads(self.state.read_text())["schema_version"], 2)
 
     def test_invalid_current_recovers_observation_and_wrong_station_omits_card(self):
         for current in (
@@ -291,7 +293,7 @@ class PublisherTownCardTest(unittest.TestCase):
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(
-                    json.loads(result.stdout)["publisher_version"], "1.4.5"
+                    json.loads(result.stdout)["publisher_version"], "1.4.6"
                 )
                 self.assertIn(
                     "ZoneInfoNotFoundError" if helper else "ModuleNotFoundError",
@@ -357,11 +359,11 @@ class PublisherTownCardTest(unittest.TestCase):
         self.assertEqual(
             self.invoke_installed(harness, failed_home, "fail").returncode, 3
         )
-        self.assertFalse(
-            (
-                failed_home / "Library/Application Support/grounded-weather-forecast"
-            ).exists()
+        failed_state = (
+            failed_home / "Library/Application Support/grounded-weather-forecast"
         )
+        self.assertFalse((failed_state / "last-published").exists())
+        self.assertEqual(list(failed_state.rglob("*.json")), [])
 
     def test_installed_old_and_incompatible_helpers_publish_core_tree_only(self):
         harness = self.install_harness()
@@ -497,6 +499,7 @@ class PublisherTownCardTest(unittest.TestCase):
 
     def test_invalid_ready_inputs_cannot_poison_or_pin_the_hold_cache(self):
         self.invoke()
+        baseline = self.stamp.read_bytes(), self.state.read_bytes()
         valid = self.source.read_bytes()
         held = self.root / "held/last-good-forecast.json"
         invalid = []
@@ -517,6 +520,8 @@ class PublisherTownCardTest(unittest.TestCase):
 
         for name, content in invalid:
             with self.subTest(name=name):
+                self.stamp.write_bytes(baseline[0])
+                self.state.write_bytes(baseline[1])
                 self.source.write_bytes(valid)
                 with contextlib.redirect_stdout(io.StringIO()):
                     self.assertEqual(
@@ -1171,11 +1176,13 @@ class PublisherTownCardTest(unittest.TestCase):
             None,
             "{",
             "[]",
-            json.dumps(dict(valid_state, schema_version=2)),
+            json.dumps(dict(valid_state, schema_version=1)),
             json.dumps(dict(valid_state, schema_version=True)),
             json.dumps(dict(valid_state, remote="wrong")),
             json.dumps(dict(valid_state, branch="wrong")),
             json.dumps(dict(valid_state, fingerprint="F" * 64)),
+            json.dumps(dict(valid_state, issued_at=None)),
+            json.dumps(dict(valid_state, issued_at="2026-10-22T12:00:00")),
             '{"schema_version":1,"fingerprint":"bad"}',
         ):
             with self.subTest(contents=contents):
@@ -1216,12 +1223,15 @@ class PublisherTownCardTest(unittest.TestCase):
             patch.object(publisher, "_log_stream", io.StringIO()) as out,
         ):
             publisher.write_publication_state(
-                "f" * 64, publisher.DEFAULT_REMOTE, publisher.DEFAULT_BRANCH
+                "f" * 64,
+                publisher.DEFAULT_REMOTE,
+                publisher.DEFAULT_BRANCH,
+                self.document["issued_at"],
             )
         self.assertEqual(self.state.read_bytes(), previous)
         self.assertIn("could not write publication state", out.getvalue())
         self.assertEqual(
-            sorted(p.name for p in self.state.parent.iterdir()),
+            sorted(p.name for p in self.state.parent.glob("*.json")),
             [self.state.name],
         )
 
