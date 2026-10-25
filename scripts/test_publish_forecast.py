@@ -18,7 +18,10 @@ from __future__ import annotations
 import io
 import json
 import tempfile
+import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -92,7 +95,13 @@ class RememberGoodTest(HoldTestCase):
         remember_good(self.candidate, self.held, now=NOW)
 
         self.assertEqual(json.loads(self.held.read_text()), _document("ready"))
-        self.assertFalse(self.held.with_suffix(".partial").exists())
+        self.assertEqual(list(self.held.parent.glob("*.partial")), [])
+
+    def test_compatibility_entry_point_refuses_non_ready_input(self) -> None:
+        self.write_candidate(_document("degraded"))
+        with self.assertRaisesRegex(RefusedError, "only a ready forecast"):
+            remember_good(self.candidate, self.held, now=NOW)
+        self.assertFalse(self.held.exists())
 
     def test_remembers_exact_validated_bytes_even_if_source_changes(self) -> None:
         content = (json.dumps(_document("ready"), indent=2) + "\r\n").encode()
@@ -115,25 +124,46 @@ class RememberGoodTest(HoldTestCase):
         self.write_held(_document("ready", NOW - timedelta(hours=1)))
         previous = self.held.read_bytes()
         self.write_candidate(_document("ready"))
-        partial = self.held.with_suffix(".partial")
-        original_write = Path.write_bytes
-
-        def truncated_write(path, data):
-            original_write(path, data[:10])
-            raise OSError("injected incomplete cache write")
-
-        for operation, replacement in (
-            ("write_bytes", truncated_write),
-            ("replace", OSError("injected rename failure")),
-        ):
+        original_temporary = tempfile.NamedTemporaryFile
+        for operation in ("write", "replace"):
             with self.subTest(operation=operation):
-                with patch.object(
-                    Path, operation, side_effect=replacement, autospec=True
+                self.logs.seek(0)
+                self.logs.truncate(0)
+
+                @contextmanager
+                def output_file(*args, **kwargs):
+                    with original_temporary(*args, **kwargs) as output:
+                        write = output.write
+
+                        def truncated_write(data):
+                            write(data[:10])
+                            raise OSError("injected incomplete cache write")
+
+                        with patch.object(
+                            output,
+                            "write",
+                            side_effect=truncated_write
+                            if operation == "write"
+                            else write,
+                        ):
+                            yield output
+
+                with (
+                    patch.object(tempfile, "NamedTemporaryFile", output_file),
+                    patch.object(
+                        Path, "replace", side_effect=OSError("injected rename failure")
+                    ),
                 ):
                     self.assertEqual(self.choose(), self.candidate)
                 self.assertEqual(self.held.read_bytes(), previous)
-                self.assertFalse(partial.exists())
+                self.assertEqual(list(self.held.parent.glob("*.partial")), [])
                 self.assertIn("could not remember", self.logs.getvalue())
+                self.assertIn(
+                    "incomplete cache write"
+                    if operation == "write"
+                    else "rename failure",
+                    self.logs.getvalue(),
+                )
 
     def test_unexpected_core_errors_are_not_hidden_by_hold_guard(self) -> None:
         self.write_held(_document("ready", NOW - timedelta(hours=1)))
@@ -152,6 +182,109 @@ class RememberGoodTest(HoldTestCase):
                     ):
                         self.choose()
                     self.assertEqual(self.held.read_bytes(), previous)
+
+    def test_overlapping_writers_cannot_publish_or_remove_another_partial(self) -> None:
+        self.write_held(_document("ready", NOW - timedelta(hours=1)))
+        old = self.held.read_bytes()
+        first = json.dumps(_document("ready") | {"writer": "first"}).encode()
+        delayed = json.dumps(_document("ready") | {"writer": "delayed"}).encode()
+        original_temporary = tempfile.NamedTemporaryFile
+        for interrupted in (False, True):
+            with self.subTest(interrupted=interrupted):
+                self.held.write_bytes(old)
+                paused, release = threading.Event(), threading.Event()
+                paths = []
+
+                @contextmanager
+                def output_file(*args, **kwargs):
+                    with original_temporary(*args, **kwargs) as output:
+                        paths.append(Path(output.name))
+                        write = output.write
+
+                        def staged_write(data):
+                            if data != delayed:
+                                return write(data)
+                            write(data[:10])
+                            output.flush()
+                            paused.set()
+                            if not release.wait(5):
+                                raise RuntimeError("cache test scheduler timeout")
+                            if interrupted:
+                                raise OSError("interrupted concurrent write")
+                            return write(data[10:])
+
+                        with patch.object(output, "write", side_effect=staged_write):
+                            yield output
+
+                with (
+                    patch.object(tempfile, "NamedTemporaryFile", output_file),
+                    ThreadPoolExecutor(max_workers=1) as pool,
+                ):
+                    future = pool.submit(
+                        publish_forecast._write_held_snapshot, delayed, self.held
+                    )
+                    try:
+                        self.assertTrue(paused.wait(5), "delayed writer did not start")
+                        self.assertEqual(self.held.read_bytes(), old)
+                        publish_forecast._write_held_snapshot(first, self.held)
+                        self.assertEqual(self.held.read_bytes(), first)
+                        self.assertEqual(len(set(paths)), 2)
+                        self.assertTrue(
+                            paths[0].exists(),
+                            "first writer removed another writer's partial",
+                        )
+                    finally:
+                        release.set()
+                    if interrupted:
+                        with self.assertRaisesRegex(
+                            OSError, "interrupted concurrent write"
+                        ):
+                            future.result(timeout=5)
+                    else:
+                        future.result(timeout=5)
+                self.assertEqual(
+                    self.held.read_bytes(), first if interrupted else delayed
+                )
+                self.assertEqual(list(self.held.parent.glob("*.partial")), [])
+
+    def test_repeated_concurrent_writes_expose_only_complete_valid_snapshots(
+        self,
+    ) -> None:
+        self.write_held(_document("ready"))
+        sources = [self.root / f"writer-{index}.json" for index in range(4)]
+        allowed = {self.held.read_bytes()}
+        for index, source in enumerate(sources):
+            source.write_text(json.dumps(_document("ready") | {"writer": index}))
+            allowed.add(source.read_bytes())
+        stop = threading.Event()
+        started = threading.Event()
+
+        def read_snapshots():
+            count = 0
+            while not stop.is_set():
+                content = self.held.read_bytes()
+                self.assertIn(content, allowed)
+                self.assertEqual(json.loads(content)["status"], "ready")
+                count += 1
+                started.set()
+            return count
+
+        def write_snapshots(source):
+            for _ in range(20):
+                remember_good(source, self.held, now=NOW)
+
+        with ThreadPoolExecutor(max_workers=5) as pool:
+            reader = pool.submit(read_snapshots)
+            try:
+                self.assertTrue(started.wait(5), "reader did not start")
+                writers = [pool.submit(write_snapshots, source) for source in sources]
+                for writer in writers:
+                    writer.result(timeout=5)
+            finally:
+                stop.set()
+            self.assertGreater(reader.result(timeout=5), 0)
+        self.assertIn(self.held.read_bytes(), allowed)
+        self.assertEqual(list(self.held.parent.glob("*.partial")), [])
 
 
 class ChooseSourceReadyTest(HoldTestCase):
@@ -176,6 +309,29 @@ class ChooseSourceReadyTest(HoldTestCase):
 
 
 class ChooseSourceDegradedTest(HoldTestCase):
+    def test_unexpected_held_validation_errors_still_propagate(self):
+        self.write_candidate(_document("degraded"))
+        self.write_held(_document("ready"))
+        original = publish_forecast.prepare_forecast
+        for error in (
+            AttributeError("core bug"),
+            TypeError("core bug"),
+            OSError("core bug"),
+            ValueError("core bug"),
+        ):
+
+            def prepare(document, clock):
+                if document["status"] == "ready":
+                    raise error
+                return original(document, clock)
+
+            with (
+                self.subTest(error=type(error).__name__),
+                patch.object(publish_forecast, "prepare_forecast", side_effect=prepare),
+            ):
+                with self.assertRaises(type(error)):
+                    self.choose()
+
     def test_holds_a_fresh_ready_document(self) -> None:
         self.write_candidate(_document("degraded"))
         self.write_held(_document("ready", NOW - timedelta(hours=1)))
@@ -262,7 +418,8 @@ class MalformedCandidateTest(HoldTestCase):
         for candidate in ("null", "[1, 2]", '"ready"', "42"):
             with self.subTest(candidate=candidate):
                 self.write_candidate(candidate)
-                self.assertEqual(self.choose(), self.candidate)
+                self.assertEqual(self.choose(), self.held)
+                self.assertIn("rejected incoming document", self.logs.getvalue())
 
     def test_invalid_json_publishes_the_candidate(self) -> None:
         self.write_candidate('{"status": "ready"')
@@ -271,6 +428,55 @@ class MalformedCandidateTest(HoldTestCase):
 
     def test_missing_candidate_publishes_the_candidate(self) -> None:
         self.assertEqual(self.choose(), self.candidate)
+
+    def test_read_failures_consult_a_usable_hold(self) -> None:
+        self.write_held(_document("ready"))
+        for failure in ("missing", "permissions", "utf8"):
+            with self.subTest(failure=failure):
+                self.write_candidate(_document("ready"))
+                original_read = Path.read_bytes
+
+                def read(path):
+                    if path == self.candidate and failure == "permissions":
+                        raise PermissionError("injected unreadable candidate")
+                    return original_read(path)
+
+                if failure == "missing":
+                    self.candidate.unlink()
+                elif failure == "utf8":
+                    self.candidate.write_bytes(b"\xff")
+                with patch.object(Path, "read_bytes", read):
+                    self.assertEqual(self.choose(), self.held)
+
+    def test_malformed_held_rows_fall_back_and_expired_rows_are_never_transformed(
+        self,
+    ) -> None:
+        self.write_candidate(_document("degraded"))
+        original = publish_forecast.prepare_forecast
+        for age in (1, 24, -1):
+            with self.subTest(age=age):
+                self.write_held(
+                    _document("ready", NOW - timedelta(hours=age)) | {"hourly": [None]}
+                )
+                with patch.object(
+                    publish_forecast, "prepare_forecast", wraps=original
+                ) as prepare:
+                    self.assertEqual(self.choose(), self.candidate)
+                self.assertEqual(prepare.call_count, 2 if age == 1 else 1)
+
+    def test_unreadable_held_copy_falls_back(self) -> None:
+        self.write_candidate(_document("degraded"))
+        self.write_held(_document("ready"))
+        original_read = Path.read_bytes
+
+        def read(path):
+            if path == self.held:
+                raise PermissionError("injected unreadable hold")
+            return original_read(path)
+
+        with patch.object(Path, "read_bytes", read):
+            self.assertEqual(self.choose(), self.candidate)
+        self.assertIn("injected unreadable hold", self.logs.getvalue())
 
 
 class LeadBucketTest(unittest.TestCase):
@@ -295,6 +501,75 @@ class LeadBucketTest(unittest.TestCase):
     def test_refuses_a_bucket_beyond_the_published_horizon(self) -> None:
         with self.assertRaisesRegex(RefusedError, "unknown lead_bucket '168-240h'"):
             _hourly_row(self._row("168-240h"))
+
+
+class CoreValidationTest(unittest.TestCase):
+    def test_standalone_row_builders_refuse_non_objects(self):
+        for builder in (_hourly_row, _daily_row):
+            for value in (None, [], "", 0, False):
+                with self.subTest(builder=builder.__name__, value=value):
+                    with self.assertRaisesRegex(
+                        RefusedError, "row: expected an object"
+                    ):
+                        builder(value)
+
+    def test_transform_refuses_non_object_documents(self):
+        for value in (None, [], "", 0, False):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(
+                    RefusedError, "forecast: expected an object"
+                ):
+                    transform(value, NOW)
+
+    def test_absent_and_null_optional_collections_keep_empty_defaults(self):
+        for value in (None, []):
+            document = _document("ready") | {"hourly": value, "daily": value}
+            published = transform(document, NOW)
+            self.assertEqual(published["hourly"], [])
+            self.assertEqual(published["daily"], [])
+        for product, row in (
+            ("hourly", LeadBucketTest._row("0-1h")),
+            ("daily", {"date_local": "2026-08-08", "values": {}}),
+        ):
+            for optional in ({}, {"truth_semantics": None, "quantiles": None}):
+                with self.subTest(product=product, optional=optional):
+                    published = transform(
+                        _document("ready") | {product: [row | optional]}, NOW
+                    )
+                    self.assertEqual(published["truth_semantics"], {})
+                    self.assertEqual(published[product][0]["quantiles"], {})
+
+    def test_oversized_in_memory_integers_are_contextual_refusals(self):
+        for value in (10**400, -(10**400)):
+            with self.subTest(sign=value > 0):
+                with self.assertRaisesRegex(
+                    RefusedError,
+                    "hourly values.temp_c: conversion to temp_f overflowed",
+                ):
+                    publish_forecast._convert(
+                        value,
+                        publish_forecast.HOURLY_VARIABLES["temp_c"],
+                        field="hourly values.temp_c",
+                    )
+
+    def test_nonnumeric_errors_include_product_variable_and_level(self):
+        for field in ("hourly values.temp_c", "daily quantiles.temp_max_c['0.5']"):
+            for value in (True, "warm", [], {}):
+                with self.subTest(field=field, value=value):
+                    with self.assertRaises(RefusedError) as error:
+                        publish_forecast._convert(
+                            value,
+                            publish_forecast.HOURLY_VARIABLES["temp_c"],
+                            field=field,
+                        )
+                    self.assertIn(f"{field}: expected a number", str(error.exception))
+
+    def test_in_memory_nonfinite_cleanup_and_rounding_are_preserved(self):
+        conversion = publish_forecast.HOURLY_VARIABLES["temp_c"]
+        for value in (None, float("nan"), float("inf"), -float("inf")):
+            self.assertIsNone(publish_forecast._convert(value, conversion))
+        self.assertEqual(publish_forecast._convert(21.234, conversion), 70.22)
+        self.assertEqual(publish_forecast._convert(0, conversion), 32)
 
 
 class SelectionReasonsTest(unittest.TestCase):
@@ -386,7 +661,7 @@ class ReleaseCohortTest(unittest.TestCase):
             self._transform(release_ids="2a2b510af0e95621")
 
     def test_the_publisher_version_names_this_contract(self) -> None:
-        self.assertEqual(self._transform()["publisher_version"], "1.4.4")
+        self.assertEqual(self._transform()["publisher_version"], "1.4.5")
 
     def test_schema_six_preserves_hourly_values_and_release_attribution(self) -> None:
         row = LeadBucketTest._row("0-1h")
