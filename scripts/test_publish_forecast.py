@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import tempfile
 import threading
 import unittest
@@ -41,7 +42,14 @@ NOW = datetime(2026, 8, 8, 13, 0, tzinfo=UTC)
 
 
 def _document(status: str, issued_at: datetime | str | None = NOW) -> dict[str, Any]:
-    document: dict[str, Any] = {"schema_version": 5, "status": status}
+    document: dict[str, Any] = {
+        "schema_version": 5,
+        "status": status,
+        "timezone": "America/Los_Angeles",
+        "latitude": 34.2768,
+        "longitude": -117.1692,
+        "dataset_fingerprint": "test",
+    }
     if issued_at is not None:
         document["issued_at"] = (
             issued_at.isoformat() if isinstance(issued_at, datetime) else issued_at
@@ -56,6 +64,13 @@ class HoldTestCase(unittest.TestCase):
         self.root = Path(temporary.name)
         self.candidate = self.root / "forecast.json"
         self.held = self.root / "state" / "last-good-forecast.json"
+        for patcher in (
+            patch.object(publish_forecast, "STAMP", self.root / "state/last-published"),
+            patch.object(Path, "home", return_value=self.root),
+            patch.dict(os.environ, {"HOME": str(self.root)}),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
 
         # _log resolves the module global on every call, so this captures the
         # publisher's diagnostics instead of spraying them through the runner.
@@ -529,7 +544,7 @@ class CoreValidationTest(unittest.TestCase):
             self.assertEqual(published["daily"], [])
         for product, row in (
             ("hourly", LeadBucketTest._row("0-1h")),
-            ("daily", {"date_local": "2026-08-08", "values": {}}),
+            ("daily", {"date_local": "2026-08-08", "lead_days": 0, "values": {}}),
         ):
             for optional in ({}, {"truth_semantics": None, "quantiles": None}):
                 with self.subTest(product=product, optional=optional):
@@ -627,9 +642,7 @@ class SelectionReasonsTest(unittest.TestCase):
 class ReleaseCohortTest(unittest.TestCase):
     @staticmethod
     def _document(**overrides: Any) -> dict[str, Any]:
-        document: dict[str, Any] = {
-            "schema_version": 5,
-            "status": "ready",
+        document: dict[str, Any] = _document("ready") | {
             "issued_at": "2026-08-08T12:00:00+00:00",
             "observation_at": "2026-08-08T11:59:00+00:00",
             "hourly": [],
@@ -661,7 +674,7 @@ class ReleaseCohortTest(unittest.TestCase):
             self._transform(release_ids="2a2b510af0e95621")
 
     def test_the_publisher_version_names_this_contract(self) -> None:
-        self.assertEqual(self._transform()["publisher_version"], "1.4.5")
+        self.assertEqual(self._transform()["publisher_version"], "1.4.6")
 
     def test_schema_six_preserves_hourly_values_and_release_attribution(self) -> None:
         row = LeadBucketTest._row("0-1h")

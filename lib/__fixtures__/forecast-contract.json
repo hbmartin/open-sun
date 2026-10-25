@@ -1,0 +1,2005 @@
+{
+  "source": {
+    "schema_version": 6,
+    "issued_at": "2026-10-22T12:46:00+00:00",
+    "status": "ready",
+    "timezone": "America/Los_Angeles",
+    "latitude": 34.2768,
+    "longitude": -117.1692,
+    "dataset_fingerprint": "contract-fixture",
+    "sources": [
+      "nws"
+    ],
+    "hourly": [
+      {
+        "valid_time": "2026-10-22T13:00:00+00:00",
+        "lead_hours": 0.25,
+        "lead_bucket": "0-1h",
+        "values": {
+          "temp_c": 10,
+          "humidity_pct": 50,
+          "wind_speed_ms": 1,
+          "wind_gust_ms": 2,
+          "precip_mm": 0,
+          "pop": 0.5
+        }
+      }
+    ],
+    "daily": [
+      {
+        "date_local": "2026-10-22",
+        "lead_days": 0,
+        "values": {
+          "temp_max_c": 20,
+          "temp_min_c": 5,
+          "pop": 0.5,
+          "precip_sum_mm": 0
+        }
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "valid schema six",
+      "changes": [],
+      "accepted": true
+    },
+    {
+      "name": "schema five",
+      "changes": [
+        {
+          "path": [
+            "schema_version"
+          ],
+          "value": 5
+        }
+      ],
+      "accepted": true,
+      "field": "schema_version"
+    },
+    {
+      "name": "missing timezone",
+      "changes": [
+        {
+          "path": [
+            "timezone"
+          ],
+          "remove": true
+        }
+      ],
+      "accepted": false,
+      "field": "timezone"
+    },
+    {
+      "name": "null timezone",
+      "changes": [
+        {
+          "path": [
+            "timezone"
+          ],
+          "value": null
+        }
+      ],
+      "accepted": false,
+      "field": "timezone"
+    },
+    {
+      "name": "missing latitude",
+      "changes": [
+        {
+          "path": [
+            "latitude"
+          ],
+          "remove": true
+        }
+      ],
+      "accepted": false,
+      "field": "latitude"
+    },
+    {
+      "name": "null latitude",
+      "changes": [
+        {
+          "path": [
+            "latitude"
+          ],
+          "value": null
+        }
+      ],
+      "accepted": false,
+      "field": "latitude"
+    },
+    {
+      "name": "missing longitude",
+      "changes": [
+        {
+          "path": [
+            "longitude"
+          ],
+          "remove": true
+        }
+      ],
+      "accepted": false,
+      "field": "longitude"
+    },
+    {
+      "name": "null longitude",
+      "changes": [
+        {
+          "path": [
+            "longitude"
+          ],
+          "value": null
+        }
+      ],
+      "accepted": false,
+      "field": "longitude"
+    },
+    {
+      "name": "missing dataset_fingerprint",
+      "changes": [
+        {
+          "path": [
+            "dataset_fingerprint"
+          ],
+          "remove": true
+        }
+      ],
+      "accepted": false,
+      "field": "dataset_fingerprint"
+    },
+    {
+      "name": "null dataset_fingerprint",
+      "changes": [
+        {
+          "path": [
+            "dataset_fingerprint"
+          ],
+          "value": null
+        }
+      ],
+      "accepted": false,
+      "field": "dataset_fingerprint"
+    },
+    {
+      "name": "wrong timezone 'UTC'",
+      "changes": [
+        {
+          "path": [
+            "timezone"
+          ],
+          "value": "UTC"
+        }
+      ],
+      "accepted": false,
+      "field": "timezone"
+    },
+    {
+      "name": "wrong timezone ''",
+      "changes": [
+        {
+          "path": [
+            "timezone"
+          ],
+          "value": ""
+        }
+      ],
+      "accepted": false,
+      "field": "timezone"
+    },
+    {
+      "name": "wrong timezone False",
+      "changes": [
+        {
+          "path": [
+            "timezone"
+          ],
+          "value": false
+        }
+      ],
+      "accepted": false,
+      "field": "timezone"
+    },
+    {
+      "name": "wrong timezone []",
+      "changes": [
+        {
+          "path": [
+            "timezone"
+          ],
+          "value": []
+        }
+      ],
+      "accepted": false,
+      "field": "timezone"
+    },
+    {
+      "name": "wrong timezone {}",
+      "changes": [
+        {
+          "path": [
+            "timezone"
+          ],
+          "value": {}
+        }
+      ],
+      "accepted": false,
+      "field": "timezone"
+    },
+    {
+      "name": "latitude boundary -90",
+      "changes": [
+        {
+          "path": [
+            "latitude"
+          ],
+          "value": -90
+        }
+      ],
+      "accepted": true,
+      "field": "latitude"
+    },
+    {
+      "name": "latitude boundary 90",
+      "changes": [
+        {
+          "path": [
+            "latitude"
+          ],
+          "value": 90
+        }
+      ],
+      "accepted": true,
+      "field": "latitude"
+    },
+    {
+      "name": "latitude boundary 0",
+      "changes": [
+        {
+          "path": [
+            "latitude"
+          ],
+          "value": 0
+        }
+      ],
+      "accepted": true,
+      "field": "latitude"
+    },
+    {
+      "name": "latitude invalid '90'",
+      "changes": [
+        {
+          "path": [
+            "latitude"
+          ],
+          "value": "90"
+        }
+      ],
+      "accepted": false,
+      "field": "latitude"
+    },
+    {
+      "name": "latitude invalid False",
+      "changes": [
+        {
+          "path": [
+            "latitude"
+          ],
+          "value": false
+        }
+      ],
+      "accepted": false,
+      "field": "latitude"
+    },
+    {
+      "name": "latitude invalid []",
+      "changes": [
+        {
+          "path": [
+            "latitude"
+          ],
+          "value": []
+        }
+      ],
+      "accepted": false,
+      "field": "latitude"
+    },
+    {
+      "name": "latitude invalid {}",
+      "changes": [
+        {
+          "path": [
+            "latitude"
+          ],
+          "value": {}
+        }
+      ],
+      "accepted": false,
+      "field": "latitude"
+    },
+    {
+      "name": "latitude invalid 90.01",
+      "changes": [
+        {
+          "path": [
+            "latitude"
+          ],
+          "value": 90.01
+        }
+      ],
+      "accepted": false,
+      "field": "latitude"
+    },
+    {
+      "name": "latitude invalid -90.01",
+      "changes": [
+        {
+          "path": [
+            "latitude"
+          ],
+          "value": -90.01
+        }
+      ],
+      "accepted": false,
+      "field": "latitude"
+    },
+    {
+      "name": "longitude boundary -180",
+      "changes": [
+        {
+          "path": [
+            "longitude"
+          ],
+          "value": -180
+        }
+      ],
+      "accepted": true,
+      "field": "longitude"
+    },
+    {
+      "name": "longitude boundary 180",
+      "changes": [
+        {
+          "path": [
+            "longitude"
+          ],
+          "value": 180
+        }
+      ],
+      "accepted": true,
+      "field": "longitude"
+    },
+    {
+      "name": "longitude boundary 0",
+      "changes": [
+        {
+          "path": [
+            "longitude"
+          ],
+          "value": 0
+        }
+      ],
+      "accepted": true,
+      "field": "longitude"
+    },
+    {
+      "name": "longitude invalid '180'",
+      "changes": [
+        {
+          "path": [
+            "longitude"
+          ],
+          "value": "180"
+        }
+      ],
+      "accepted": false,
+      "field": "longitude"
+    },
+    {
+      "name": "longitude invalid False",
+      "changes": [
+        {
+          "path": [
+            "longitude"
+          ],
+          "value": false
+        }
+      ],
+      "accepted": false,
+      "field": "longitude"
+    },
+    {
+      "name": "longitude invalid []",
+      "changes": [
+        {
+          "path": [
+            "longitude"
+          ],
+          "value": []
+        }
+      ],
+      "accepted": false,
+      "field": "longitude"
+    },
+    {
+      "name": "longitude invalid {}",
+      "changes": [
+        {
+          "path": [
+            "longitude"
+          ],
+          "value": {}
+        }
+      ],
+      "accepted": false,
+      "field": "longitude"
+    },
+    {
+      "name": "longitude invalid 180.01",
+      "changes": [
+        {
+          "path": [
+            "longitude"
+          ],
+          "value": 180.01
+        }
+      ],
+      "accepted": false,
+      "field": "longitude"
+    },
+    {
+      "name": "longitude invalid -180.01",
+      "changes": [
+        {
+          "path": [
+            "longitude"
+          ],
+          "value": -180.01
+        }
+      ],
+      "accepted": false,
+      "field": "longitude"
+    },
+    {
+      "name": "invalid fingerprint ''",
+      "changes": [
+        {
+          "path": [
+            "dataset_fingerprint"
+          ],
+          "value": ""
+        }
+      ],
+      "accepted": false,
+      "field": "dataset_fingerprint"
+    },
+    {
+      "name": "invalid fingerprint False",
+      "changes": [
+        {
+          "path": [
+            "dataset_fingerprint"
+          ],
+          "value": false
+        }
+      ],
+      "accepted": false,
+      "field": "dataset_fingerprint"
+    },
+    {
+      "name": "invalid fingerprint {}",
+      "changes": [
+        {
+          "path": [
+            "dataset_fingerprint"
+          ],
+          "value": {}
+        }
+      ],
+      "accepted": false,
+      "field": "dataset_fingerprint"
+    },
+    {
+      "name": "invalid fingerprint []",
+      "changes": [
+        {
+          "path": [
+            "dataset_fingerprint"
+          ],
+          "value": []
+        }
+      ],
+      "accepted": false,
+      "field": "dataset_fingerprint"
+    },
+    {
+      "name": "sources valid None",
+      "changes": [
+        {
+          "path": [
+            "sources"
+          ],
+          "value": null
+        }
+      ],
+      "accepted": true,
+      "field": "sources"
+    },
+    {
+      "name": "sources valid []",
+      "changes": [
+        {
+          "path": [
+            "sources"
+          ],
+          "value": []
+        }
+      ],
+      "accepted": true,
+      "field": "sources"
+    },
+    {
+      "name": "sources valid ['a', '']",
+      "changes": [
+        {
+          "path": [
+            "sources"
+          ],
+          "value": [
+            "a",
+            ""
+          ]
+        }
+      ],
+      "accepted": true,
+      "field": "sources"
+    },
+    {
+      "name": "absent sources",
+      "changes": [
+        {
+          "path": [
+            "sources"
+          ],
+          "remove": true
+        }
+      ],
+      "accepted": true,
+      "field": "sources"
+    },
+    {
+      "name": "sources invalid ''",
+      "changes": [
+        {
+          "path": [
+            "sources"
+          ],
+          "value": ""
+        }
+      ],
+      "accepted": false,
+      "field": "sources"
+    },
+    {
+      "name": "sources invalid False",
+      "changes": [
+        {
+          "path": [
+            "sources"
+          ],
+          "value": false
+        }
+      ],
+      "accepted": false,
+      "field": "sources"
+    },
+    {
+      "name": "sources invalid 0",
+      "changes": [
+        {
+          "path": [
+            "sources"
+          ],
+          "value": 0
+        }
+      ],
+      "accepted": false,
+      "field": "sources"
+    },
+    {
+      "name": "sources invalid {}",
+      "changes": [
+        {
+          "path": [
+            "sources"
+          ],
+          "value": {}
+        }
+      ],
+      "accepted": false,
+      "field": "sources"
+    },
+    {
+      "name": "sources invalid [1]",
+      "changes": [
+        {
+          "path": [
+            "sources"
+          ],
+          "value": [
+            1
+          ]
+        }
+      ],
+      "accepted": false,
+      "field": "sources"
+    },
+    {
+      "name": "sources invalid [None]",
+      "changes": [
+        {
+          "path": [
+            "sources"
+          ],
+          "value": [
+            null
+          ]
+        }
+      ],
+      "accepted": false,
+      "field": "sources"
+    },
+    {
+      "name": "release_ids valid None",
+      "changes": [
+        {
+          "path": [
+            "release_ids"
+          ],
+          "value": null
+        }
+      ],
+      "accepted": true,
+      "field": "release_ids"
+    },
+    {
+      "name": "release_ids valid []",
+      "changes": [
+        {
+          "path": [
+            "release_ids"
+          ],
+          "value": []
+        }
+      ],
+      "accepted": true,
+      "field": "release_ids"
+    },
+    {
+      "name": "release_ids valid ['a', '']",
+      "changes": [
+        {
+          "path": [
+            "release_ids"
+          ],
+          "value": [
+            "a",
+            ""
+          ]
+        }
+      ],
+      "accepted": true,
+      "field": "release_ids"
+    },
+    {
+      "name": "absent release_ids",
+      "changes": [
+        {
+          "path": [
+            "release_ids"
+          ],
+          "remove": true
+        }
+      ],
+      "accepted": true,
+      "field": "release_ids"
+    },
+    {
+      "name": "release_ids invalid ''",
+      "changes": [
+        {
+          "path": [
+            "release_ids"
+          ],
+          "value": ""
+        }
+      ],
+      "accepted": false,
+      "field": "release_ids"
+    },
+    {
+      "name": "release_ids invalid False",
+      "changes": [
+        {
+          "path": [
+            "release_ids"
+          ],
+          "value": false
+        }
+      ],
+      "accepted": false,
+      "field": "release_ids"
+    },
+    {
+      "name": "release_ids invalid 0",
+      "changes": [
+        {
+          "path": [
+            "release_ids"
+          ],
+          "value": 0
+        }
+      ],
+      "accepted": false,
+      "field": "release_ids"
+    },
+    {
+      "name": "release_ids invalid {}",
+      "changes": [
+        {
+          "path": [
+            "release_ids"
+          ],
+          "value": {}
+        }
+      ],
+      "accepted": false,
+      "field": "release_ids"
+    },
+    {
+      "name": "release_ids invalid [1]",
+      "changes": [
+        {
+          "path": [
+            "release_ids"
+          ],
+          "value": [
+            1
+          ]
+        }
+      ],
+      "accepted": false,
+      "field": "release_ids"
+    },
+    {
+      "name": "release_ids invalid [None]",
+      "changes": [
+        {
+          "path": [
+            "release_ids"
+          ],
+          "value": [
+            null
+          ]
+        }
+      ],
+      "accepted": false,
+      "field": "release_ids"
+    },
+    {
+      "name": "valid reason None",
+      "changes": [
+        {
+          "path": [
+            "status_reason"
+          ],
+          "value": null
+        }
+      ],
+      "accepted": true,
+      "field": "status_reason"
+    },
+    {
+      "name": "valid reason ''",
+      "changes": [
+        {
+          "path": [
+            "status_reason"
+          ],
+          "value": ""
+        }
+      ],
+      "accepted": true,
+      "field": "status_reason"
+    },
+    {
+      "name": "valid reason 'explanation'",
+      "changes": [
+        {
+          "path": [
+            "status_reason"
+          ],
+          "value": "explanation"
+        }
+      ],
+      "accepted": true,
+      "field": "status_reason"
+    },
+    {
+      "name": "ready invalid reason False",
+      "changes": [
+        {
+          "path": [
+            "status"
+          ],
+          "value": "ready"
+        },
+        {
+          "path": [
+            "status_reason"
+          ],
+          "value": false
+        }
+      ],
+      "accepted": false,
+      "field": "status_reason"
+    },
+    {
+      "name": "ready invalid reason []",
+      "changes": [
+        {
+          "path": [
+            "status"
+          ],
+          "value": "ready"
+        },
+        {
+          "path": [
+            "status_reason"
+          ],
+          "value": []
+        }
+      ],
+      "accepted": false,
+      "field": "status_reason"
+    },
+    {
+      "name": "ready invalid reason 0",
+      "changes": [
+        {
+          "path": [
+            "status"
+          ],
+          "value": "ready"
+        },
+        {
+          "path": [
+            "status_reason"
+          ],
+          "value": 0
+        }
+      ],
+      "accepted": false,
+      "field": "status_reason"
+    },
+    {
+      "name": "ready invalid reason {}",
+      "changes": [
+        {
+          "path": [
+            "status"
+          ],
+          "value": "ready"
+        },
+        {
+          "path": [
+            "status_reason"
+          ],
+          "value": {}
+        }
+      ],
+      "accepted": false,
+      "field": "status_reason"
+    },
+    {
+      "name": "degraded invalid reason False",
+      "changes": [
+        {
+          "path": [
+            "status"
+          ],
+          "value": "degraded"
+        },
+        {
+          "path": [
+            "status_reason"
+          ],
+          "value": false
+        }
+      ],
+      "accepted": false,
+      "field": "status_reason"
+    },
+    {
+      "name": "degraded invalid reason []",
+      "changes": [
+        {
+          "path": [
+            "status"
+          ],
+          "value": "degraded"
+        },
+        {
+          "path": [
+            "status_reason"
+          ],
+          "value": []
+        }
+      ],
+      "accepted": false,
+      "field": "status_reason"
+    },
+    {
+      "name": "degraded invalid reason 0",
+      "changes": [
+        {
+          "path": [
+            "status"
+          ],
+          "value": "degraded"
+        },
+        {
+          "path": [
+            "status_reason"
+          ],
+          "value": 0
+        }
+      ],
+      "accepted": false,
+      "field": "status_reason"
+    },
+    {
+      "name": "degraded invalid reason {}",
+      "changes": [
+        {
+          "path": [
+            "status"
+          ],
+          "value": "degraded"
+        },
+        {
+          "path": [
+            "status_reason"
+          ],
+          "value": {}
+        }
+      ],
+      "accepted": false,
+      "field": "status_reason"
+    },
+    {
+      "name": "lead_hours valid 0",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "lead_hours"
+          ],
+          "value": 0
+        }
+      ],
+      "accepted": true,
+      "field": "lead_hours"
+    },
+    {
+      "name": "lead_hours valid 1",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "lead_hours"
+          ],
+          "value": 1
+        }
+      ],
+      "accepted": true,
+      "field": "lead_hours"
+    },
+    {
+      "name": "lead_hours valid 1.0",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "lead_hours"
+          ],
+          "value": 1.0
+        }
+      ],
+      "accepted": true,
+      "field": "lead_hours"
+    },
+    {
+      "name": "fractional lead hours",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "lead_hours"
+          ],
+          "value": 0.25
+        }
+      ],
+      "accepted": true,
+      "field": "lead_hours"
+    },
+    {
+      "name": "lead_hours invalid None",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "lead_hours"
+          ],
+          "value": null
+        }
+      ],
+      "accepted": false,
+      "field": "lead_hours"
+    },
+    {
+      "name": "lead_hours invalid False",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "lead_hours"
+          ],
+          "value": false
+        }
+      ],
+      "accepted": false,
+      "field": "lead_hours"
+    },
+    {
+      "name": "lead_hours invalid '1'",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "lead_hours"
+          ],
+          "value": "1"
+        }
+      ],
+      "accepted": false,
+      "field": "lead_hours"
+    },
+    {
+      "name": "lead_hours invalid -1",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "lead_hours"
+          ],
+          "value": -1
+        }
+      ],
+      "accepted": false,
+      "field": "lead_hours"
+    },
+    {
+      "name": "lead_hours invalid []",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "lead_hours"
+          ],
+          "value": []
+        }
+      ],
+      "accepted": false,
+      "field": "lead_hours"
+    },
+    {
+      "name": "lead_hours invalid {}",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "lead_hours"
+          ],
+          "value": {}
+        }
+      ],
+      "accepted": false,
+      "field": "lead_hours"
+    },
+    {
+      "name": "absent lead_hours",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "lead_hours"
+          ],
+          "remove": true
+        }
+      ],
+      "accepted": false,
+      "field": "lead_hours"
+    },
+    {
+      "name": "lead_days valid 0",
+      "changes": [
+        {
+          "path": [
+            "daily",
+            0,
+            "lead_days"
+          ],
+          "value": 0
+        }
+      ],
+      "accepted": true,
+      "field": "lead_days"
+    },
+    {
+      "name": "lead_days valid 1",
+      "changes": [
+        {
+          "path": [
+            "daily",
+            0,
+            "lead_days"
+          ],
+          "value": 1
+        }
+      ],
+      "accepted": true,
+      "field": "lead_days"
+    },
+    {
+      "name": "lead_days valid 1.0",
+      "changes": [
+        {
+          "path": [
+            "daily",
+            0,
+            "lead_days"
+          ],
+          "value": 1.0
+        }
+      ],
+      "accepted": true,
+      "field": "lead_days"
+    },
+    {
+      "name": "max safe lead days",
+      "changes": [
+        {
+          "path": [
+            "daily",
+            0,
+            "lead_days"
+          ],
+          "value": 9007199254740991
+        }
+      ],
+      "accepted": true,
+      "field": "lead_days"
+    },
+    {
+      "name": "lead_days invalid None",
+      "changes": [
+        {
+          "path": [
+            "daily",
+            0,
+            "lead_days"
+          ],
+          "value": null
+        }
+      ],
+      "accepted": false,
+      "field": "lead_days"
+    },
+    {
+      "name": "lead_days invalid False",
+      "changes": [
+        {
+          "path": [
+            "daily",
+            0,
+            "lead_days"
+          ],
+          "value": false
+        }
+      ],
+      "accepted": false,
+      "field": "lead_days"
+    },
+    {
+      "name": "lead_days invalid '1'",
+      "changes": [
+        {
+          "path": [
+            "daily",
+            0,
+            "lead_days"
+          ],
+          "value": "1"
+        }
+      ],
+      "accepted": false,
+      "field": "lead_days"
+    },
+    {
+      "name": "lead_days invalid -1",
+      "changes": [
+        {
+          "path": [
+            "daily",
+            0,
+            "lead_days"
+          ],
+          "value": -1
+        }
+      ],
+      "accepted": false,
+      "field": "lead_days"
+    },
+    {
+      "name": "lead_days invalid []",
+      "changes": [
+        {
+          "path": [
+            "daily",
+            0,
+            "lead_days"
+          ],
+          "value": []
+        }
+      ],
+      "accepted": false,
+      "field": "lead_days"
+    },
+    {
+      "name": "lead_days invalid {}",
+      "changes": [
+        {
+          "path": [
+            "daily",
+            0,
+            "lead_days"
+          ],
+          "value": {}
+        }
+      ],
+      "accepted": false,
+      "field": "lead_days"
+    },
+    {
+      "name": "absent lead_days",
+      "changes": [
+        {
+          "path": [
+            "daily",
+            0,
+            "lead_days"
+          ],
+          "remove": true
+        }
+      ],
+      "accepted": false,
+      "field": "lead_days"
+    },
+    {
+      "name": "unsafe daily lead 0.5",
+      "changes": [
+        {
+          "path": [
+            "daily",
+            0,
+            "lead_days"
+          ],
+          "value": 0.5
+        }
+      ],
+      "accepted": false,
+      "field": "lead_days"
+    },
+    {
+      "name": "unsafe daily lead 9007199254740992",
+      "changes": [
+        {
+          "path": [
+            "daily",
+            0,
+            "lead_days"
+          ],
+          "value": 9007199254740992
+        }
+      ],
+      "accepted": false,
+      "field": "lead_days"
+    },
+    {
+      "name": "invalid date '2026-02-30'",
+      "changes": [
+        {
+          "path": [
+            "daily",
+            0,
+            "date_local"
+          ],
+          "value": "2026-02-30"
+        }
+      ],
+      "accepted": false,
+      "field": "date_local"
+    },
+    {
+      "name": "invalid date '20261022'",
+      "changes": [
+        {
+          "path": [
+            "daily",
+            0,
+            "date_local"
+          ],
+          "value": "20261022"
+        }
+      ],
+      "accepted": false,
+      "field": "date_local"
+    },
+    {
+      "name": "invalid date '2026-W43-4'",
+      "changes": [
+        {
+          "path": [
+            "daily",
+            0,
+            "date_local"
+          ],
+          "value": "2026-W43-4"
+        }
+      ],
+      "accepted": false,
+      "field": "date_local"
+    },
+    {
+      "name": "invalid date ''",
+      "changes": [
+        {
+          "path": [
+            "daily",
+            0,
+            "date_local"
+          ],
+          "value": ""
+        }
+      ],
+      "accepted": false,
+      "field": "date_local"
+    },
+    {
+      "name": "invalid date None",
+      "changes": [
+        {
+          "path": [
+            "daily",
+            0,
+            "date_local"
+          ],
+          "value": null
+        }
+      ],
+      "accepted": false,
+      "field": "date_local"
+    },
+    {
+      "name": "invalid date False",
+      "changes": [
+        {
+          "path": [
+            "daily",
+            0,
+            "date_local"
+          ],
+          "value": false
+        }
+      ],
+      "accepted": false,
+      "field": "date_local"
+    },
+    {
+      "name": "leap day",
+      "changes": [
+        {
+          "path": [
+            "daily",
+            0,
+            "date_local"
+          ],
+          "value": "2024-02-29"
+        }
+      ],
+      "accepted": true,
+      "field": "date_local"
+    },
+    {
+      "name": "invalid timestamp issued_at 2026-10-22T13:00:00",
+      "changes": [
+        {
+          "path": [
+            "issued_at"
+          ],
+          "value": "2026-10-22T13:00:00"
+        }
+      ],
+      "accepted": false,
+      "field": "issued_at"
+    },
+    {
+      "name": "invalid timestamp issued_at 2026-10-22T13:00:00+01:00:30",
+      "changes": [
+        {
+          "path": [
+            "issued_at"
+          ],
+          "value": "2026-10-22T13:00:00+01:00:30"
+        }
+      ],
+      "accepted": false,
+      "field": "issued_at"
+    },
+    {
+      "name": "normalized timestamp issued_at",
+      "changes": [
+        {
+          "path": [
+            "issued_at"
+          ],
+          "value": "2026-10-22T13:00:00.123456-07:00"
+        }
+      ],
+      "accepted": true,
+      "field": "issued_at"
+    },
+    {
+      "name": "invalid timestamp observation_at 2026-10-22T13:00:00",
+      "changes": [
+        {
+          "path": [
+            "observation_at"
+          ],
+          "value": "2026-10-22T13:00:00"
+        }
+      ],
+      "accepted": false,
+      "field": "observation_at"
+    },
+    {
+      "name": "invalid timestamp observation_at 2026-10-22T13:00:00+01:00:30",
+      "changes": [
+        {
+          "path": [
+            "observation_at"
+          ],
+          "value": "2026-10-22T13:00:00+01:00:30"
+        }
+      ],
+      "accepted": false,
+      "field": "observation_at"
+    },
+    {
+      "name": "normalized timestamp observation_at",
+      "changes": [
+        {
+          "path": [
+            "observation_at"
+          ],
+          "value": "2026-10-22T13:00:00.123456-07:00"
+        }
+      ],
+      "accepted": true,
+      "field": "observation_at"
+    },
+    {
+      "name": "invalid timestamp hourly.0.valid_time 2026-10-22T13:00:00",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "valid_time"
+          ],
+          "value": "2026-10-22T13:00:00"
+        }
+      ],
+      "accepted": false,
+      "field": "valid_time"
+    },
+    {
+      "name": "invalid timestamp hourly.0.valid_time 2026-10-22T13:00:00+01:00:30",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "valid_time"
+          ],
+          "value": "2026-10-22T13:00:00+01:00:30"
+        }
+      ],
+      "accepted": false,
+      "field": "valid_time"
+    },
+    {
+      "name": "normalized timestamp hourly.0.valid_time",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "valid_time"
+          ],
+          "value": "2026-10-22T13:00:00.123456-07:00"
+        }
+      ],
+      "accepted": true,
+      "field": "valid_time"
+    },
+    {
+      "name": "hourly invalid humidity_pct -1",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "values",
+            "humidity_pct"
+          ],
+          "value": -1
+        }
+      ],
+      "accepted": false,
+      "field": "humidity_pct"
+    },
+    {
+      "name": "hourly invalid humidity_pct 101",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "values",
+            "humidity_pct"
+          ],
+          "value": 101
+        }
+      ],
+      "accepted": false,
+      "field": "humidity_pct"
+    },
+    {
+      "name": "hourly valid humidity_pct None",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "values",
+            "humidity_pct"
+          ],
+          "value": null
+        }
+      ],
+      "accepted": true,
+      "field": "humidity_pct"
+    },
+    {
+      "name": "hourly valid humidity_pct 0",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "values",
+            "humidity_pct"
+          ],
+          "value": 0
+        }
+      ],
+      "accepted": true,
+      "field": "humidity_pct"
+    },
+    {
+      "name": "hourly invalid pop -0.1",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "values",
+            "pop"
+          ],
+          "value": -0.1
+        }
+      ],
+      "accepted": false,
+      "field": "pop"
+    },
+    {
+      "name": "hourly invalid pop 1.1",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "values",
+            "pop"
+          ],
+          "value": 1.1
+        }
+      ],
+      "accepted": false,
+      "field": "pop"
+    },
+    {
+      "name": "hourly valid pop None",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "values",
+            "pop"
+          ],
+          "value": null
+        }
+      ],
+      "accepted": true,
+      "field": "pop"
+    },
+    {
+      "name": "hourly valid pop 0",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "values",
+            "pop"
+          ],
+          "value": 0
+        }
+      ],
+      "accepted": true,
+      "field": "pop"
+    },
+    {
+      "name": "hourly invalid wind_speed_ms -1",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "values",
+            "wind_speed_ms"
+          ],
+          "value": -1
+        }
+      ],
+      "accepted": false,
+      "field": "wind_speed_mph"
+    },
+    {
+      "name": "hourly valid wind_speed_ms None",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "values",
+            "wind_speed_ms"
+          ],
+          "value": null
+        }
+      ],
+      "accepted": true,
+      "field": "wind_speed_ms"
+    },
+    {
+      "name": "hourly valid wind_speed_ms 0",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "values",
+            "wind_speed_ms"
+          ],
+          "value": 0
+        }
+      ],
+      "accepted": true,
+      "field": "wind_speed_ms"
+    },
+    {
+      "name": "hourly invalid wind_gust_ms -1",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "values",
+            "wind_gust_ms"
+          ],
+          "value": -1
+        }
+      ],
+      "accepted": false,
+      "field": "wind_gust_mph"
+    },
+    {
+      "name": "hourly valid wind_gust_ms None",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "values",
+            "wind_gust_ms"
+          ],
+          "value": null
+        }
+      ],
+      "accepted": true,
+      "field": "wind_gust_ms"
+    },
+    {
+      "name": "hourly valid wind_gust_ms 0",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "values",
+            "wind_gust_ms"
+          ],
+          "value": 0
+        }
+      ],
+      "accepted": true,
+      "field": "wind_gust_ms"
+    },
+    {
+      "name": "hourly invalid precip_mm -1",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "values",
+            "precip_mm"
+          ],
+          "value": -1
+        }
+      ],
+      "accepted": false,
+      "field": "precip_in"
+    },
+    {
+      "name": "hourly valid precip_mm None",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "values",
+            "precip_mm"
+          ],
+          "value": null
+        }
+      ],
+      "accepted": true,
+      "field": "precip_mm"
+    },
+    {
+      "name": "hourly valid precip_mm 0",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "values",
+            "precip_mm"
+          ],
+          "value": 0
+        }
+      ],
+      "accepted": true,
+      "field": "precip_mm"
+    },
+    {
+      "name": "daily invalid pop -1",
+      "changes": [
+        {
+          "path": [
+            "daily",
+            0,
+            "values",
+            "pop"
+          ],
+          "value": -1
+        }
+      ],
+      "accepted": false,
+      "field": "pop"
+    },
+    {
+      "name": "daily invalid pop 2",
+      "changes": [
+        {
+          "path": [
+            "daily",
+            0,
+            "values",
+            "pop"
+          ],
+          "value": 2
+        }
+      ],
+      "accepted": false,
+      "field": "pop"
+    },
+    {
+      "name": "daily valid pop None",
+      "changes": [
+        {
+          "path": [
+            "daily",
+            0,
+            "values",
+            "pop"
+          ],
+          "value": null
+        }
+      ],
+      "accepted": true,
+      "field": "pop"
+    },
+    {
+      "name": "daily valid pop 0",
+      "changes": [
+        {
+          "path": [
+            "daily",
+            0,
+            "values",
+            "pop"
+          ],
+          "value": 0
+        }
+      ],
+      "accepted": true,
+      "field": "pop"
+    },
+    {
+      "name": "daily invalid precip_sum_mm -1",
+      "changes": [
+        {
+          "path": [
+            "daily",
+            0,
+            "values",
+            "precip_sum_mm"
+          ],
+          "value": -1
+        }
+      ],
+      "accepted": false,
+      "field": "precip_sum_in"
+    },
+    {
+      "name": "daily valid precip_sum_mm None",
+      "changes": [
+        {
+          "path": [
+            "daily",
+            0,
+            "values",
+            "precip_sum_mm"
+          ],
+          "value": null
+        }
+      ],
+      "accepted": true,
+      "field": "precip_sum_mm"
+    },
+    {
+      "name": "daily valid precip_sum_mm 0",
+      "changes": [
+        {
+          "path": [
+            "daily",
+            0,
+            "values",
+            "precip_sum_mm"
+          ],
+          "value": 0
+        }
+      ],
+      "accepted": true,
+      "field": "precip_sum_mm"
+    },
+    {
+      "name": "round humidity into range",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "values",
+            "humidity_pct"
+          ],
+          "value": 100.00001
+        }
+      ],
+      "accepted": true,
+      "field": "humidity_pct"
+    },
+    {
+      "name": "round negative wind to zero",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "values",
+            "wind_speed_ms"
+          ],
+          "value": -1e-05
+        }
+      ],
+      "accepted": true,
+      "field": "wind_speed_ms"
+    },
+    {
+      "name": "unbounded temperature quantiles",
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "quantiles"
+          ],
+          "value": {
+            "temp_c": {
+              "0.1": -200,
+              "0.9": 200
+            }
+          }
+        }
+      ],
+      "accepted": true,
+      "field": "quantiles"
+    }
+  ]
+}
