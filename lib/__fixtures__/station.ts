@@ -24,7 +24,7 @@ export function makeObservation(
     rainofhourly: 0,
     eventrain: 0,
     observedAt: now.toISOString(),
-    sunTimes: getTimes(now, 34.2768, -117.1692),
+    sunTimes: getTimes(now, 35, -118),
     ...overrides,
   }
 }

@@ -1,4 +1,4 @@
-"""Version-one Lake Arrowhead homepage document. No network or runtime dependencies.
+"""Coordinate-free Lake Arrowhead homepage document. Standard library only.
 
 Condition thresholds, interpolation and summary rules follow the UI helpers.
 The card additionally requires condition evidence and nested bands, and uses
@@ -8,16 +8,19 @@ a next-full-hour UTC window.
 from __future__ import annotations
 
 import math
+import os
 import re
+import tomllib
 from collections import Counter
 from collections.abc import Callable
 from datetime import UTC, date, datetime, time, timedelta
 from functools import lru_cache
+from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
 TZ = ZoneInfo("America/Los_Angeles")
-TOWN_CARD_API_VERSION = 1
+TOWN_CARD_API_VERSION = 2
 COVERAGES = (0.9, 0.6, 0.3)
 # ECMAScript WhiteSpace and LineTerminator characters; Python's strip/float
 # accept a different language (including underscores and Unicode digits).
@@ -383,6 +386,42 @@ def build_card_forecast(
     }
 
 
+def configured_station_location() -> tuple[float, float]:
+    """Read exact station identity from private configuration, never public code."""
+    keys = ("LOCATION_LATITUDE", "LOCATION_LONGITUDE")
+    if any(key in os.environ for key in keys):
+        values = [os.environ.get(key) for key in keys]
+        try:
+            lat, lon = (float(value) for value in values)
+        except (TypeError, ValueError):
+            raise CardInputError(
+                "private station location: both LOCATION variables must be numeric"
+            ) from None
+    else:
+        try:
+            config = tomllib.loads(
+                Path(__file__).with_name("station-location.toml").read_text(encoding="utf-8")
+            )["station"]
+            lat, lon = number(config.get("latitude")), number(config.get("longitude"))
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            raise CardInputError(
+                "private station location: configure LOCATION_LATITUDE/LOCATION_LONGITUDE "
+                "or station-location.toml"
+            ) from None
+    if (
+        lat is None
+        or lon is None
+        or not math.isfinite(lat)
+        or not math.isfinite(lon)
+        or not -90 <= lat <= 90
+        or not -180 <= lon <= 180
+    ):
+        raise CardInputError(
+            "private station location: coordinates must be finite and in range"
+        )
+    return lat, lon
+
+
 def build_town_card(
     forecast: dict[str, Any],
     current: Any,
@@ -391,11 +430,12 @@ def build_town_card(
 ) -> dict[str, Any]:
     forecast = object_value(forecast, "forecast")
     lat, lon = number(forecast.get("latitude")), number(forecast.get("longitude"))
+    expected_lat, expected_lon = configured_station_location()
     if (
         lat is None
         or lon is None
-        or abs(lat - 34.2768) > 0.001
-        or abs(lon + 117.1692) > 0.001
+        or abs(lat - expected_lat) > 0.001
+        or abs(lon - expected_lon) > 0.001
         or forecast.get("timezone") != "America/Los_Angeles"
     ):
         raise CardInputError(
@@ -413,14 +453,12 @@ def build_town_card(
     if observation is None and view is None:
         raise CardInputError("no usable town-card observations or forecast")
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "published_at": published.isoformat(),
         "timezone": "America/Los_Angeles",
         "station": {
             "id": "lake-arrowhead",
             "label": "Lake Arrowhead · North of the Ridge",
-            "latitude": lat,
-            "longitude": lon,
         },
         "units": {
             "temperature": "F",

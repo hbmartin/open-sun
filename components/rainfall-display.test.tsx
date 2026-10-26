@@ -132,7 +132,7 @@ describe("station rainfall display", () => {
       rainofhourly: 0.07,
       rain_total_in: 0.01,
       observedAt: "2026-10-10T21:46:00+00:00",
-      sunTimes: getTimes(new Date("2026-10-10T21:46:00Z"), 34.2768, -117.1692),
+      sunTimes: getTimes(new Date("2026-10-10T21:46:00Z"), 35, -118),
     }
     const markup = renderToStaticMarkup(
       <RainfallSummary currentWeatherData={observation} now={new Date("2026-10-10T22:00:00Z")} />,

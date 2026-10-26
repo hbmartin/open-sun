@@ -69,3 +69,6 @@ coverage/
 # Python bytecode from scripts/
 __pycache__/
 .env*.local
+
+# Private publisher station identity; never publish or commit this file.
+station-location.toml

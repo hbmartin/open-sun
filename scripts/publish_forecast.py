@@ -54,9 +54,9 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
-PUBLISHER_VERSION = "1.4.6"
-SUPPORTED_TOWN_CARD_API_VERSION = 1
-CONTRACT_VERSION = 1
+PUBLISHER_VERSION = "2.0.0"
+SUPPORTED_TOWN_CARD_API_VERSION = 2
+CONTRACT_VERSION = 2
 SOURCE_SCHEMA_VERSION = 6
 SUPPORTED_SOURCE_SCHEMA_VERSIONS = frozenset({5, SOURCE_SCHEMA_VERSION})
 
@@ -692,6 +692,10 @@ def transform(document: dict[str, Any], published_at: datetime) -> dict[str, Any
     if not isinstance(fingerprint, str) or not fingerprint:
         raise RefusedError("dataset_fingerprint: expected a nonempty string")
 
+    # Validate private source metadata without copying it into public output.
+    _number(document.get("latitude"), "latitude", -90, 90)
+    _number(document.get("longitude"), "longitude", -180, 180)
+
     return {
         "schema_version": CONTRACT_VERSION,
         "publisher_version": PUBLISHER_VERSION,
@@ -703,8 +707,6 @@ def transform(document: dict[str, Any], published_at: datetime) -> dict[str, Any
         ),
         "issue_interval_seconds": ISSUE_INTERVAL_SECONDS,
         "timezone": document.get("timezone"),
-        "latitude": _number(document.get("latitude"), "latitude", -90, 90),
-        "longitude": _number(document.get("longitude"), "longitude", -180, 180),
         "dataset_fingerprint": fingerprint,
         "sources": _string_list(document.get("sources"), "sources"),
         "release_ids": _release_id_list(document.get("release_ids")),
@@ -1254,7 +1256,11 @@ def run(
 
     body = forecast_file.content
     issued_at = payload["issued_at"]
-    town = prepare_town_card(payload, current)
+    # The helper needs coordinates for station validation and day/night icons.
+    # Keep this internal copy separate from the coordinate-free public payload.
+    town = prepare_town_card(
+        payload | {key: document[key] for key in ("latitude", "longitude")}, current
+    )
     files = {
         "README.md": PreparedFile.raw(DATA_BRANCH_README.encode("utf-8")),
         "forecast.json": forecast_file,

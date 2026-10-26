@@ -56,8 +56,8 @@ class PublisherPathsTests(unittest.TestCase):
                     "schema_version": 6,
                     "status": "ready",
                     "timezone": "America/Los_Angeles",
-                    "latitude": 34.2768,
-                    "longitude": -117.1692,
+                    "latitude": 35.0,
+                    "longitude": -118.0,
                     "dataset_fingerprint": "test",
                     "issued_at": "2026-10-19T18:35:00+00:00",
                     "hourly": [],
@@ -154,7 +154,7 @@ class PublisherPathsTests(unittest.TestCase):
         active = self.project(self.root)
         source = self.document(active / "forecast.json")
         document = json.loads(source.read_text())
-        document.update(latitude=34.2768, longitude=-117.1692, timezone="America/Los_Angeles", issued_at=datetime.now(UTC).isoformat())
+        document.update(latitude=35.0, longitude=-118.0, timezone="America/Los_Angeles", issued_at=datetime.now(UTC).isoformat())
         source.write_text(json.dumps(document))
         result = subprocess.run(
             [sys.executable, str(installed / script.name), "--dry-run", "--print"],
