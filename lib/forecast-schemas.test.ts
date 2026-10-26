@@ -155,7 +155,7 @@ describe("ForecastDocumentSchema", () => {
 
   describe("versioning", () => {
     it("rejects a future schema version", () => {
-      expect(parse({ schema_version: 2 }).success).toBe(false)
+      expect(parse({ schema_version: 3 }).success).toBe(false)
     })
 
     it("requires a publisher version", () => {
@@ -216,7 +216,11 @@ describe("ForecastDocumentSchema", () => {
     })
   })
 
-  it("rejects an out-of-range latitude", () => {
-    expect(parse({ latitude: 91 }).success).toBe(false)
+  it("accepts coordinate-free documents and strips legacy coordinates", () => {
+    expect(parse().success).toBe(true)
+    const result = parse({ schema_version: 1, latitude: 35, longitude: -118 })
+    expect(result.success).toBe(true)
+    expect(result.data).not.toHaveProperty("latitude")
+    expect(result.data).not.toHaveProperty("longitude")
   })
 })

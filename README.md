@@ -32,25 +32,49 @@ Both publishers write into **one commit**, because the branch is force-pushed wh
 
 ### Town homepage document
 
-The publisher also writes `town-card.json` in the same data-branch commit. Schema version 1 supplies the Lake Arrowhead town homepage with explicit station identity and units, timestamped observations, daily rainfall, forecast high/low and outlook, and 24 consecutive UTC-hour entries with fractional rain probability and nested 90%/60%/30% temperature intervals. The window starts at the next full hour at publication time, including across DST transitions; absent hours stay null. Observed rainfall keeps its actual local date. A forecast older than 12 hours is omitted while usable station observations remain available.
+The publisher also writes `town-card.json` in the same data-branch commit. Schema version 2 supplies the Lake Arrowhead town homepage with explicit station identity and units, timestamped observations, daily rainfall, forecast high/low and outlook, and 24 consecutive UTC-hour entries with fractional rain probability and nested 90%/60%/30% temperature intervals. The window starts at the next full hour at publication time, including across DST transitions; absent hours stay null. Observed rainfall keeps its actual local date. A forecast older than 12 hours is omitted while usable station observations remain available.
 
 `scripts/town_card.py` owns the stdlib-only transformation. Condition thresholds, quantile interpolation, sunrise/sunset, and summary rules follow the UI helpers. The card additionally requires condition evidence and suppresses bands that are not nested, and its next-full-hour UTC window intentionally differs from the UI's current-hour, fixed-local-slot window. Shared document and edge fixtures exercise both Python and the production TypeScript mappers; populated spring/fall fixtures check actual weather values across DST. Run `python3 -m unittest discover -s scripts -t scripts` in addition to `pnpm test`.
 
-Deploy both `publish_forecast.py` and `town_card.py` in the publisher directory, replacing the compatible helper first. Publisher 1.4.5 requires integer `TOWN_CARD_API_VERSION = 1`; compatible helper and publisher releases may differ. A missing or unsupported API marker logs the expected/actual API and helper path, then omits the card without retrying an older call signature. The card is optional: a missing helper or timezone database, invalid station identity or top-level timestamp, or unexpected card error also logs a warning and omits `town-card.json` while the forecast and station documents publish together. Because each commit replaces the branch tree, omission removes any previous card; consumers must handle a missing file as unavailable. Unexpected failures retain their traceback. API compatibility is checked before resolving helper exports; a helper claiming the supported API but missing or breaking its exports is reported as an unexpected helper failure. Its `CardInputError` export must be a custom `Exception` subclass; built-in classes such as `Exception`, `ValueError`, and `RuntimeError` are rejected so they cannot hide programming-error tracebacks.
+Deploy both `publish_forecast.py` and `town_card.py` in the publisher directory, replacing the compatible helper first. Publisher 2.0.0 requires integer `TOWN_CARD_API_VERSION = 2`; compatible helper and publisher releases may differ. A missing or unsupported API marker logs the expected/actual API and helper path, then omits the card without retrying an older call signature. The card is optional: a missing helper or timezone database, invalid station identity or top-level timestamp, or unexpected card error also logs a warning and omits `town-card.json` while the forecast and station documents publish together. Because each commit replaces the branch tree, omission removes any previous card; consumers must handle a missing file as unavailable. Unexpected failures retain their traceback. API compatibility is checked before resolving helper exports; a helper claiming the supported API but missing or breaking its exports is reported as an unexpected helper failure. Its `CardInputError` export must be a custom `Exception` subclass; built-in classes such as `Exception`, `ValueError`, and `RuntimeError` are rejected so they cannot hide programming-error tracebacks.
 
 Card validation recovers usable data with field-specific warnings: a malformed observation becomes null, invalid selected hourly values leave a gap, and a malformed quantile grid removes only that hour's bands. Rows outside the 24-hour window are ignored before weather-field validation. The last usable hourly duplicate wins; the first daily row matching the publication's local date remains authoritative even when empty or malformed. A point temperature may be null while usable uncertainty bands remain present.
 
 An observation requires a timestamp with a UTC offset and at least one finite exported reading (zero is valid); older readings retain their actual timestamps and local rainfall dates. Forecasts expire strictly after 12 hours, before row validation. A fresh forecast also becomes null if it has no finite high/low, hourly temperature or probability, usable bands, or outlook derived from condition inputs. A sky condition requires at least one finite precipitation amount, rain probability, humidity, or wind speed; zero counts. Temperature-only and bands-only rows remain useful without inventing an outlook. Pressure-, dew-point-, gust-only, and all-null rows cannot invent sky conditions or overwrite an earlier usable hourly duplicate. When neither observation nor forecast remains usable, the card is omitted. The town Worker pulls this public file conditionally; Open Sun needs no town-site credential or outgoing webhook.
 
+### Station location privacy
+
+Both public documents use schema version 2 and omit station coordinates. The
+map uses a fixed Lake Arrowhead Village center, independent of station identity.
+Exact coordinates remain in the private forecasting project's `config.toml` and
+Vercel's server environment (`LOCATION_LATITUDE` / `LOCATION_LONGITUDE`).
+
+The town-card helper validates its unpublished input against those same private
+LOCATION variables. For the installed hourly publisher, it can instead read
+`station-location.toml` beside `town_card.py`, containing a `[station]` table with
+numeric `latitude` and `longitude` keys. This file is ignored by Git; restrict it
+to the publisher user. Missing, incomplete, invalid, or mismatched private
+configuration omits the town card rather than substituting a public location.
+Coordinates are used internally for day/night calculations and never copied to
+public output. Tests and fixtures use a synthetic location.
+
+Deploy the updated consumer before the publisher: Open Sun accepts forecast
+versions 1 and 2 during migration and strips legacy coordinate fields. Other
+consumers of the town card must accept version 2 and use its station ID/label
+instead of coordinate fields. Install the private location configuration and
+both publisher helpers, then republish all data files together. This removes
+coordinates from current publication; it does not rewrite existing Git history
+or third-party copies.
+
 ### Contract
 
 The forecast publisher accepts grounded-weather-forecast source schemas 5 and
 6 and records the actual version in `source_schema_version`. Schema 6 updates
-minutely attribution; the published hourly/daily contract remains version 1.
+minutely attribution; the public forecast contract is version 2, with station coordinates omitted.
 Unknown source versions are refused. Missing station observations remain
 nullable.
 
-`lib/forecast-schemas.ts` and `scripts/publish_forecast.py` are two halves of one contract and must change together. Breaking shape changes bump `schema_version` (the consumer asserts it exactly); additive changes and fixes bump `publisher_version` only. The same applies to `lib/schemas.ts` and `scripts/publish_station.py`.
+`lib/forecast-schemas.ts` and `scripts/publish_forecast.py` are two halves of one contract and must change together. Breaking shape changes bump `schema_version` (the consumer explicitly allows supported versions); additive changes and fixes bump `publisher_version` only. The same applies to `lib/schemas.ts` and `scripts/publish_station.py`.
 
 The station documents retain the `aw2sqlite` `/`, `/daily` and `/hourly` fields
 and add `rain_total_in` for accumulated rainfall in inches. The station

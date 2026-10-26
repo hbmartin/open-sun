@@ -355,7 +355,7 @@ describe("mapForecastDocument", () => {
       expect(info.sources).toEqual(["nbm", "nws", "open_meteo"])
       expect(info.datasetFingerprint).toBe("718e5bfa65100a5b")
       expect(info.publisherVersion).toBe("1.0.0")
-      expect(info.schemaVersion).toBe(1)
+      expect(info.schemaVersion).toBe(2)
       expect(info.timezone).toBe("America/Los_Angeles")
       expect(info.hourlyRows).toBe(1)
       expect(info.dailyRows).toBe(1)

@@ -45,8 +45,8 @@ let parseDocument: (document: unknown) => ForecastDocument
 
 beforeAll(async () => {
   // This suite's station must not inherit the SF coordinates in global setup.
-  vi.stubEnv("LOCATION_LATITUDE", "34.2768")
-  vi.stubEnv("LOCATION_LONGITUDE", "-117.1692")
+  vi.stubEnv("LOCATION_LATITUDE", "35.0")
+  vi.stubEnv("LOCATION_LONGITUDE", "-118.0")
   vi.resetModules()
   ;({ mapForecastDocument } = await import("@/lib/forecast-mappers"))
   ;({ getStationDate, getStationHour, getStationSunTimes } = await import("@/lib/utils"))

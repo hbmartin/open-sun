@@ -14,7 +14,7 @@ import { STATION_TIME_ZONE } from "@/lib/utils"
  * Breaking shape changes bump `schema_version`; additive changes and fixes bump
  * `publisher_version` only.
  */
-export const FORECAST_SCHEMA_VERSION = 1
+export const FORECAST_SCHEMA_VERSION = 2
 
 const ForecastUnitsSchema = z.object({
   temp_f: z.literal("F"),
@@ -87,7 +87,9 @@ const ForecastDailyRowSchema = z.object({
 })
 
 export const ForecastDocumentSchema = z.object({
-  schema_version: z.literal(FORECAST_SCHEMA_VERSION),
+  // Accept the previous version during rollout; its coordinate fields are
+  // unmodelled and stripped before anything reaches the browser.
+  schema_version: z.union([z.literal(1), z.literal(FORECAST_SCHEMA_VERSION)]),
   publisher_version: z.string().min(1),
   issued_at: OffsetDateTimeSchema,
   observation_at: OffsetDateTimeSchema.nullable(),
@@ -96,8 +98,6 @@ export const ForecastDocumentSchema = z.object({
   // day using this exact zone. A publisher-side change would scatter hours
   // across the wrong days with no other visible symptom.
   timezone: z.literal(STATION_TIME_ZONE),
-  latitude: z.number().min(-90).max(90),
-  longitude: z.number().min(-180).max(180),
   dataset_fingerprint: z.string().min(1),
   sources: z.array(z.string()).default([]),
   // The promoted release cohort predict served from; absent before 1.3.0.

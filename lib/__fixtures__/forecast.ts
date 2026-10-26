@@ -54,7 +54,7 @@ export function makeDailyRow(overrides: Record<string, unknown> = {}) {
 
 export function makeForecastDocument(overrides: Record<string, unknown> = {}) {
   return {
-    schema_version: 1,
+    schema_version: 2,
     publisher_version: "1.0.0",
     source_schema_version: 5,
     published_at: "2026-08-05T15:45:03+00:00",
@@ -62,8 +62,6 @@ export function makeForecastDocument(overrides: Record<string, unknown> = {}) {
     observation_at: "2026-08-05T15:35:21+00:00",
     issue_interval_seconds: 3600,
     timezone: "America/Los_Angeles",
-    latitude: 34.2768,
-    longitude: -117.1692,
     dataset_fingerprint: "718e5bfa65100a5b",
     sources: ["nbm", "nws", "open_meteo"],
     release_ids: ["c22474d379549f29"],

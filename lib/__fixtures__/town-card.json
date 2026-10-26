@@ -4,8 +4,8 @@
       "published_at": "2026-10-22T12:48:11+00:00",
       "issued_at": "2026-10-22T12:46:00+00:00",
       "timezone": "America/Los_Angeles",
-      "latitude": 34.2768,
-      "longitude": -117.1692,
+      "latitude": 35.0,
+      "longitude": -118.0,
       "hourly": [
         {
           "valid_time": "2026-10-22T13:00:00+00:00",
@@ -672,7 +672,8 @@
             "precip_sum_in": "sum of complete local-day hourly path; original selection: rainfall fallback: 1 wet local days in D1; need 5; uncalibrated provider mean; original selection: lowest backtest MAE among promotable common-case methods"
           }
         }
-      ]
+      ],
+      "schema_version": 2
     },
     "current": {
       "data": {
@@ -701,14 +702,12 @@
     }
   },
   "expected": {
-    "schema_version": 1,
+    "schema_version": 2,
     "published_at": "2026-10-22T12:48:11+00:00",
     "timezone": "America/Los_Angeles",
     "station": {
       "id": "lake-arrowhead",
-      "label": "Lake Arrowhead \u00b7 North of the Ridge",
-      "latitude": 34.2768,
-      "longitude": -117.1692
+      "label": "Lake Arrowhead \u00b7 North of the Ridge"
     },
     "units": {
       "temperature": "F",

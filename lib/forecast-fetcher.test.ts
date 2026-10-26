@@ -66,7 +66,7 @@ describe("fetchForecastData", () => {
   })
 
   it("reports a schema mismatch when the version moves", async () => {
-    stubOk(makeForecastDocument({ schema_version: 2 }))
+    stubOk(makeForecastDocument({ schema_version: 3 }))
     const result = await fetchForecastData(NOW)
     expect(result.kind).toBe("unavailable")
   })

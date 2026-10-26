@@ -46,8 +46,8 @@ def _document(status: str, issued_at: datetime | str | None = NOW) -> dict[str, 
         "schema_version": 5,
         "status": status,
         "timezone": "America/Los_Angeles",
-        "latitude": 34.2768,
-        "longitude": -117.1692,
+        "latitude": 35.0,
+        "longitude": -118.0,
         "dataset_fingerprint": "test",
     }
     if issued_at is not None:
@@ -674,7 +674,7 @@ class ReleaseCohortTest(unittest.TestCase):
             self._transform(release_ids="2a2b510af0e95621")
 
     def test_the_publisher_version_names_this_contract(self) -> None:
-        self.assertEqual(self._transform()["publisher_version"], "1.4.6")
+        self.assertEqual(self._transform()["publisher_version"], "2.0.0")
 
     def test_schema_six_preserves_hourly_values_and_release_attribution(self) -> None:
         row = LeadBucketTest._row("0-1h")
@@ -692,7 +692,7 @@ class ReleaseCohortTest(unittest.TestCase):
             minutely=[{"release_ids": {"temp_c": "minutely-release"}}],
         )
         self.assertEqual(published["source_schema_version"], 6)
-        self.assertEqual(published["schema_version"], 1)
+        self.assertEqual(published["schema_version"], 2)
         self.assertEqual(published["hourly"][0]["values"]["temp_f"], 68.0)
         self.assertEqual(
             published["hourly"][0]["release_ids"]["temp_f"], "hourly-release"

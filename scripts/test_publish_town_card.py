@@ -58,7 +58,11 @@ class PublisherTownCardTest(unittest.TestCase):
         self.stamp = self.root / "state/last-published"
         for patcher in (
             patch.object(Path, "home", return_value=self.root),
-            patch.dict(os.environ, {"HOME": str(self.root)}),
+            patch.dict(os.environ, {
+                "HOME": str(self.root),
+                "LOCATION_LATITUDE": "35.0",
+                "LOCATION_LONGITUDE": "-118.0",
+            }),
             patch.object(publisher, "STAMP", self.stamp),
         ):
             patcher.start()
@@ -72,8 +76,8 @@ class PublisherTownCardTest(unittest.TestCase):
             "schema_version": 6,
             "status": "ready",
             "issued_at": "2026-10-22T12:46:00+00:00",
-            "latitude": 34.2768,
-            "longitude": -117.1692,
+            "latitude": 35.0,
+            "longitude": -118.0,
             "timezone": "America/Los_Angeles",
             "dataset_fingerprint": "test",
             "hourly": [
@@ -136,7 +140,13 @@ class PublisherTownCardTest(unittest.TestCase):
                 mode,
                 NOW.isoformat(),
             ],
-            env={"HOME": str(home), "PATH": os.defpath, "PYTHONIOENCODING": "utf-8"},
+            env={
+                "HOME": str(home),
+                "PATH": os.defpath,
+                "PYTHONIOENCODING": "utf-8",
+                "LOCATION_LATITUDE": "35.0",
+                "LOCATION_LONGITUDE": "-118.0",
+            },
             capture_output=True,
             text=True,
             check=False,
@@ -179,7 +189,7 @@ class PublisherTownCardTest(unittest.TestCase):
         for name in ("current.json", "daily.json", "hourly.json"):
             self.assertEqual(self.trees[-1][name], (self.staged / name).read_bytes())
         self.assertEqual(
-            json.loads(self.trees[-1]["forecast.json"])["publisher_version"], "1.4.6"
+            json.loads(self.trees[-1]["forecast.json"])["publisher_version"], "2.0.0"
         )
 
     def test_single_card_build_and_one_commit_contains_all_documents(self):
@@ -196,6 +206,24 @@ class PublisherTownCardTest(unittest.TestCase):
         )
         self.assertEqual(self.stamp.read_text(), self.document["issued_at"] + "\n")
         self.assertEqual(json.loads(self.state.read_text())["schema_version"], 2)
+
+    def test_both_public_documents_omit_private_coordinates(self):
+        self.document.update(latitude=35.12345678, longitude=-118.56789123)
+        self.save_source()
+        with patch.dict(os.environ, {
+            "LOCATION_LATITUDE": str(self.document["latitude"]),
+            "LOCATION_LONGITUDE": str(self.document["longitude"]),
+        }):
+            self.assertEqual(self.invoke()[0], 0)
+        self.assert_core_files(card=True)
+        for name in ("forecast.json", "town-card.json"):
+            content = self.trees[-1][name].decode()
+            payload = json.loads(content)
+            self.assertEqual(payload["schema_version"], 2)
+            self.assertNotIn('"latitude"', content)
+            self.assertNotIn('"longitude"', content)
+            for key in ("latitude", "longitude"):
+                self.assertNotIn(str(self.document[key]), content)
 
     def test_invalid_current_recovers_observation_and_wrong_station_omits_card(self):
         for current in (
@@ -293,7 +321,7 @@ class PublisherTownCardTest(unittest.TestCase):
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(
-                    json.loads(result.stdout)["publisher_version"], "1.4.6"
+                    json.loads(result.stdout)["publisher_version"], "2.0.0"
                 )
                 self.assertIn(
                     "ZoneInfoNotFoundError" if helper else "ModuleNotFoundError",
@@ -370,7 +398,7 @@ class PublisherTownCardTest(unittest.TestCase):
         helper_path = harness.with_name("town_card.py")
         stub = "class CardInputError(ValueError): pass\ndef build_town_card(forecast, current):\n    raise AssertionError('incompatible helper was called')\n"
         for index, source in enumerate(
-            (stub, "TOWN_CARD_API_VERSION = 2\n" + stub, "TOWN_CARD_API_VERSION = 2\n")
+            (stub, "TOWN_CARD_API_VERSION = 1\n" + stub, "TOWN_CARD_API_VERSION = 1\n")
         ):
             with self.subTest(source=source):
                 helper_path.write_text(source, encoding="utf-8")
@@ -861,7 +889,7 @@ class PublisherTownCardTest(unittest.TestCase):
     def test_missing_or_unsupported_helper_api_omits_only_card_without_calling_builder(
         self,
     ):
-        for api in (None, 2, "1", True):
+        for api in (None, 1, 3, "2", True):
             with (
                 self.subTest(api=api),
                 patch.dict(town_card.__dict__),
@@ -874,7 +902,7 @@ class PublisherTownCardTest(unittest.TestCase):
                 code, _, error = self.invoke(force=True)
                 self.assertEqual(code, 0)
                 self.assertIn("incompatible helper API", error)
-                self.assertIn("expected 1", error)
+                self.assertIn("expected 2", error)
                 self.assertIn(f"actual {api!r}", error)
                 self.assertIn(town_card.__file__, error)
                 self.assertNotIn("Traceback", error)
@@ -885,7 +913,7 @@ class PublisherTownCardTest(unittest.TestCase):
         self.assert_core_files(card=True)
 
     def test_incompatible_helper_is_checked_before_resolving_any_exports(self):
-        for api in (None, 2, "1", True):
+        for api in (None, 1, 3, "2", True):
             helper = types.ModuleType("town_card")
             helper.__file__ = str(self.root / "future-helper.py")
             if api is not None:
@@ -894,7 +922,7 @@ class PublisherTownCardTest(unittest.TestCase):
                 code, _, error = self.invoke(force=True)
             self.assertEqual(code, 0)
             self.assertIn("incompatible helper API", error)
-            self.assertIn("expected 1", error)
+            self.assertIn("expected 2", error)
             self.assertIn(f"actual {api!r}", error)
             self.assertIn(helper.__file__, error)
             self.assertNotIn("Traceback", error)
@@ -905,7 +933,7 @@ class PublisherTownCardTest(unittest.TestCase):
     def test_supported_helper_with_broken_exports_is_an_unexpected_card_failure(self):
         for missing in ("build_town_card", "CardInputError", "invalid_exports"):
             helper = types.ModuleType("town_card")
-            helper.TOWN_CARD_API_VERSION = 1
+            helper.TOWN_CARD_API_VERSION = 2
             helper.build_town_card = town_card.build_town_card
             helper.CardInputError = town_card.CardInputError
             if missing == "invalid_exports":
@@ -926,7 +954,7 @@ class PublisherTownCardTest(unittest.TestCase):
         self.invoke()
         for exception in (Exception, ValueError, RuntimeError, BaseException):
             helper = types.ModuleType("town_card")
-            helper.TOWN_CARD_API_VERSION = 1
+            helper.TOWN_CARD_API_VERSION = 2
             helper.CardInputError = exception
             with patch.object(
                 town_card, "build_town_card", side_effect=RuntimeError("builder bug")
@@ -950,7 +978,7 @@ class PublisherTownCardTest(unittest.TestCase):
             pass
 
         helper = types.ModuleType("town_card")
-        helper.TOWN_CARD_API_VERSION = 1
+        helper.TOWN_CARD_API_VERSION = 2
         helper.CardInputError = ValidationError
         for exception, traceback_expected in (
             (ValidationError("bad input"), False),
