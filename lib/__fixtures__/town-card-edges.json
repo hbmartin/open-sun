@@ -278,7 +278,7 @@
       "name": "Python-only numeric spellings are rejected",
       "grid": {
         "1_0": 999,
-        "\uff10.\uff15": 999,
+        "０.５": 999,
         "0.1_0": 999,
         "0.1": 10,
         "0.9": 90
@@ -326,9 +326,9 @@
     {
       "name": "ECMAScript whitespace",
       "grid": {
-        "\ufeff0.1\u2028": 10,
+        "﻿0.1 ": 10,
         "0.9": 90,
-        "\u00850.5": 999
+        "0.5": 999
       },
       "temp_f": 50,
       "at": {
@@ -423,7 +423,7 @@
   "daylight": [
     {
       "valid_time": "2026-03-15T14:03:00+00:00",
-      "is_daytime": false
+      "is_daytime": true
     },
     {
       "valid_time": "2026-03-15T14:04:00+00:00",
@@ -431,7 +431,7 @@
     },
     {
       "valid_time": "2026-03-20T02:03:00+00:00",
-      "is_daytime": true
+      "is_daytime": false
     },
     {
       "valid_time": "2026-03-20T02:04:00+00:00",
@@ -442,75 +442,75 @@
       "is_daytime": false
     },
     {
-      "valid_time": "2026-01-21T14:58:36.099Z",
+      "valid_time": "2026-01-21T14:53:45.361Z",
       "is_daytime": false
     },
     {
-      "valid_time": "2026-01-21T14:58:36.100Z",
+      "valid_time": "2026-01-21T14:53:45.362Z",
       "is_daytime": true
     },
     {
-      "valid_time": "2026-01-21T14:58:36.101Z",
+      "valid_time": "2026-01-21T14:53:45.363Z",
       "is_daytime": true
     },
     {
-      "valid_time": "2026-01-22T01:10:18.986Z",
+      "valid_time": "2026-01-22T01:08:40.366Z",
       "is_daytime": true
     },
     {
-      "valid_time": "2026-01-22T01:10:18.987Z",
+      "valid_time": "2026-01-22T01:08:40.367Z",
       "is_daytime": true
     },
     {
-      "valid_time": "2026-01-22T01:10:18.988Z",
+      "valid_time": "2026-01-22T01:08:40.368Z",
       "is_daytime": false
     },
     {
-      "valid_time": "2026-03-07T14:15:00.326Z",
+      "valid_time": "2026-03-07T14:11:23.847Z",
       "is_daytime": false
     },
     {
-      "valid_time": "2026-03-07T14:15:00.327Z",
+      "valid_time": "2026-03-07T14:11:23.848Z",
       "is_daytime": true
     },
     {
-      "valid_time": "2026-03-07T14:15:00.328Z",
+      "valid_time": "2026-03-07T14:11:23.849Z",
       "is_daytime": true
     },
     {
-      "valid_time": "2026-03-08T01:53:54.830Z",
+      "valid_time": "2026-03-08T01:51:02.097Z",
       "is_daytime": true
     },
     {
-      "valid_time": "2026-03-08T01:53:54.831Z",
+      "valid_time": "2026-03-08T01:51:02.098Z",
       "is_daytime": true
     },
     {
-      "valid_time": "2026-03-08T01:53:54.832Z",
+      "valid_time": "2026-03-08T01:51:02.099Z",
       "is_daytime": false
     },
     {
-      "valid_time": "2026-04-04T13:35:46.647Z",
+      "valid_time": "2026-04-04T13:33:01.281Z",
       "is_daytime": false
     },
     {
-      "valid_time": "2026-04-04T13:35:46.648Z",
+      "valid_time": "2026-04-04T13:33:01.282Z",
       "is_daytime": true
     },
     {
-      "valid_time": "2026-04-04T13:35:46.649Z",
+      "valid_time": "2026-04-04T13:33:01.283Z",
       "is_daytime": true
     },
     {
-      "valid_time": "2026-04-05T02:16:22.596Z",
+      "valid_time": "2026-04-05T02:12:38.763Z",
       "is_daytime": true
     },
     {
-      "valid_time": "2026-04-05T02:16:22.597Z",
+      "valid_time": "2026-04-05T02:12:38.764Z",
       "is_daytime": true
     },
     {
-      "valid_time": "2026-04-05T02:16:22.598Z",
+      "valid_time": "2026-04-05T02:12:38.765Z",
       "is_daytime": false
     }
   ],
@@ -541,18 +541,18 @@
   "sun_events": [
     {
       "date_local": "2026-01-21",
-      "sunrise": "2026-01-21T14:58:36.100Z",
-      "sunset": "2026-01-22T01:10:18.987Z"
+      "sunrise": "2026-01-21T14:53:45.362Z",
+      "sunset": "2026-01-22T01:08:40.367Z"
     },
     {
       "date_local": "2026-03-07",
-      "sunrise": "2026-03-07T14:15:00.327Z",
-      "sunset": "2026-03-08T01:53:54.831Z"
+      "sunrise": "2026-03-07T14:11:23.848Z",
+      "sunset": "2026-03-08T01:51:02.098Z"
     },
     {
       "date_local": "2026-04-04",
-      "sunrise": "2026-04-04T13:35:46.648Z",
-      "sunset": "2026-04-05T02:16:22.597Z"
+      "sunrise": "2026-04-04T13:33:01.282Z",
+      "sunset": "2026-04-05T02:12:38.764Z"
     }
   ],
   "condition_only_duplicates": [

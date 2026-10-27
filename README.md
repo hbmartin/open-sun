@@ -1,6 +1,6 @@
 # Open Sun
 
-A personal weather-station dashboard built with Next.js. It shows current conditions, a week of daily history, and per-hour detail for each day, along with sunrise/sunset information computed for the station's location. The **Forecast** tab shows a ten-day grounded forecast with uncertainty bands, published from [grounded-weather-forecast](https://github.com/hbmartin/grounded-weather-forecast).
+A personal weather-station dashboard built with Next.js. It shows current conditions, a week of daily history, and per-hour detail for each day, along with sunrise/sunset information computed for Lake Arrowhead Village. The **Forecast** tab shows a ten-day grounded forecast with uncertainty bands, published from [grounded-weather-forecast](https://github.com/hbmartin/grounded-weather-forecast).
 
 [![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/hbmartins-projects/v0-open-sun)
 
@@ -8,7 +8,7 @@ A personal weather-station dashboard built with Next.js. It shows current condit
 
 - `app/page.tsx` is a server component that fetches three station documents — current conditions, daily summaries, and hourly data — plus the forecast (`lib/fetcher.ts`). All four are published files rather than live endpoints; see [the data pipeline](#the-data-pipeline).
 - Responses are validated with zod schemas (`lib/schemas.ts`) and mapped into view models (`lib/mappers.ts`) before being handed to the client-side `WeatherApp` component.
-- Sun times (sunrise, sunset, twilight phases) are computed locally with a vendored copy of [SunCalc](https://github.com/mourner/suncalc) (`lib/suncalc.ts`) using the configured station coordinates.
+- Sun times (sunrise, sunset, twilight phases) are computed locally with a vendored copy of [SunCalc](https://github.com/mourner/suncalc) (`lib/suncalc.ts`) using the fixed public Lake Arrowhead Village point.
 - The rendered page is cached by Next.js. A Vercel cron job (see `vercel.json`) hits `GET /api/revalidate?secret=...` hourly, which calls `revalidatePath("/", "layout")` to refresh the cached page.
 - The forecast is fetched from the same page render (`fetchForecastData`), validated against `lib/forecast-schemas.ts`, and mapped by `lib/forecast-mappers.ts`. It never throws: if the publisher is down, stale, or emitting an unrecognised shape, the Forecast tab explains why and the rest of the dashboard is unaffected.
 
@@ -36,7 +36,7 @@ The publisher also writes `town-card.json` in the same data-branch commit. Schem
 
 `scripts/town_card.py` owns the stdlib-only transformation. Condition thresholds, quantile interpolation, sunrise/sunset, and summary rules follow the UI helpers. The card additionally requires condition evidence and suppresses bands that are not nested, and its next-full-hour UTC window intentionally differs from the UI's current-hour, fixed-local-slot window. Shared document and edge fixtures exercise both Python and the production TypeScript mappers; populated spring/fall fixtures check actual weather values across DST. Run `python3 -m unittest discover -s scripts -t scripts` in addition to `pnpm test`.
 
-Deploy both `publish_forecast.py` and `town_card.py` in the publisher directory, replacing the compatible helper first. Publisher 2.0.0 requires integer `TOWN_CARD_API_VERSION = 2`; compatible helper and publisher releases may differ. A missing or unsupported API marker logs the expected/actual API and helper path, then omits the card without retrying an older call signature. The card is optional: a missing helper or timezone database, invalid station identity or top-level timestamp, or unexpected card error also logs a warning and omits `town-card.json` while the forecast and station documents publish together. Because each commit replaces the branch tree, omission removes any previous card; consumers must handle a missing file as unavailable. Unexpected failures retain their traceback. API compatibility is checked before resolving helper exports; a helper claiming the supported API but missing or breaking its exports is reported as an unexpected helper failure. Its `CardInputError` export must be a custom `Exception` subclass; built-in classes such as `Exception`, `ValueError`, and `RuntimeError` are rejected so they cannot hide programming-error tracebacks.
+Deploy both `publish_forecast.py` and `town_card.py` in the publisher directory, replacing the compatible helper first. Publisher 2.1.0 requires integer `TOWN_CARD_API_VERSION = 3`; compatible helper and publisher releases may differ. A missing or unsupported API marker logs the expected/actual API and helper path, then omits the card without retrying an older call signature. Private station configuration is checked before any helper or Git operation; missing, malformed, out-of-area, or mismatched coordinates refuse publication with exit 2 and preserve the previous branch and publication state. Other card failures are optional: a missing helper or timezone database, invalid top-level timestamp, or unexpected card error also logs a warning and omits `town-card.json` while the forecast and station documents publish together. Because each commit replaces the branch tree, omission removes any previous card; consumers must handle a missing file as unavailable. Unexpected failures retain their traceback. API compatibility is checked before resolving helper exports; a helper claiming the supported API but missing or breaking its exports is reported as an unexpected helper failure. Its `CardInputError` export must be a custom `Exception` subclass; built-in classes such as `Exception`, `ValueError`, and `RuntimeError` are rejected so they cannot hide programming-error tracebacks.
 
 Card validation recovers usable data with field-specific warnings: a malformed observation becomes null, invalid selected hourly values leave a gap, and a malformed quantile grid removes only that hour's bands. Rows outside the 24-hour window are ignored before weather-field validation. The last usable hourly duplicate wins; the first daily row matching the publication's local date remains authoritative even when empty or malformed. A point temperature may be null while usable uncertainty bands remain present.
 
@@ -47,16 +47,29 @@ An observation requires a timestamp with a UTC offset and at least one finite ex
 Both public documents use schema version 2 and omit station coordinates. The
 map uses a fixed Lake Arrowhead Village center, independent of station identity.
 Exact coordinates remain in the private forecasting project's `config.toml` and
-Vercel's server environment (`LOCATION_LATITUDE` / `LOCATION_LONGITUDE`).
+private publisher configuration. The public app does not read or require
+`LOCATION_LATITUDE` / `LOCATION_LONGITUDE`; existing private deployment values
+can remain configured but are unused by the app.
 
-The town-card helper validates its unpublished input against those same private
-LOCATION variables. For the installed hourly publisher, it can instead read
-`station-location.toml` beside `town_card.py`, containing a `[station]` table with
-numeric `latitude` and `longitude` keys. This file is ignored by Git; restrict it
-to the publisher user. Missing, incomplete, invalid, or mismatched private
-configuration omits the town card rather than substituting a public location.
-Coordinates are used internally for day/night calculations and never copied to
-public output. Tests and fixtures use a synthetic location.
+The publisher validates its unpublished source against the private LOCATION
+variables. If either variable is present, both must contain finite decimal
+numbers (scientific notation is supported); empty strings, hexadecimal and
+underscores are rejected without falling back to a file. When both variables
+are absent, it reads `station-location.toml` beside the installed publisher and
+helper, containing a `[station]` table with numeric `latitude` and `longitude`.
+The file is ignored by Git and should have mode `0600`. Source and configured
+coordinates must agree within 0.001 degree, both must be within 0.1 degree of
+the Village point on each axis, and the source timezone must match
+`America/Los_Angeles`. Configuration failures refuse the whole publication;
+other optional town-card failures retain their documented warning behavior.
+
+The helper API takes the validated private location as a separate keyword
+argument, never by adding it back to the public forecast. All public sun,
+twilight and moon times, including history, forecast icons and town-card icons,
+use the fixed Village point (34.251, -117.189). Their timestamps can retain
+millisecond precision because they describe this public point rather than the
+private station. Shared fixtures and a cross-language location check keep
+Python and TypeScript astronomy aligned. Tests use synthetic private inputs.
 
 Deploy the updated consumer before the publisher: Open Sun accepts forecast
 versions 1 and 2 during migration and strips legacy coordinate fields. Other
@@ -202,7 +215,7 @@ The hourly wrapper calls `choose_source` to validate incoming forecasts through 
 
 Only a core-valid ready snapshot can replace `last-good-forecast.json`, using the exact validated source bytes. Each writer uses its own temporary file beside the cache, preserves an existing snapshot's permission bits, closes it before atomic replacement, and cleans up only its own file. New caches are private (`0600`). Concurrent cache writers follow last-completed-write-wins semantics; there is no timestamp ordering or locking. Cache write failures are logged and do not prevent valid ready input from publishing. Cache admission is independent of station/card availability and push success. `remember_good` remains available as a compatibility entry point, `choose_source` still returns a path, and publication always revalidates that selected file.
 
-`--force` bypasses deduplication only; it cannot bypass the rollback guard. `--dry-run` and `--no-push` may inspect older forecasts without publishing. Dry runs, skipped runs, failed pushes, and `--no-push` leave publication state and the legacy stamp unchanged. `--dry-run` takes precedence over `--no-push` and performs no Git operations. Exit 0 means published (possibly with a card warning) or unchanged output, exit 2 means refused core input (including invalid UTF-8), exit 3 means a Git operation or publication lock failed, and unexpected core errors retain their traceback and exit 1.
+`--force` bypasses deduplication only; it cannot bypass the rollback guard. `--dry-run` and `--no-push` may inspect older forecasts without publishing. Dry runs, skipped runs, failed pushes, and `--no-push` leave publication state and the legacy stamp unchanged. `--dry-run` takes precedence over `--no-push` and performs no Git operations. Exit 0 means published (possibly with a card warning) or unchanged output, exit 2 means refused core input or private station configuration (including invalid UTF-8), exit 3 means a Git operation or publication lock failed, and unexpected core errors retain their traceback and exit 1.
 
 ## Environment variables
 
@@ -212,8 +225,6 @@ Validated at server startup by `instrumentation.ts` via the zod schema in `lib/e
 | --- | --- | --- |
 | `SITE_URL` | No | Public base URL for metadata links, including protocol. Preferred over Vercel system URLs when set. |
 | `NEXT_PUBLIC_SITE_URL` | No | Legacy fallback for deployments still configured with the old public site URL variable. Prefer `SITE_URL` for new deployments. |
-| `LOCATION_LATITUDE` | Yes | Station latitude (−90 to 90), used for sun-time calculations. |
-| `LOCATION_LONGITUDE` | Yes | Station longitude (−180 to 180), used for sun-time calculations. |
 | `WEATHER_CURRENT_API_URL` | No | Current conditions. Defaults to `current.json` on the `data` branch. |
 | `WEATHER_DAILY_API_URL` | No | Daily aggregates. Defaults to `daily.json` on the `data` branch. |
 | `WEATHER_HOURLY_API_URL` | No | Hourly aggregates. Defaults to `hourly.json` on the `data` branch. If the URL carries a query string — which every live `aw2sqlite` endpoint does, for `tz` and `q` — a `start_date` parameter is appended, since the live API requires one and the published file does not. |

@@ -107,8 +107,8 @@ describe("Almanac", () => {
   it("gives the moonset in station time", () => {
     const markup = render()
     expect(markup).toContain("Moonset")
-    // 20:50Z on the 5th is 1:50 PM at the station, not the following morning.
-    expect(markup).toContain("1:50 PM")
+    // 20:50Z on the 5th is 1:19 PM at the station, not the following morning.
+    expect(markup).toContain("1:19 PM")
   })
 
   it("compares today's high against the trailing week, not a climate normal", () => {

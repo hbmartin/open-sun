@@ -1,11 +1,12 @@
 // oxlint-disable react/iframe-missing-sandbox -- see the sandbox note below.
 import type React from "react"
+import { PUBLIC_LOCATION } from "@/lib/public-location"
 
 // Fixed Lake Arrowhead Village center, independent of the private station.
 // Opening at zoom 12 on the temperature layer. Ventusky
 // reads the whole view out of the fragment-style `p` triple, so the coordinates
 // and the zoom travel as one parameter.
-const VENTUSKY_SRC = "https://embed.ventusky.com/?p=34.251;-117.189;12&l=temperature-2m"
+const VENTUSKY_SRC = `https://embed.ventusky.com/?p=${PUBLIC_LOCATION.latitude};${PUBLIC_LOCATION.longitude};12&l=temperature-2m`
 
 /**
  * The Ventusky embed, filling everything the bottom navigation leaves.

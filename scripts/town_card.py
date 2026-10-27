@@ -8,19 +8,17 @@ a next-full-hour UTC window.
 from __future__ import annotations
 
 import math
-import os
 import re
-import tomllib
 from collections import Counter
 from collections.abc import Callable
 from datetime import UTC, date, datetime, time, timedelta
 from functools import lru_cache
-from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
 TZ = ZoneInfo("America/Los_Angeles")
-TOWN_CARD_API_VERSION = 2
+TOWN_CARD_API_VERSION = 3
+PUBLIC_LOCATION = (34.251, -117.189)
 COVERAGES = (0.9, 0.6, 0.3)
 # ECMAScript WhiteSpace and LineTerminator characters; Python's strip/float
 # accept a different language (including underscores and Unicode digits).
@@ -30,7 +28,7 @@ INDEX_KEY = re.compile(r"(?:0|[1-9][0-9]{0,9})\Z")
 
 
 class CardInputError(ValueError):
-    """An input cannot be represented by the version-one town-card contract."""
+    """An input cannot be represented by the town-card contract."""
 
 
 def object_value(value: Any, field: str) -> dict[str, Any]:
@@ -386,56 +384,20 @@ def build_card_forecast(
     }
 
 
-def configured_station_location() -> tuple[float, float]:
-    """Read exact station identity from private configuration, never public code."""
-    keys = ("LOCATION_LATITUDE", "LOCATION_LONGITUDE")
-    if any(key in os.environ for key in keys):
-        values = [os.environ.get(key) for key in keys]
-        try:
-            lat, lon = (float(value) for value in values)
-        except (TypeError, ValueError):
-            raise CardInputError(
-                "private station location: both LOCATION variables must be numeric"
-            ) from None
-    else:
-        try:
-            config = tomllib.loads(
-                Path(__file__).with_name("station-location.toml").read_text(encoding="utf-8")
-            )["station"]
-            lat, lon = number(config.get("latitude")), number(config.get("longitude"))
-        except (OSError, ValueError, KeyError, TypeError, AttributeError):
-            raise CardInputError(
-                "private station location: configure LOCATION_LATITUDE/LOCATION_LONGITUDE "
-                "or station-location.toml"
-            ) from None
-    if (
-        lat is None
-        or lon is None
-        or not math.isfinite(lat)
-        or not math.isfinite(lon)
-        or not -90 <= lat <= 90
-        or not -180 <= lon <= 180
-    ):
-        raise CardInputError(
-            "private station location: coordinates must be finite and in range"
-        )
-    return lat, lon
-
-
 def build_town_card(
     forecast: dict[str, Any],
     current: Any,
     *,
+    station_location: tuple[float, float],
     diagnostic: Callable[[str], None] | None = None,
 ) -> dict[str, Any]:
     forecast = object_value(forecast, "forecast")
-    lat, lon = number(forecast.get("latitude")), number(forecast.get("longitude"))
-    expected_lat, expected_lon = configured_station_location()
+    lat, lon = (number(value) for value in station_location)
     if (
         lat is None
         or lon is None
-        or abs(lat - expected_lat) > 0.001
-        or abs(lon - expected_lon) > 0.001
+        or abs(lat - PUBLIC_LOCATION[0]) > 0.1
+        or abs(lon - PUBLIC_LOCATION[1]) > 0.1
         or forecast.get("timezone") != "America/Los_Angeles"
     ):
         raise CardInputError(
@@ -449,7 +411,7 @@ def build_town_card(
     except CardInputError as exc:
         report(str(exc))
         observation = None
-    view = build_card_forecast(forecast, published, issued, lat, lon, report)
+    view = build_card_forecast(forecast, published, issued, *PUBLIC_LOCATION, report)
     if observation is None and view is None:
         raise CardInputError("no usable town-card observations or forecast")
     return {

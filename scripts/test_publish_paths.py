@@ -1,6 +1,6 @@
 """Publisher discovery stays local, explicit, and safe across project moves."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 import contextlib
 import io
 import json
@@ -23,6 +23,9 @@ class PublisherPathsTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory(prefix="publisher paths ")
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name).resolve()
+        private_location = patch.dict(os.environ, {"LOCATION_LATITUDE": "34.25", "LOCATION_LONGITUDE": "-117.19"})
+        private_location.start()
+        self.addCleanup(private_location.stop)
         previous = Path.cwd()
         self.addCleanup(os.chdir, previous)
         os.chdir(self.root)
@@ -56,8 +59,8 @@ class PublisherPathsTests(unittest.TestCase):
                     "schema_version": 6,
                     "status": "ready",
                     "timezone": "America/Los_Angeles",
-                    "latitude": 35.0,
-                    "longitude": -118.0,
+                    "latitude": 34.25,
+                    "longitude": -117.19,
                     "dataset_fingerprint": "test",
                     "issued_at": "2026-10-19T18:35:00+00:00",
                     "hourly": [],
@@ -151,17 +154,24 @@ class PublisherPathsTests(unittest.TestCase):
         script = Path(__file__).with_name("publish_forecast.py")
         shutil.copyfile(script, installed / script.name)
         shutil.copyfile(script.with_name("town_card.py"), installed / "town_card.py")
+        (installed / "station-location.toml").write_text("[station]\nlatitude=34.25\nlongitude=-117.19\n")
         active = self.project(self.root)
         source = self.document(active / "forecast.json")
         document = json.loads(source.read_text())
-        document.update(latitude=35.0, longitude=-118.0, timezone="America/Los_Angeles", issued_at=datetime.now(UTC).isoformat())
+        document.update(latitude=34.25, longitude=-117.19, timezone="America/Los_Angeles", issued_at=datetime.now(UTC).isoformat())
+        document["hourly"] = [{
+            "valid_time": (datetime.now(UTC).replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)).isoformat(),
+            "lead_hours": 1, "lead_bucket": "1-3h", "values": {"temp_c": 10, "humidity_pct": 50},
+        }]
         source.write_text(json.dumps(document))
+        env = {key: value for key, value in os.environ.items() if key not in ("LOCATION_LATITUDE", "LOCATION_LONGITUDE")}
         result = subprocess.run(
             [sys.executable, str(installed / script.name), "--dry-run", "--print"],
-            cwd=active, capture_output=True, text=True, check=False,
+            cwd=active, env=env, capture_output=True, text=True, check=False,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["status"], "ready")
+        self.assertNotIn("omitting town-card", result.stderr)
 
     def test_station_uses_collector_config_and_relative_database_semantics(self):
         database = self.root / "station data/observations.db"

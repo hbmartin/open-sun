@@ -15,15 +15,15 @@ describe("getEnvironment", () => {
     vi.unstubAllEnvs()
   })
 
-  it("parses coordinates from process.env and applies URL defaults", async () => {
+  it("ignores private coordinates and applies URL defaults", async () => {
     vi.stubEnv("LOCATION_LATITUDE", "51.5")
     vi.stubEnv("LOCATION_LONGITUDE", "-0.12")
     const { getEnvironment } = await importFreshEnvironment()
 
     const environment = getEnvironment()
 
-    expect(environment.LOCATION_LATITUDE).toBe(51.5)
-    expect(environment.LOCATION_LONGITUDE).toBe(-0.12)
+    expect(environment).not.toHaveProperty("LOCATION_LATITUDE")
+    expect(environment).not.toHaveProperty("LOCATION_LONGITUDE")
     expect(environment.REVALIDATE_SECRET).toBe("test-secret")
     // All four default to the published `data` branch: a deployed build has no
     // route to the LAN station, so a localhost default made prerendering `/`
@@ -86,23 +86,13 @@ describe("getEnvironment", () => {
     expect(() => getEnvironment()).toThrow(ZodError)
   })
 
-  it("throws when a required coordinate is missing", async () => {
-    const originalLatitude = process.env["LOCATION_LATITUDE"]
-    delete process.env["LOCATION_LATITUDE"]
-    try {
-      const { getEnvironment } = await importFreshEnvironment()
-
-      expect(() => getEnvironment()).toThrow(ZodError)
-    } finally {
-      process.env["LOCATION_LATITUDE"] = originalLatitude
-    }
-  })
-
-  it("throws when a coordinate is out of range", async () => {
-    vi.stubEnv("LOCATION_LATITUDE", "91")
+  it("works without private location configuration", async () => {
+    // oxlint-disable-next-line unicorn/no-useless-undefined -- Vitest requires an explicit value to delete a variable.
+    vi.stubEnv("LOCATION_LATITUDE", undefined)
+    // oxlint-disable-next-line unicorn/no-useless-undefined -- Vitest requires an explicit value to delete a variable.
+    vi.stubEnv("LOCATION_LONGITUDE", undefined)
     const { getEnvironment } = await importFreshEnvironment()
-
-    expect(() => getEnvironment()).toThrow(ZodError)
+    expect(getEnvironment().REVALIDATE_SECRET).toBe("test-secret")
   })
 
   it("throws when an API URL is not a valid URL", async () => {
@@ -120,14 +110,14 @@ describe("getEnvironment", () => {
   })
 
   it("caches the parsed environment after the first call", async () => {
-    vi.stubEnv("LOCATION_LATITUDE", "10")
+    vi.stubEnv("SITE_URL", "https://first.example.com")
     const { getEnvironment } = await importFreshEnvironment()
 
     const first = getEnvironment()
-    vi.stubEnv("LOCATION_LATITUDE", "20")
+    vi.stubEnv("SITE_URL", "https://second.example.com")
     const second = getEnvironment()
 
     expect(second).toBe(first)
-    expect(second.LOCATION_LATITUDE).toBe(10)
+    expect(second.SITE_URL).toBe("https://first.example.com")
   })
 })

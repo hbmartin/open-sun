@@ -1,5 +1,5 @@
 import type { MoonTimesData } from "@/lib/suncalc"
-import { getEnvironment } from "@/lib/environment"
+import { PUBLIC_LOCATION } from "@/lib/public-location"
 import { getMoonIllumination, getMoonTimes } from "@/lib/suncalc"
 
 /**
@@ -64,13 +64,14 @@ export function moonEventsFromTimes(times: MoonTimesData): MoonEvent[] {
  * midnight the one boundary it computes exactly.
  */
 export function buildMoonEvents(from: Date, days: number = MOON_DAYS): MoonEvent[] {
-  const { LOCATION_LATITUDE, LOCATION_LONGITUDE } = getEnvironment()
   const events: MoonEvent[] = []
 
   for (let index = 0; index < days; index++) {
     const anchor = new Date(from.getTime() + index * MILLISECONDS_PER_DAY)
     events.push(
-      ...moonEventsFromTimes(getMoonTimes(anchor, LOCATION_LATITUDE, LOCATION_LONGITUDE, true)),
+      ...moonEventsFromTimes(
+        getMoonTimes(anchor, PUBLIC_LOCATION.latitude, PUBLIC_LOCATION.longitude, true),
+      ),
     )
   }
 
