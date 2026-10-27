@@ -79,8 +79,8 @@ describe("SunInfo", () => {
   it("formats times in the station's zone, not UTC", () => {
     // Tonight's civil dusk is an evening time locally and would read as the
     // following morning under the TZ=UTC the suite runs in.
-    expect(render(EVENTS)).toContain("8:44 PM")
-    expect(render(EVENTS)).not.toContain("3:44 AM")
+    expect(render(EVENTS)).toContain("8:15 PM")
+    expect(render(EVENTS)).not.toContain("3:15 AM")
   })
 
   it("names each event for screen readers now the visible label is gone", () => {

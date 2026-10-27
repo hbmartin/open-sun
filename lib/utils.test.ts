@@ -83,7 +83,7 @@ describe("getRangePosition", () => {
 })
 
 describe("getSunTimes", () => {
-  it("returns sun times for the configured coordinates", () => {
+  it("returns sun times for Lake Arrowhead Village", () => {
     const sunTimes = getSunTimes(new Date(Date.UTC(2026, 5, 21)))
 
     expect(sunTimes.sunrise).toBeInstanceOf(Date)

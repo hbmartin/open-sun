@@ -46,8 +46,8 @@ def _document(status: str, issued_at: datetime | str | None = NOW) -> dict[str, 
         "schema_version": 5,
         "status": status,
         "timezone": "America/Los_Angeles",
-        "latitude": 35.0,
-        "longitude": -118.0,
+        "latitude": 34.25,
+        "longitude": -117.19,
         "dataset_fingerprint": "test",
     }
     if issued_at is not None:
@@ -67,7 +67,7 @@ class HoldTestCase(unittest.TestCase):
         for patcher in (
             patch.object(publish_forecast, "STAMP", self.root / "state/last-published"),
             patch.object(Path, "home", return_value=self.root),
-            patch.dict(os.environ, {"HOME": str(self.root)}),
+            patch.dict(os.environ, {"HOME": str(self.root), "LOCATION_LATITUDE": "34.25", "LOCATION_LONGITUDE": "-117.19"}),
         ):
             patcher.start()
             self.addCleanup(patcher.stop)
@@ -674,7 +674,7 @@ class ReleaseCohortTest(unittest.TestCase):
             self._transform(release_ids="2a2b510af0e95621")
 
     def test_the_publisher_version_names_this_contract(self) -> None:
-        self.assertEqual(self._transform()["publisher_version"], "2.0.0")
+        self.assertEqual(self._transform()["publisher_version"], "2.1.0")
 
     def test_schema_six_preserves_hourly_values_and_release_attribution(self) -> None:
         row = LeadBucketTest._row("0-1h")

@@ -11,6 +11,9 @@ function parseHourly(overrides: Record<string, unknown>) {
 }
 
 describe("ForecastDocumentSchema", () => {
+  it.each([1, 2])("continues accepting published schema version %i", (schema_version) => {
+    expect(parse({ schema_version }).success).toBe(true)
+  })
   it("accepts a full valid document", () => {
     const result = parse()
     expect(result.success).toBe(true)

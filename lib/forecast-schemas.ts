@@ -15,6 +15,9 @@ import { STATION_TIME_ZONE } from "@/lib/utils"
  * `publisher_version` only.
  */
 export const FORECAST_SCHEMA_VERSION = 2
+// Deliberately independent of the emitted version: a future bump must not
+// silently withdraw support for an already published document version.
+export const SUPPORTED_FORECAST_SCHEMA_VERSIONS = [1, 2] as const
 
 const ForecastUnitsSchema = z.object({
   temp_f: z.literal("F"),
@@ -89,7 +92,7 @@ const ForecastDailyRowSchema = z.object({
 export const ForecastDocumentSchema = z.object({
   // Accept the previous version during rollout; its coordinate fields are
   // unmodelled and stripped before anything reaches the browser.
-  schema_version: z.union([z.literal(1), z.literal(FORECAST_SCHEMA_VERSION)]),
+  schema_version: z.literal(SUPPORTED_FORECAST_SCHEMA_VERSIONS),
   publisher_version: z.string().min(1),
   issued_at: OffsetDateTimeSchema,
   observation_at: OffsetDateTimeSchema.nullable(),

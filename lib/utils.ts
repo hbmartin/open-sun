@@ -1,7 +1,7 @@
 import type { TimesData } from "./suncalc"
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
-import { getEnvironment } from "@/lib/environment"
+import { PUBLIC_LOCATION } from "@/lib/public-location"
 import { getTimes } from "@/lib/suncalc"
 
 export const STATION_TIME_ZONE = "America/Los_Angeles"
@@ -132,8 +132,7 @@ export function formatMetricValue(value: number, precision: number): string {
 }
 
 export function getSunTimes(date: Date): TimesData {
-  const environment = getEnvironment()
-  return getTimes(date, environment.LOCATION_LATITUDE, environment.LOCATION_LONGITUDE)
+  return getTimes(date, PUBLIC_LOCATION.latitude, PUBLIC_LOCATION.longitude)
 }
 
 /**

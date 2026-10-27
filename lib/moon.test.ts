@@ -11,8 +11,7 @@ import {
 } from "@/lib/moon"
 import { formatStationTime } from "@/lib/utils"
 
-// vitest.setup.ts puts the station at 37.7749/-122.4194, the same
-// America/Los_Angeles zone as the real one. 16:00Z is 09:00 station-local.
+// Public events use Lake Arrowhead Village. 16:00Z is 09:00 station-local.
 const NOW = new Date("2026-08-05T16:00:00Z")
 const EVENTS = buildMoonEvents(NOW)
 
@@ -89,8 +88,8 @@ describe("selectNextMoonEvents", () => {
     // At 09:00 on the 5th the moon has already risen (23:16 on the 4th), so the
     // next event of each kind straddles the afternoon and late evening.
     expect(next.map((event) => [event.kind, formatStationTime(event.at)])).toEqual([
-      ["moonset", "1:50 PM"],
-      ["moonrise", "11:52 PM"],
+      ["moonset", "1:19 PM"],
+      ["moonrise", "11:40 PM"],
     ])
   })
 

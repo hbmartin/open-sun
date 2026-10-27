@@ -45,6 +45,7 @@ function StationSnapshotsCard() {
         caching can add delay.
       </Line>
       <Note>A zero rain rate can still accompany rainfall already accumulated.</Note>
+      <Note>Sun and moon times are calculated for Lake Arrowhead Village.</Note>
     </Card>
   )
 }

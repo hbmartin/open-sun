@@ -26,7 +26,7 @@ Exit codes:
     0  published (possibly without a failed town card), or unchanged output
     1  unexpected core programming/runtime error (traceback retained)
     2  refused: the source document is missing, malformed, or violates the
-       contract (nothing is pushed, so the last good document keeps serving)
+       contract, or private station configuration is invalid (nothing is pushed)
     3  a Git operation or publication lock failed (pushes are retried)
 """
 
@@ -54,8 +54,8 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
-PUBLISHER_VERSION = "2.0.0"
-SUPPORTED_TOWN_CARD_API_VERSION = 2
+PUBLISHER_VERSION = "2.1.0"
+SUPPORTED_TOWN_CARD_API_VERSION = 3
 CONTRACT_VERSION = 2
 SOURCE_SCHEMA_VERSION = 6
 SUPPORTED_SOURCE_SCHEMA_VERSIONS = frozenset({5, SOURCE_SCHEMA_VERSION})
@@ -63,6 +63,8 @@ SUPPORTED_SOURCE_SCHEMA_VERSIONS = frozenset({5, SOURCE_SCHEMA_VERSION})
 DEFAULT_REMOTE = "git@github.com:hbmartin/open-sun.git"
 DEFAULT_BRANCH = "data"
 STATION_TIME_ZONE = "America/Los_Angeles"
+PUBLIC_LOCATION = (34.251, -117.189)
+LOCATION_DECIMAL = re.compile(r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?\Z")
 MAX_SAFE_INTEGER = 2**53 - 1
 PUBLICATION_LOCK_TIMEOUT_S = 30
 
@@ -441,6 +443,62 @@ def _number(
     if integer and value != int(value):
         raise RefusedError(f"{field}: expected an integer")
     return value
+
+
+def _station_location(lat: Any, lon: Any, field: str) -> tuple[float, float]:
+    latitude = float(_number(lat, f"{field}.latitude", -90, 90))
+    longitude = float(_number(lon, f"{field}.longitude", -180, 180))
+    if (
+        abs(latitude - PUBLIC_LOCATION[0]) > 0.1
+        or abs(longitude - PUBLIC_LOCATION[1]) > 0.1
+    ):
+        raise RefusedError(f"{field}: requires the Lake Arrowhead region")
+    return latitude, longitude
+
+
+def configured_station_location() -> tuple[float, float]:
+    """Load private identity before the optional helper or any publication work."""
+    keys = ("LOCATION_LATITUDE", "LOCATION_LONGITUDE")
+    if any(key in os.environ for key in keys):
+        values = []
+        for key in keys:
+            text = os.environ.get(key, "").strip()
+            if not LOCATION_DECIMAL.fullmatch(text):
+                raise RefusedError(f"private station location.{key}: expected a decimal number")
+            values.append(float(text))
+        lat, lon = values
+    else:
+        try:
+            config = tomllib.loads(
+                Path(__file__).with_name("station-location.toml").read_text(encoding="utf-8")
+            )
+        except FileNotFoundError:
+            raise RefusedError(
+                "private station location: configure both LOCATION variables or station-location.toml"
+            ) from None
+        except (OSError, UnicodeError, ValueError):
+            raise RefusedError("private station location: cannot read valid station-location.toml") from None
+        station = config.get("station")
+        if not isinstance(station, dict):
+            raise RefusedError("private station location: expected a [station] table")
+        for key in ("latitude", "longitude"):
+            if key not in station:
+                raise RefusedError(f"private station location.{key}: missing required field")
+        lat, lon = station["latitude"], station["longitude"]
+    return _station_location(lat, lon, "private station location")
+
+
+def validate_station_location(document: dict[str, Any]) -> tuple[float, float]:
+    expected = configured_station_location()
+    actual = _station_location(document.get("latitude"), document.get("longitude"), "forecast")
+    if (
+        any(abs(value - target) > 0.001 for value, target in zip(actual, expected, strict=True))
+        or document.get("timezone") != STATION_TIME_ZONE
+    ):
+        raise RefusedError(
+            "private station location: forecast.latitude/longitude/timezone must match the configured Lake Arrowhead station"
+        )
+    return actual
 
 
 # Point-value constraints in ForecastHourlyValuesSchema/ForecastDailyValuesSchema.
@@ -1018,7 +1076,9 @@ def _report_card_failure(reason: str) -> None:
     traceback.print_exc()
 
 
-def prepare_town_card(payload: dict[str, Any], current: Any) -> PreparedFile | None:
+def prepare_town_card(
+    payload: dict[str, Any], current: Any, *, station_location: tuple[float, float]
+) -> PreparedFile | None:
     """An optional output may fail without stopping the core publication."""
     try:
         import town_card as helper
@@ -1057,6 +1117,7 @@ def prepare_town_card(payload: dict[str, Any], current: Any) -> PreparedFile | N
         card = build_town_card(
             payload,
             current,
+            station_location=station_location,
             diagnostic=lambda message: print(
                 f"warning: town-card.json: {message}", file=sys.stderr, flush=True
             ),
@@ -1244,6 +1305,7 @@ def run(
 
     try:
         document = load_document(resolve_source(source))
+        station_location = validate_station_location(document)
         payload, forecast_file = prepare_forecast(
             document, now if now is not None else datetime.now(UTC)
         )
@@ -1256,11 +1318,7 @@ def run(
 
     body = forecast_file.content
     issued_at = payload["issued_at"]
-    # The helper needs coordinates for station validation and day/night icons.
-    # Keep this internal copy separate from the coordinate-free public payload.
-    town = prepare_town_card(
-        payload | {key: document[key] for key in ("latitude", "longitude")}, current
-    )
+    town = prepare_town_card(payload, current, station_location=station_location)
     files = {
         "README.md": PreparedFile.raw(DATA_BRANCH_README.encode("utf-8")),
         "forecast.json": forecast_file,

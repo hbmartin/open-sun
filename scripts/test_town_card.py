@@ -2,11 +2,9 @@
 
 import copy
 import json
-import os
 import unittest
-
-import town_card
 from datetime import timedelta
+from functools import partial
 from pathlib import Path
 from unittest.mock import patch
 
@@ -14,7 +12,8 @@ from town_card import (
     TZ,
     CardInputError,
     bands,
-    build_town_card,
+    PUBLIC_LOCATION,
+    build_town_card as _build_town_card,
     condition,
     instant,
     is_daytime,
@@ -28,37 +27,10 @@ FIXTURE = json.loads((FIXTURES / "town-card.json").read_text())
 EDGES = json.loads((FIXTURES / "town-card-edges.json").read_text())
 
 
+build_town_card = partial(_build_town_card, station_location=(34.25, -117.19))
+
+
 class TownCardTest(unittest.TestCase):
-    def setUp(self):
-        private_location = patch.dict(os.environ, {
-            "LOCATION_LATITUDE": "35.0", "LOCATION_LONGITUDE": "-118.0",
-        })
-        private_location.start()
-        self.addCleanup(private_location.stop)
-
-    def test_private_location_accepts_environment_and_private_file_only(self):
-        self.assertEqual(town_card.configured_station_location(), (35, -118))
-        with (
-            patch.dict(os.environ, {}, clear=True),
-            patch.object(
-                Path, "read_text", return_value="[station]\nlatitude = 35\nlongitude = -118\n",
-            ),
-        ):
-            self.assertEqual(town_card.configured_station_location(), (35, -118))
-        for config in (
-            {},
-            {"LOCATION_LATITUDE": "35"},
-            {"LOCATION_LATITUDE": "nan", "LOCATION_LONGITUDE": "-118"},
-            {"LOCATION_LATITUDE": "91", "LOCATION_LONGITUDE": "-118"},
-        ):
-            with (
-                self.subTest(config=config),
-                patch.dict(os.environ, config, clear=True),
-                patch.object(Path, "read_text", side_effect=FileNotFoundError),
-                self.assertRaisesRegex(CardInputError, "private station location"),
-            ):
-                town_card.configured_station_location()
-
     def forecast(self):
         return copy.deepcopy(FIXTURE["input"]["forecast"])
 
@@ -173,27 +145,27 @@ class TownCardTest(unittest.TestCase):
         for case in EDGES["daylight"]:
             with self.subTest(at=case["valid_time"]):
                 self.assertEqual(
-                    is_daytime(instant(case["valid_time"]), 35.0, -118.0),
+                    is_daytime(instant(case["valid_time"]), *PUBLIC_LOCATION),
                     case["is_daytime"],
                 )
         for case in EDGES["sun_events"]:
             rise, sunset = station_sun_times(
-                instant(case["sunrise"]).astimezone(TZ).date(), 35.0, -118.0
+                instant(case["sunrise"]).astimezone(TZ).date(), *PUBLIC_LOCATION
             )
             self.assertEqual(rise, instant(case["sunrise"]))
             self.assertEqual(sunset, instant(case["sunset"]))
         at = instant("2026-03-15T14:00:00Z")
         sunrise, sunset = station_sun_times(
-            at.astimezone(TZ).date(), 35.0, -118.0
+            at.astimezone(TZ).date(), *PUBLIC_LOCATION
         )
-        self.assertEqual(sunrise.isoformat(), "2026-03-15T14:03:59.182000+00:00")
+        self.assertEqual(sunrise.isoformat(), '2026-03-15T14:00:37.339000+00:00')
         for boundary in (sunrise, sunset):
-            self.assertTrue(is_daytime(boundary, 35.0, -118.0))
+            self.assertTrue(is_daytime(boundary, *PUBLIC_LOCATION))
         self.assertFalse(
-            is_daytime(sunrise - timedelta(milliseconds=1), 35.0, -118.0)
+            is_daytime(sunrise - timedelta(milliseconds=1), *PUBLIC_LOCATION)
         )
         self.assertFalse(
-            is_daytime(sunset + timedelta(milliseconds=1), 35.0, -118.0)
+            is_daytime(sunset + timedelta(milliseconds=1), *PUBLIC_LOCATION)
         )
 
     def test_missing_station_and_partial_forecast(self):
@@ -434,10 +406,8 @@ class TownCardTest(unittest.TestCase):
 
     def test_station_identity_and_exact_expiry(self):
         forecast = self.forecast()
-        forecast["latitude"] = 40
         with self.assertRaisesRegex(CardInputError, "Lake Arrowhead"):
-            build_town_card(forecast, None)
-        forecast["latitude"] = 35.0
+            build_town_card(forecast, None, station_location=(40, -120))
         forecast["issued_at"] = (
             instant(forecast["published_at"]) - timedelta(hours=12)
         ).isoformat()

@@ -31,8 +31,6 @@ const environmentSchema = siteUrlSchema.extend({
   WEATHER_DAILY_API_URL: z.string().url().default(`${DATA_BRANCH}/daily.json`),
   WEATHER_HOURLY_API_URL: z.string().url().default(`${DATA_BRANCH}/hourly.json`),
   WEATHER_FORECAST_API_URL: z.string().url().default(`${DATA_BRANCH}/forecast.json`),
-  LOCATION_LATITUDE: z.coerce.number().min(-90).max(90),
-  LOCATION_LONGITUDE: z.coerce.number().min(-180).max(180),
   REVALIDATE_SECRET: z.string().min(1),
 })
 

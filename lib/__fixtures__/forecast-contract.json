@@ -4,8 +4,8 @@
     "issued_at": "2026-10-22T12:46:00+00:00",
     "status": "ready",
     "timezone": "America/Los_Angeles",
-    "latitude": 35.0,
-    "longitude": -118.0,
+    "latitude": 34.25,
+    "longitude": -117.19,
     "dataset_fingerprint": "contract-fixture",
     "sources": [
       "nws"
