@@ -51,6 +51,19 @@ def prepared_contract_cases():
 
 
 class SourceContractTests(unittest.TestCase):
+    def test_conversion_does_not_read_private_configuration(self):
+        base = json.loads(FIXTURE.read_bytes())["source"]
+        with patch.object(
+            publisher,
+            "configured_station_location",
+            side_effect=AssertionError("private config read"),
+        ):
+            payload, _ = publisher.prepare_forecast(
+                base | {"latitude": 40, "longitude": -120}, NOW
+            )
+        self.assertNotIn("latitude", payload)
+        self.assertNotIn("longitude", payload)
+
     def test_shared_contract_cases(self):
         cases = list(contract_cases())
         for (case, _), result in zip(cases, prepared_contract_cases(), strict=True):

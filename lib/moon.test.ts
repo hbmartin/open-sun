@@ -85,7 +85,7 @@ describe("buildMoonEvents", () => {
 describe("selectNextMoonEvents", () => {
   it("returns one rise and one set, in the order they happen", () => {
     const next = selectNextMoonEvents(EVENTS, NOW)
-    // At 09:00 on the 5th the moon has already risen (23:16 on the 4th), so the
+    // At 09:00 on the 5th the moon has already risen (about 23:01 on the 4th), so the
     // next event of each kind straddles the afternoon and late evening.
     expect(next.map((event) => [event.kind, formatStationTime(event.at)])).toEqual([
       ["moonset", "1:19 PM"],

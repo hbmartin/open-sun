@@ -37,8 +37,9 @@ describe("Python publisher / frontend contract", () => {
           expect(actual.payload).toHaveProperty("schema_version", FORECAST_SCHEMA_VERSION)
           const raw = JSON.stringify(actual.payload)
           expect(raw).not.toMatch(/"(?:latitude|longitude|lat|lon)"\s*:/u)
-          expect(raw).not.toContain(String(fixture.source.latitude))
-          expect(raw).not.toContain(String(fixture.source.longitude))
+          if (actual.name === "coordinate-like legitimate temperature") {
+            expect(actual.payload).toHaveProperty("hourly.0.values.temp_f", 34.25)
+          }
           const parsed = ForecastDocumentSchema.safeParse(actual.payload)
           expect(parsed.success, `${actual.name}: ${parsed.error}`).toBe(true)
         }

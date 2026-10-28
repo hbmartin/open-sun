@@ -4,7 +4,6 @@ import copy
 import json
 import unittest
 from datetime import timedelta
-from functools import partial
 from pathlib import Path
 from unittest.mock import patch
 
@@ -13,7 +12,7 @@ from town_card import (
     CardInputError,
     bands,
     PUBLIC_LOCATION,
-    build_town_card as _build_town_card,
+    build_town_card,
     condition,
     instant,
     is_daytime,
@@ -25,9 +24,6 @@ from town_card import (
 FIXTURES = Path(__file__).resolve().parent.parent / "lib/__fixtures__"
 FIXTURE = json.loads((FIXTURES / "town-card.json").read_text())
 EDGES = json.loads((FIXTURES / "town-card-edges.json").read_text())
-
-
-build_town_card = partial(_build_town_card, station_location=(34.25, -117.19))
 
 
 class TownCardTest(unittest.TestCase):
@@ -155,10 +151,8 @@ class TownCardTest(unittest.TestCase):
             self.assertEqual(rise, instant(case["sunrise"]))
             self.assertEqual(sunset, instant(case["sunset"]))
         at = instant("2026-03-15T14:00:00Z")
-        sunrise, sunset = station_sun_times(
-            at.astimezone(TZ).date(), *PUBLIC_LOCATION
-        )
-        self.assertEqual(sunrise.isoformat(), '2026-03-15T14:00:37.339000+00:00')
+        sunrise, sunset = station_sun_times(at.astimezone(TZ).date(), *PUBLIC_LOCATION)
+        self.assertEqual(sunrise.isoformat(), "2026-03-15T14:00:37.339000+00:00")
         for boundary in (sunrise, sunset):
             self.assertTrue(is_daytime(boundary, *PUBLIC_LOCATION))
         self.assertFalse(
@@ -404,10 +398,10 @@ class TownCardTest(unittest.TestCase):
         self.assertEqual(observation["rain_date"], "2019-12-31")
         self.assertEqual(observation["observed_at"], "2020-01-01T00:00:00+00:00")
 
-    def test_station_identity_and_exact_expiry(self):
+    def test_timezone_and_exact_expiry(self):
         forecast = self.forecast()
-        with self.assertRaisesRegex(CardInputError, "Lake Arrowhead"):
-            build_town_card(forecast, None, station_location=(40, -120))
+        with self.assertRaisesRegex(CardInputError, "forecast.timezone"):
+            build_town_card(forecast | {"timezone": "UTC"}, None)
         forecast["issued_at"] = (
             instant(forecast["published_at"]) - timedelta(hours=12)
         ).isoformat()

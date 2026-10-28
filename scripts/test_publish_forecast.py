@@ -674,7 +674,7 @@ class ReleaseCohortTest(unittest.TestCase):
             self._transform(release_ids="2a2b510af0e95621")
 
     def test_the_publisher_version_names_this_contract(self) -> None:
-        self.assertEqual(self._transform()["publisher_version"], "2.1.0")
+        self.assertEqual(self._transform()["publisher_version"], "2.2.0")
 
     def test_schema_six_preserves_hourly_values_and_release_attribution(self) -> None:
         row = LeadBucketTest._row("0-1h")

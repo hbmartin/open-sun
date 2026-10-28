@@ -107,7 +107,7 @@ describe("Almanac", () => {
   it("gives the moonset in station time", () => {
     const markup = render()
     expect(markup).toContain("Moonset")
-    // 20:50Z on the 5th is 1:19 PM at the station, not the following morning.
+    // About 20:19Z on the 5th is 1:19 PM locally, not the following morning.
     expect(markup).toContain("1:19 PM")
   })
 
