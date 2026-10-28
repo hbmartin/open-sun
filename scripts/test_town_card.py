@@ -2,6 +2,7 @@
 
 import copy
 import json
+import runpy
 import unittest
 from datetime import timedelta
 from pathlib import Path
@@ -22,8 +23,8 @@ from town_card import (
 )
 
 FIXTURES = Path(__file__).resolve().parent.parent / "lib/__fixtures__"
-FIXTURE = json.loads((FIXTURES / "town-card.json").read_text())
-EDGES = json.loads((FIXTURES / "town-card-edges.json").read_text())
+FIXTURE = json.loads((FIXTURES / "town-card.json").read_text(encoding="utf-8"))
+EDGES = json.loads((FIXTURES / "town-card-edges.json").read_text(encoding="utf-8"))
 
 
 class TownCardTest(unittest.TestCase):
@@ -32,6 +33,19 @@ class TownCardTest(unittest.TestCase):
 
     def test_shared_document(self):
         self.assertEqual(build_town_card(**FIXTURE["input"]), FIXTURE["expected"])
+
+    def test_shared_fixtures_ignore_non_utf8_default(self):
+        original = Path.read_text
+
+        def non_utf8_default(path, *args, **kwargs):
+            kwargs.setdefault("encoding", "cp1252")
+            return original(path, *args, **kwargs)
+
+        with patch.object(Path, "read_text", non_utf8_default):
+            loaded = runpy.run_path(str(Path(__file__)))
+        self.assertEqual(loaded["FIXTURE"], FIXTURE)
+        self.assertEqual(loaded["EDGES"], EDGES)
+        self.assertIn("\u00b7", loaded["FIXTURE"]["expected"]["station"]["label"])
 
     def test_condition_requires_one_of_its_actual_inputs(self):
         inputs = {
