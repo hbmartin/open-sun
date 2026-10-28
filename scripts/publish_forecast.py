@@ -54,8 +54,8 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
-PUBLISHER_VERSION = "2.1.0"
-SUPPORTED_TOWN_CARD_API_VERSION = 3
+PUBLISHER_VERSION = "2.2.0"
+SUPPORTED_TOWN_CARD_API_VERSION = 4
 CONTRACT_VERSION = 2
 SOURCE_SCHEMA_VERSION = 6
 SUPPORTED_SOURCE_SCHEMA_VERSIONS = frozenset({5, SOURCE_SCHEMA_VERSION})
@@ -64,11 +64,15 @@ DEFAULT_REMOTE = "git@github.com:hbmartin/open-sun.git"
 DEFAULT_BRANCH = "data"
 STATION_TIME_ZONE = "America/Los_Angeles"
 PUBLIC_LOCATION = (34.251, -117.189)
-LOCATION_DECIMAL = re.compile(r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?\Z")
+LOCATION_DECIMAL = re.compile(
+    r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?\Z"
+)
 MAX_SAFE_INTEGER = 2**53 - 1
 PUBLICATION_LOCK_TIMEOUT_S = 30
 
-STAMP = Path.home() / "Library/Application Support/grounded-weather-forecast/last-published"
+STAMP = (
+    Path.home() / "Library/Application Support/grounded-weather-forecast/last-published"
+)
 
 GIT = "/usr/bin/git"
 SSH_KEY = Path.home() / ".ssh/id_ed25519"
@@ -138,20 +142,27 @@ def _write_held_snapshot(content: bytes, held: Path) -> None:
                 _log(f"could not remove temporary held snapshot {partial}: {exc}")
 
 
-def _validated_snapshot(source: Path, clock: datetime) -> tuple[bytes, dict[str, Any]]:
+def _validated_snapshot(
+    source: Path, clock: datetime, expected_location: tuple[float, float]
+) -> tuple[bytes, dict[str, Any]]:
     content, document = _read_document(source)
-    prepare_forecast(document, clock)
+    prepare_publishable_forecast(document, clock, expected_location=expected_location)
     return content, document
 
 
 def remember_good(
     source: Path, held: Path = HELD_GOOD, *, now: datetime | None = None
 ) -> None:
-    """Keep a core-valid ready document, independently of publication success."""
+    """Keep a station-valid ready document, independently of push success."""
+    expected_location = configured_station_location()
     content, document = _read_document(source)
     if document.get("status") != "ready":
         raise RefusedError("only a ready forecast may enter the hold cache")
-    prepare_forecast(document, now if now is not None else datetime.now(UTC))
+    prepare_publishable_forecast(
+        document,
+        now if now is not None else datetime.now(UTC),
+        expected_location=expected_location,
+    )
     _write_held_snapshot(content, held)
 
 
@@ -175,13 +186,24 @@ def choose_source(
     degraded-but-current beats ready-but-old. A held document dated further than
     CLOCK_SKEW_TOLERANCE_SECONDS into the future is refused too: its age is not
     trustworthy, so it cannot be judged stale. Expected incoming read or
-    validation failures also consult the hold. Without an eligible, core-valid
+    validation failures also consult the hold. Without an eligible, station-valid
     hold, return the candidate for normal publication/refusal. Unexpected core
     programming errors retain their traceback.
     """
     clock = now if now is not None else datetime.now(UTC)
     try:
-        content, candidate_doc = _validated_snapshot(candidate, clock)
+        expected_location = configured_station_location()
+    except RefusedError as exc:
+        _log(
+            f"private configuration unavailable: {exc}; leaving the held snapshot unchanged"
+        )
+        # Preserve the selector's path-returning API. run() owns the exit-2
+        # refusal, including when called through the installed hourly wrapper.
+        return candidate
+    try:
+        content, candidate_doc = _validated_snapshot(
+            candidate, clock, expected_location
+        )
     except RefusedError as exc:
         _log(
             f"rejected incoming document {candidate}: {exc}; checking the held snapshot"
@@ -213,7 +235,9 @@ def choose_source(
             remote, branch, read_publication_state(remote, branch)
         )
         refuse_rollback(issued, floor)
-        prepare_forecast(held_doc, clock)
+        prepare_publishable_forecast(
+            held_doc, clock, expected_location=expected_location
+        )
     except RefusedError as exc:
         _log(
             f"status={status}; no usable held ready document: {exc} — publishing the candidate"
@@ -445,15 +469,27 @@ def _number(
     return value
 
 
-def _station_location(lat: Any, lon: Any, field: str) -> tuple[float, float]:
-    latitude = float(_number(lat, f"{field}.latitude", -90, 90))
-    longitude = float(_number(lon, f"{field}.longitude", -180, 180))
+def _coordinates(lat: Any, lon: Any, field: str = "") -> tuple[float, float]:
+    prefix = f"{field}." if field else ""
+    return (
+        float(_number(lat, f"{prefix}latitude", -90, 90)),
+        float(_number(lon, f"{prefix}longitude", -180, 180)),
+    )
+
+
+def _require_station_region(location: tuple[float, float], field: str) -> None:
+    latitude, longitude = location
     if (
         abs(latitude - PUBLIC_LOCATION[0]) > 0.1
         or abs(longitude - PUBLIC_LOCATION[1]) > 0.1
     ):
         raise RefusedError(f"{field}: requires the Lake Arrowhead region")
-    return latitude, longitude
+
+
+def _source_location(document: dict[str, Any]) -> tuple[float, float]:
+    if document.get("timezone") != STATION_TIME_ZONE:
+        raise RefusedError(f"timezone: expected {STATION_TIME_ZONE!r}")
+    return _coordinates(document.get("latitude"), document.get("longitude"))
 
 
 def configured_station_location() -> tuple[float, float]:
@@ -464,41 +500,52 @@ def configured_station_location() -> tuple[float, float]:
         for key in keys:
             text = os.environ.get(key, "").strip()
             if not LOCATION_DECIMAL.fullmatch(text):
-                raise RefusedError(f"private station location.{key}: expected a decimal number")
+                raise RefusedError(
+                    f"private station location.{key}: expected a decimal number"
+                )
             values.append(float(text))
         lat, lon = values
     else:
         try:
             config = tomllib.loads(
-                Path(__file__).with_name("station-location.toml").read_text(encoding="utf-8")
+                Path(__file__)
+                .with_name("station-location.toml")
+                .read_text(encoding="utf-8")
             )
         except FileNotFoundError:
             raise RefusedError(
                 "private station location: configure both LOCATION variables or station-location.toml"
             ) from None
         except (OSError, UnicodeError, ValueError):
-            raise RefusedError("private station location: cannot read valid station-location.toml") from None
+            raise RefusedError(
+                "private station location: cannot read valid station-location.toml"
+            ) from None
         station = config.get("station")
         if not isinstance(station, dict):
             raise RefusedError("private station location: expected a [station] table")
         for key in ("latitude", "longitude"):
             if key not in station:
-                raise RefusedError(f"private station location.{key}: missing required field")
+                raise RefusedError(
+                    f"private station location.{key}: missing required field"
+                )
         lat, lon = station["latitude"], station["longitude"]
-    return _station_location(lat, lon, "private station location")
+    location = _coordinates(lat, lon, "private station location")
+    _require_station_region(location, "private station location")
+    return location
 
 
-def validate_station_location(document: dict[str, Any]) -> tuple[float, float]:
-    expected = configured_station_location()
-    actual = _station_location(document.get("latitude"), document.get("longitude"), "forecast")
-    if (
-        any(abs(value - target) > 0.001 for value, target in zip(actual, expected, strict=True))
-        or document.get("timezone") != STATION_TIME_ZONE
+def validate_station_location(
+    document: dict[str, Any], expected_location: tuple[float, float]
+) -> None:
+    actual = _source_location(document)
+    _require_station_region(actual, "forecast")
+    if any(
+        abs(value - target) > 0.001
+        for value, target in zip(actual, expected_location, strict=True)
     ):
         raise RefusedError(
             "private station location: forecast.latitude/longitude/timezone must match the configured Lake Arrowhead station"
         )
-    return actual
 
 
 # Point-value constraints in ForecastHourlyValuesSchema/ForecastDailyValuesSchema.
@@ -744,15 +791,10 @@ def transform(document: dict[str, Any], published_at: datetime) -> dict[str, Any
     if status == "degraded" and not status_reason:
         status_reason = "serving gate reported no usable backtest evidence"
 
-    if document.get("timezone") != STATION_TIME_ZONE:
-        raise RefusedError(f"timezone: expected {STATION_TIME_ZONE!r}")
+    _source_location(document)
     fingerprint = document.get("dataset_fingerprint")
     if not isinstance(fingerprint, str) or not fingerprint:
         raise RefusedError("dataset_fingerprint: expected a nonempty string")
-
-    # Validate private source metadata without copying it into public output.
-    _number(document.get("latitude"), "latitude", -90, 90)
-    _number(document.get("longitude"), "longitude", -180, 180)
 
     return {
         "schema_version": CONTRACT_VERSION,
@@ -865,9 +907,20 @@ class PreparedFile:
 def prepare_forecast(
     document: dict[str, Any], published_at: datetime
 ) -> tuple[dict[str, Any], PreparedFile]:
-    """The same core transform/serialization checks for publication and holds."""
+    """Pure core conversion/serialization, independent of private configuration."""
     payload = transform(document, published_at)
     return payload, PreparedFile.document(payload)
+
+
+def prepare_publishable_forecast(
+    document: dict[str, Any],
+    published_at: datetime,
+    *,
+    expected_location: tuple[float, float],
+) -> tuple[dict[str, Any], PreparedFile]:
+    """The common admission boundary for publication and both hold-cache paths."""
+    validate_station_location(document, expected_location)
+    return prepare_forecast(document, published_at)
 
 
 # --------------------------------------------------------------------------
@@ -907,7 +960,9 @@ station documents do not carry that release marker.
 """
 
 # Names this script writes itself; an --include-dir may not shadow them.
-RESERVED_BRANCH_FILES = frozenset({"README.md", "forecast.json", "vercel.json", "town-card.json"})
+RESERVED_BRANCH_FILES = frozenset(
+    {"README.md", "forecast.json", "vercel.json", "town-card.json"}
+)
 
 DATA_BRANCH_VERCEL = """\
 {
@@ -1076,9 +1131,7 @@ def _report_card_failure(reason: str) -> None:
     traceback.print_exc()
 
 
-def prepare_town_card(
-    payload: dict[str, Any], current: Any, *, station_location: tuple[float, float]
-) -> PreparedFile | None:
+def prepare_town_card(payload: dict[str, Any], current: Any) -> PreparedFile | None:
     """An optional output may fail without stopping the core publication."""
     try:
         import town_card as helper
@@ -1117,7 +1170,6 @@ def prepare_town_card(
         card = build_town_card(
             payload,
             current,
-            station_location=station_location,
             diagnostic=lambda message: print(
                 f"warning: town-card.json: {message}", file=sys.stderr, flush=True
             ),
@@ -1305,9 +1357,11 @@ def run(
 
     try:
         document = load_document(resolve_source(source))
-        station_location = validate_station_location(document)
-        payload, forecast_file = prepare_forecast(
-            document, now if now is not None else datetime.now(UTC)
+        expected_location = configured_station_location()
+        payload, forecast_file = prepare_publishable_forecast(
+            document,
+            now if now is not None else datetime.now(UTC),
+            expected_location=expected_location,
         )
         extra_blobs, current = (
             collect_extra_blobs(Path(include_dir)) if include_dir else ({}, None)
@@ -1318,7 +1372,7 @@ def run(
 
     body = forecast_file.content
     issued_at = payload["issued_at"]
-    town = prepare_town_card(payload, current, station_location=station_location)
+    town = prepare_town_card(payload, current)
     files = {
         "README.md": PreparedFile.raw(DATA_BRANCH_README.encode("utf-8")),
         "forecast.json": forecast_file,

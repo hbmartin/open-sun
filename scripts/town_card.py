@@ -17,7 +17,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 TZ = ZoneInfo("America/Los_Angeles")
-TOWN_CARD_API_VERSION = 3
+TOWN_CARD_API_VERSION = 4
 PUBLIC_LOCATION = (34.251, -117.189)
 COVERAGES = (0.9, 0.6, 0.3)
 # ECMAScript WhiteSpace and LineTerminator characters; Python's strip/float
@@ -388,21 +388,11 @@ def build_town_card(
     forecast: dict[str, Any],
     current: Any,
     *,
-    station_location: tuple[float, float],
     diagnostic: Callable[[str], None] | None = None,
 ) -> dict[str, Any]:
     forecast = object_value(forecast, "forecast")
-    lat, lon = (number(value) for value in station_location)
-    if (
-        lat is None
-        or lon is None
-        or abs(lat - PUBLIC_LOCATION[0]) > 0.1
-        or abs(lon - PUBLIC_LOCATION[1]) > 0.1
-        or forecast.get("timezone") != "America/Los_Angeles"
-    ):
-        raise CardInputError(
-            "forecast.latitude/longitude/timezone: town-card requires the Lake Arrowhead station"
-        )
+    if forecast.get("timezone") != "America/Los_Angeles":
+        raise CardInputError("forecast.timezone: expected America/Los_Angeles")
     published = instant(forecast.get("published_at"), "forecast.published_at")
     issued = instant(forecast.get("issued_at"), "forecast.issued_at")
     report = diagnostic if diagnostic is not None else lambda message: None

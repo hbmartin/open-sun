@@ -2000,6 +2000,21 @@
       ],
       "accepted": true,
       "field": "quantiles"
+    },
+    {
+      "name": "coordinate-like legitimate temperature",
+      "accepted": true,
+      "changes": [
+        {
+          "path": [
+            "hourly",
+            0,
+            "values",
+            "temp_c"
+          ],
+          "value": 1.25
+        }
+      ]
     }
   ]
 }
