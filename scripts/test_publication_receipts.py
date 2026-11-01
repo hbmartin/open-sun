@@ -160,3 +160,32 @@ class PublicationReceiptTests(unittest.TestCase):
             self.assertEqual(
                 hashlib.sha256(source).hexdigest(), receipt["source_sha256"]
             )
+            self.assertEqual(
+                hashlib.sha256(output).hexdigest(), receipt["forecast_sha256"]
+            )
+            self.assertEqual(receipt["publisher_version"], publisher.PUBLISHER_VERSION)
+            self.assertEqual(
+                receipt["public_schema_version"], publisher.CONTRACT_VERSION
+            )
+            commit = base64.b64decode(case["commit_base64"])
+            tree = base64.b64decode(case["tree_base64"])
+
+            def git_hash(kind, body):
+                return hashlib.sha1(f"{kind} {len(body)}\0".encode() + body, usedforsecurity=False).hexdigest()
+
+            self.assertEqual(git_hash("commit", commit), receipt["commit"])
+            self.assertEqual(
+                commit.splitlines()[0], f"tree {git_hash('tree', tree)}".encode()
+            )
+            self.assertEqual(
+                tree,
+                b"100644 forecast.json\0" + bytes.fromhex(git_hash("blob", output)),
+            )
+        self.assertEqual(
+            len({c["receipt"]["commit"] for c in fixture["cases"]}),
+            len(fixture["cases"]),
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

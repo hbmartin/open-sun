@@ -282,7 +282,7 @@ curl "https://your-app.vercel.app/api/revalidate?secret=YOUR_SECRET"
 Returns `200` with a timestamp on success, `401` for a missing or incorrect secret.
 
 
-### Exact publication receipts (publisher 2.3)
+## Exact publication receipts (publisher 2.3)
 
 Python callers may use `run_with_receipt(...)` with the same keyword options as
 `run(...)`. `run` still returns the original integer exit code. The new API
