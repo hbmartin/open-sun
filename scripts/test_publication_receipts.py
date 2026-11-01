@@ -169,9 +169,17 @@ class PublicationReceiptTests(unittest.TestCase):
             )
             commit = base64.b64decode(case["commit_base64"])
             tree = base64.b64decode(case["tree_base64"])
+            expected_time = int(
+                datetime.fromisoformat(receipt["published_at"]).timestamp()
+            )
+            for line in commit.splitlines():
+                if line.startswith((b"author ", b"committer ")):
+                    self.assertEqual(int(line.rsplit(b" ", 2)[1]), expected_time)
 
             def git_hash(kind, body):
-                return hashlib.sha1(f"{kind} {len(body)}\0".encode() + body, usedforsecurity=False).hexdigest()
+                return hashlib.sha1(
+                    f"{kind} {len(body)}\0".encode() + body, usedforsecurity=False
+                ).hexdigest()
 
             self.assertEqual(git_hash("commit", commit), receipt["commit"])
             self.assertEqual(
