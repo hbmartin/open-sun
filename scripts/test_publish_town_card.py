@@ -32,7 +32,7 @@ import publish_forecast as publisher
 
 source, staged, mode, now = sys.argv[1:]
 
-def mocked_push(git_dir, remote, branch):
+def mocked_push(git_dir, remote, branch, commit=None):
     if mode == "fail":
         raise publisher.GitError("injected failed push")
     env = publisher._git_env(git_dir)
@@ -152,7 +152,7 @@ class PublisherTownCardTest(unittest.TestCase):
             check=False,
         )
 
-    def capture_tree(self, git_dir, remote, branch):
+    def capture_tree(self, git_dir, remote, branch, commit=None):
         def git(*args):
             return subprocess.check_output(
                 [publisher.GIT, *args], env=publisher._git_env(git_dir)
@@ -189,7 +189,7 @@ class PublisherTownCardTest(unittest.TestCase):
         for name in ("current.json", "daily.json", "hourly.json"):
             self.assertEqual(self.trees[-1][name], (self.staged / name).read_bytes())
         self.assertEqual(
-            json.loads(self.trees[-1]["forecast.json"])["publisher_version"], "2.2.0"
+            json.loads(self.trees[-1]["forecast.json"])["publisher_version"], "2.3.0"
         )
 
     def test_single_card_build_and_one_commit_contains_all_documents(self):
@@ -326,7 +326,7 @@ class PublisherTownCardTest(unittest.TestCase):
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(
-                    json.loads(result.stdout)["publisher_version"], "2.2.0"
+                    json.loads(result.stdout)["publisher_version"], "2.3.0"
                 )
                 self.assertIn(
                     "ZoneInfoNotFoundError" if helper else "ModuleNotFoundError",

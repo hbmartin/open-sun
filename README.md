@@ -36,7 +36,7 @@ The publisher also writes `town-card.json` in the same data-branch commit. Schem
 
 `scripts/town_card.py` owns the stdlib-only transformation. Condition thresholds, quantile interpolation, sunrise/sunset, and summary rules follow the UI helpers. The card additionally requires condition evidence and suppresses bands that are not nested, and its next-full-hour UTC window intentionally differs from the UI's current-hour, fixed-local-slot window. Shared document and edge fixtures exercise both Python and the production TypeScript mappers; populated spring/fall fixtures check actual weather values across DST. Run `python3 -m unittest discover -s scripts -t scripts` in addition to `pnpm test`.
 
-Deploy both `publish_forecast.py` and `town_card.py` in the publisher directory, replacing the compatible helper first. Publisher 2.2.0 requires integer `TOWN_CARD_API_VERSION = 4`; compatible helper and publisher releases may differ. A missing or unsupported API marker logs the expected/actual API and helper path, then omits the card without retrying an older call signature. Private station configuration is checked before any helper or Git operation; missing, malformed, out-of-area, or mismatched coordinates refuse publication with exit 2 and preserve the previous branch and publication state. Other card failures are optional: a missing helper or timezone database, invalid top-level timestamp, or unexpected card error also logs a warning and omits `town-card.json` while the forecast and station documents publish together. Because each commit replaces the branch tree, omission removes any previous card; consumers must handle a missing file as unavailable. Unexpected failures retain their traceback. API compatibility is checked before resolving helper exports; a helper claiming the supported API but missing or breaking its exports is reported as an unexpected helper failure. Its `CardInputError` export must be a custom `Exception` subclass; built-in classes such as `Exception`, `ValueError`, and `RuntimeError` are rejected so they cannot hide programming-error tracebacks.
+Deploy both `publish_forecast.py` and `town_card.py` in the publisher directory, replacing the compatible helper first. Publisher 2.2+ requires integer `TOWN_CARD_API_VERSION = 4`; compatible helper and publisher releases may differ. A missing or unsupported API marker logs the expected/actual API and helper path, then omits the card without retrying an older call signature. Private station configuration is checked before any helper or Git operation; missing, malformed, out-of-area, or mismatched coordinates refuse publication with exit 2 and preserve the previous branch and publication state. Other card failures are optional: a missing helper or timezone database, invalid top-level timestamp, or unexpected card error also logs a warning and omits `town-card.json` while the forecast and station documents publish together. Because each commit replaces the branch tree, omission removes any previous card; consumers must handle a missing file as unavailable. Unexpected failures retain their traceback. API compatibility is checked before resolving helper exports; a helper claiming the supported API but missing or breaking its exports is reported as an unexpected helper failure. Its `CardInputError` export must be a custom `Exception` subclass; built-in classes such as `Exception`, `ValueError`, and `RuntimeError` are rejected so they cannot hide programming-error tracebacks.
 
 Card validation recovers usable data with field-specific warnings: a malformed observation becomes null, invalid selected hourly values leave a gap, and a malformed quantile grid removes only that hour's bands. Rows outside the 24-hour window are ignored before weather-field validation. The last usable hourly duplicate wins; the first daily row matching the publication's local date remains authoritative even when empty or malformed. A point temperature may be null while usable uncertainty bands remain present.
 
@@ -280,3 +280,25 @@ curl "https://your-app.vercel.app/api/revalidate?secret=YOUR_SECRET"
 ```
 
 Returns `200` with a timestamp on success, `401` for a missing or incorrect secret.
+
+
+### Exact publication receipts (publisher 2.3)
+
+Python callers may use `run_with_receipt(...)` with the same keyword options as
+`run(...)`. `run` still returns the original integer exit code. The new API
+returns an immutable `PublicationResult(exit_code, outcome, receipt)`; outcomes
+are `pushed`, `unchanged`, `dry-run`, `built-only`, `refused` and `failed`.
+Unexpected programming errors retain their existing exception/traceback behavior.
+
+Only an acknowledged successful explicit-commit push returns a receipt. Its
+`to_dict()` produces receipt schema 1: full commit SHA, base64 exact forecast
+bytes and their SHA-256, SHA-256 of the source bytes read once, issuance and
+publication timestamps, remote/branch, publisher version and public schema
+version. Public forecast schema remains 2, with hoisted top-level temperature
+truth semantics. A later force-push cannot change the returned identity.
+
+Unchanged output, dry runs, build-only runs and failed/refused publication return
+no receipt. Consumers may reuse independently verified original local evidence;
+they must not turn an unchanged outcome or a later branch readback into a new
+successful-push receipt. Receipt transport is private local data and has no
+signing or protection against the same operator rewriting all artifacts.

@@ -33,6 +33,7 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import base64
 import fcntl
 import hashlib
 import json
@@ -54,7 +55,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
-PUBLISHER_VERSION = "2.2.0"
+PUBLISHER_VERSION = "2.3.0"
 SUPPORTED_TOWN_CARD_API_VERSION = 4
 CONTRACT_VERSION = 2
 SOURCE_SCHEMA_VERSION = 6
@@ -1099,9 +1100,9 @@ def build_commit(
     return commit
 
 
-def push(git_dir: Path, remote: str, branch: str) -> None:
+def push(git_dir: Path, remote: str, branch: str, commit: str | None = None) -> None:
     env = _git_env(git_dir)
-    refspec = f"refs/heads/{branch}:refs/heads/{branch}"
+    refspec = f"{commit or f'refs/heads/{branch}'}:refs/heads/{branch}"
     last: GitError | None = None
     for attempt, delay in enumerate(PUSH_RETRY_DELAYS_S, start=1):
         if delay:
@@ -1340,7 +1341,43 @@ def write_stamp(issued_at: str) -> None:
         _log(f"warning: could not write stamp {STAMP}: {exc}")
 
 
-def run(
+@dataclass(frozen=True)
+class PublicationReceipt:
+    """Exact bytes and commit acknowledged by a successful push, not a branch readback."""
+
+    commit: str
+    forecast_bytes: bytes
+    source_sha256: str
+    issued_at: str
+    published_at: str
+    remote: str
+    branch: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": 1,
+            "commit_binding": "publisher successful explicit-commit push",
+            "commit": self.commit,
+            "forecast_base64": base64.b64encode(self.forecast_bytes).decode("ascii"),
+            "forecast_sha256": hashlib.sha256(self.forecast_bytes).hexdigest(),
+            "source_sha256": self.source_sha256,
+            "issued_at": self.issued_at,
+            "published_at": self.published_at,
+            "remote": self.remote,
+            "branch": self.branch,
+            "publisher_version": PUBLISHER_VERSION,
+            "public_schema_version": CONTRACT_VERSION,
+        }
+
+
+@dataclass(frozen=True)
+class PublicationResult:
+    exit_code: int
+    outcome: str
+    receipt: PublicationReceipt | None = None
+
+
+def run_with_receipt(
     *,
     source: str | Path | None = None,
     remote: str = DEFAULT_REMOTE,
@@ -1351,12 +1388,12 @@ def run(
     force: bool = False,
     include_dir: str | Path | None = None,
     now: datetime | None = None,
-) -> int:
+) -> PublicationResult:
     global _log_stream  # noqa: PLW0603 - one process-wide output channel
     _log_stream = sys.stderr if print_payload else sys.stdout
 
     try:
-        document = load_document(resolve_source(source))
+        source_bytes, document = _read_document(resolve_source(source))
         expected_location = configured_station_location()
         payload, forecast_file = prepare_publishable_forecast(
             document,
@@ -1368,7 +1405,7 @@ def run(
         )
     except RefusedError as exc:
         print(f"refusing to publish: {exc}", file=sys.stderr, flush=True)
-        return 2
+        return PublicationResult(2, "refused")
 
     body = forecast_file.content
     issued_at = payload["issued_at"]
@@ -1393,7 +1430,7 @@ def run(
             f"{len(body)} bytes"
             + (f", plus {len(extra_blobs)} station document(s)" if extra_blobs else "")
         )
-        return 0
+        return PublicationResult(0, "dry-run")
 
     try:
         with nullcontext() if no_push else publication_lock(remote, branch):
@@ -1408,7 +1445,7 @@ def run(
                 refuse_rollback(datetime.fromisoformat(issued_at), floor)
                 if not force and state is not None and state.fingerprint == fingerprint:
                     _log(f"{issued_at}: publication state unchanged; skipping")
-                    return 0
+                    return PublicationResult(0, "unchanged")
 
             temporary = tempfile.mkdtemp(
                 prefix="grounded-publish.", dir=Path.home() / "Library/Caches"
@@ -1425,8 +1462,8 @@ def run(
                     # Keep the debug repo so operators can inspect its tree.
                     _log(f"built {commit} (not pushed); inspect with:")
                     _log(f"  git --git-dir {git_dir} cat-file -p {commit}^{{tree}}")
-                    return 0
-                push(git_dir, remote, branch)
+                    return PublicationResult(0, "built-only")
+                push(git_dir, remote, branch, commit)
             finally:
                 if not no_push:
                     shutil.rmtree(temporary, ignore_errors=True)
@@ -1436,16 +1473,54 @@ def run(
             write_publication_state(fingerprint, remote, branch, issued_at)
     except RefusedError as exc:
         print(f"refusing to publish: {exc}", file=sys.stderr, flush=True)
-        return 2
+        return PublicationResult(2, "refused")
     except GitError as exc:
         print(f"publish failed: {exc}", file=sys.stderr, flush=True)
-        return 3
+        return PublicationResult(3, "failed")
     _log(
         f"published {issued_at} ({payload['status']}) as {commit[:12]} "
         f"to {branch}: {len(body)} bytes"
         + (f" + {', '.join(sorted(extra_blobs))}" if extra_blobs else "")
     )
-    return 0
+    return PublicationResult(
+        0,
+        "pushed",
+        PublicationReceipt(
+            commit,
+            body,
+            hashlib.sha256(source_bytes).hexdigest(),
+            issued_at,
+            payload["published_at"],
+            remote,
+            branch,
+        ),
+    )
+
+
+def run(
+    *,
+    source: str | Path | None = None,
+    remote: str = DEFAULT_REMOTE,
+    branch: str = DEFAULT_BRANCH,
+    print_payload: bool = False,
+    dry_run: bool = False,
+    no_push: bool = False,
+    force: bool = False,
+    include_dir: str | Path | None = None,
+    now: datetime | None = None,
+) -> int:
+    """Compatibility API: retain the existing integer exit-code contract."""
+    return run_with_receipt(
+        source=source,
+        remote=remote,
+        branch=branch,
+        print_payload=print_payload,
+        dry_run=dry_run,
+        no_push=no_push,
+        force=force,
+        include_dir=include_dir,
+        now=now,
+    ).exit_code
 
 
 def main(argv: list[str] | None = None) -> int:
