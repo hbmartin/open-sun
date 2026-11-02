@@ -172,9 +172,14 @@ class PublicationReceiptTests(unittest.TestCase):
             expected_time = int(
                 datetime.fromisoformat(receipt["published_at"]).timestamp()
             )
-            for line in commit.splitlines():
-                if line.startswith((b"author ", b"committer ")):
-                    self.assertEqual(int(line.rsplit(b" ", 2)[1]), expected_time)
+            identities = [
+                (line.split(b" ", 1)[0], int(line.rsplit(b" ", 2)[1]))
+                for line in commit.splitlines()
+                if line.startswith((b"author ", b"committer "))
+            ]
+            self.assertEqual(
+                identities, [(b"author", expected_time), (b"committer", expected_time)]
+            )
 
             def git_hash(kind, body):
                 return hashlib.sha1(
