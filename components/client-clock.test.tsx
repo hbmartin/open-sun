@@ -107,6 +107,7 @@ function App({
         forecast: mapForecastDocument(
           parsedForecastDocument({
             issued_at: issuedAt,
+            observation_at: new Date(Date.parse(issuedAt) - 60_000).toISOString(),
             status: degraded ? "degraded" : "ready",
             status_reason: degraded ? "no live evidence" : null,
             daily: [makeDailyRow({ date_local: "2026-10-10" })],
@@ -447,7 +448,7 @@ describe("forecast freshness follows the client clock", () => {
     expect(forecastProvenance()?.textContent).toContain("degraded: no live evidence")
     expect(forecastProvenance()?.className).toContain("text-amber-600")
     await clickNav("Info")
-    expect(container.textContent).toContain("Status: Degraded")
+    expect(container.textContent).toContain("Models: Degraded")
     expect(infoAge()?.textContent).toContain("Issued 30m ago (fresh)")
     expect(infoAge()?.className).not.toContain("text-amber-600")
   })

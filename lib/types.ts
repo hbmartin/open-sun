@@ -1,3 +1,4 @@
+import type { ForecastHealth } from "@/lib/forecast-health"
 import type { QuantileBand } from "@/lib/quantiles"
 import type { TimesData } from "@/lib/suncalc"
 
@@ -197,6 +198,7 @@ export interface ForecastCount {
 
 /** A junior-technician health summary of the model run, for the Info view. */
 export interface ForecastInfoData {
+  health: ForecastHealth
   status: "ready" | "degraded"
   statusReason?: string
   issuedAt: string

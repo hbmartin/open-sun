@@ -8,6 +8,7 @@ import type {
   ForecastHourData,
   ForecastRanges,
 } from "@/lib/types"
+import { forecastHealth } from "@/lib/forecast-health"
 import { getAbbreviatedDay } from "@/lib/mappers"
 import { likelyBand, quantileBands } from "@/lib/quantiles"
 import { ForecastMetric } from "@/lib/types"
@@ -291,6 +292,7 @@ export function mapForecastDocument(document: ForecastDocument, now: Date): Fore
       // One scale for every expanded day, so their hour bubbles are comparable.
       hourRanges: hourRangesFor(days.flatMap((day) => day.hours)),
       info: {
+        health: forecastHealth(document),
         status: document.status,
         statusReason: document.status_reason ?? undefined,
         issuedAt: document.issued_at,

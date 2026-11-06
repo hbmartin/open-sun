@@ -55,7 +55,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
-PUBLISHER_VERSION = "2.3.0"
+PUBLISHER_VERSION = "2.4.0"
 SUPPORTED_TOWN_CARD_API_VERSION = 4
 CONTRACT_VERSION = 2
 SOURCE_SCHEMA_VERSION = 6
@@ -763,6 +763,63 @@ def _transform_rows(
     return result
 
 
+def _output_health(
+    rows: list[dict[str, Any]], variables: dict[str, Conversion]
+) -> dict[str, Any]:
+    """Count absent/null values as unavailable, including omitted variable keys."""
+    names = [value[0] for value in variables.values()]
+    missing = {
+        name: sum(row["values"].get(name) is None for row in rows) for name in names
+    }
+    expected = len(rows) * len(names)
+    return {
+        "rows": len(rows),
+        "expected_values": expected,
+        "available_values": expected - sum(missing.values()),
+        "missing_by_variable": {
+            name: count for name, count in missing.items() if count
+        },
+    }
+
+
+def forecast_health(document: dict[str, Any]) -> dict[str, Any]:
+    """Publication health is independent of model approval and holding policy."""
+    observation_at = document["observation_at"]
+    age = (
+        (
+            datetime.fromisoformat(document["issued_at"])
+            - datetime.fromisoformat(observation_at)
+        ).total_seconds()
+        if observation_at is not None
+        else None
+    )
+    observation_status = "fresh"
+    if age is None:
+        observation_status = "missing"
+    elif age < 0:
+        observation_status = "invalid"
+    elif age >= 1800:
+        observation_status = "stale"
+    hourly = _output_health(document["hourly"], HOURLY_VARIABLES)
+    daily = _output_health(document["daily"], DAILY_VARIABLES)
+    output_status = "complete"
+    if not hourly["available_values"] or not daily["available_values"]:
+        output_status = "missing"
+    elif hourly["missing_by_variable"] or daily["missing_by_variable"]:
+        output_status = "partial"
+    return {
+        "status": "ok"
+        if observation_status == "fresh" and output_status == "complete"
+        else "attention",
+        "observation": {
+            "status": observation_status,
+            "age_seconds": age,
+            "max_age_seconds": 1800,
+        },
+        "outputs": {"status": output_status, "hourly": hourly, "daily": daily},
+    }
+
+
 def transform(document: dict[str, Any], published_at: datetime) -> dict[str, Any]:
     """Map the reviewed schema-v5/v6 shapes onto the open-sun contract.
 
@@ -797,7 +854,7 @@ def transform(document: dict[str, Any], published_at: datetime) -> dict[str, Any
     if not isinstance(fingerprint, str) or not fingerprint:
         raise RefusedError("dataset_fingerprint: expected a nonempty string")
 
-    return {
+    result = {
         "schema_version": CONTRACT_VERSION,
         "publisher_version": PUBLISHER_VERSION,
         "source_schema_version": version,
@@ -818,6 +875,8 @@ def transform(document: dict[str, Any], published_at: datetime) -> dict[str, Any
         "hourly": _transform_rows(document, "hourly", _hourly_row),
         "daily": _transform_rows(document, "daily", _daily_row),
     }
+    result["health"] = forecast_health(result)
+    return result
 
 
 def _finite_json_float(token: str) -> float:

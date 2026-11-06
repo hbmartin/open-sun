@@ -2,7 +2,7 @@ import type { ForecastFetchResult } from "@/lib/types"
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 import ForecastWeather from "@/components/ForecastWeather"
-import { makeDailyRow, parsedForecastDocument } from "@/lib/__fixtures__/forecast"
+import { makeDailyRow, makeHourlyRow, parsedForecastDocument } from "@/lib/__fixtures__/forecast"
 import { mapForecastDocument } from "@/lib/forecast-mappers"
 import { ForecastMetric } from "@/lib/types"
 
@@ -50,6 +50,13 @@ describe("ForecastWeather", () => {
   it("warns when the publisher has gone quiet", () => {
     const markup = render(ok({ issued_at: "2026-08-04T10:00:00+00:00" }))
     expect(markup).toContain("publisher may be down")
+  })
+
+  it("warns in the forecast view when ready models have no observation or complete output", () => {
+    const markup = render(ok({ observation_at: null, hourly: [makeHourlyRow({ values: {} })] }))
+    expect(markup).toContain("No recent station observation")
+    expect(markup).toContain("Some forecast values are unavailable")
+    expect(markup).toContain("text-amber-600")
   })
 
   it("marks an unevidenced day in the accessible label", () => {

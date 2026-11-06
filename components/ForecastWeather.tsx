@@ -6,11 +6,16 @@ import ForecastHourlyContainer from "@/components/ForecastHourlyContainer"
 import RangedBar from "@/components/RangedBar"
 import WeatherIcon from "@/components/WeatherIcon"
 import { mapForecastToCondition } from "@/lib/forecast-conditions"
+import { observationHealthMessage } from "@/lib/forecast-health"
 import { forecast_metric_display_units, forecast_metric_precision } from "@/lib/types"
 import { formatMetricValue, formatStationDateTime } from "@/lib/utils"
 
 function ProvenanceLine({ forecast }: { forecast: ForecastData }): React.JSX.Element {
-  const isSuspect = forecast.status === "degraded" || forecast.freshness !== "fresh"
+  const health = forecast.info.health
+  const isSuspect =
+    forecast.status === "degraded" ||
+    forecast.freshness !== "fresh" ||
+    health.status === "attention"
   // Keep the publication timestamp absolute while the shared clock updates
   // the freshness warning independently of the cached forecast document.
   const parts = [`Last updated: ${formatStationDateTime(new Date(forecast.issuedAt))}`]
@@ -19,6 +24,8 @@ function ProvenanceLine({ forecast }: { forecast: ForecastData }): React.JSX.Ele
   } else if (forecast.freshness === "expired") {
     parts.push("publisher may be down")
   }
+  if (health.observation.status !== "fresh") parts.push(observationHealthMessage(health))
+  if (health.outputs.status !== "complete") parts.push("Some forecast values are unavailable.")
 
   return (
     <p
