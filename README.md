@@ -12,6 +12,21 @@ A personal weather-station dashboard built with Next.js. It shows current condit
 - The rendered page is cached by Next.js. A Vercel cron job (see `vercel.json`) hits `GET /api/revalidate?secret=...` hourly, which calls `revalidatePath("/", "layout")` to refresh the cached page.
 - The forecast is fetched from the same page render (`fetchForecastData`), validated against `lib/forecast-schemas.ts`, and mapped by `lib/forecast-mappers.ts`. It never throws: if the publisher is down, stale, or emitting an unrecognised shape, the Forecast tab explains why and the rest of the dashboard is unaffected.
 
+Forecast health is separate from model approval. Publisher 2.4.0 adds a `health`
+object to `forecast.json`: observation status (`fresh`, `stale`, `missing`, or
+`invalid`), age in seconds at forecast issue time, and hourly/daily output
+coverage. A station observation is fresh only when it is less than 30 minutes
+old at issue time; a future observation is invalid. A null timestamp means no
+recent observation was available, not proof of a particular receiver fault.
+Output coverage counts all eight hourly and four daily fields in every emitted
+row, including omitted or null values as missing and zero rain as available.
+An empty or wholly unavailable product has `missing` output status. Counts do
+not imply the advertised horizon has every timestamp; they describe emitted rows.
+The UI derives the same health from the document, including older publishers,
+and shows warnings in both Forecast and Info. `status: ready` continues to mean
+model approval and does not suppress these warnings. Observation age at issue
+time remains fixed while the separate document-freshness clock advances.
+
 ## The data pipeline
 
 Nothing here is served by a live API. Every document is **pushed** to the orphan [`data`](https://github.com/hbmartin/open-sun/tree/data) branch of this repository once an hour at `:45`, and open-sun reads it from `raw.githubusercontent.com` at render time; the existing `:00` revalidate cron picks up each new version.

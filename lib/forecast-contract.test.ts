@@ -4,6 +4,7 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import { describe, expect, it } from "vitest"
 import fixture from "@/lib/__fixtures__/forecast-contract.json"
+import { forecastHealth } from "@/lib/forecast-health"
 import { FORECAST_SCHEMA_VERSION, ForecastDocumentSchema } from "@/lib/forecast-schemas"
 
 interface PreparedCase {
@@ -42,6 +43,9 @@ describe("Python publisher / frontend contract", () => {
           }
           const parsed = ForecastDocumentSchema.safeParse(actual.payload)
           expect(parsed.success, `${actual.name}: ${parsed.error}`).toBe(true)
+          if (parsed.success) {
+            expect(actual.payload).toHaveProperty("health", forecastHealth(parsed.data))
+          }
         }
       }
     } finally {

@@ -1,6 +1,7 @@
 import type { ForecastFetchResult, ForecastInfoData } from "@/lib/types"
 import type React from "react"
 import { ChevronRight, CirclePlay } from "lucide-react"
+import { observationHealthMessage } from "@/lib/forecast-health"
 import { describeAge } from "@/lib/utils"
 
 /**
@@ -10,7 +11,6 @@ import { describeAge } from "@/lib/utils"
  */
 
 const METHOD_LIMIT = 6
-const MILLISECONDS_PER_MINUTE = 60_000
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -81,17 +81,10 @@ function percent(fraction: number): string {
 function HealthCard({ info }: { info: ForecastInfoData }) {
   const isDegraded = info.status === "degraded"
   const isFresh = info.freshness === "fresh"
+  const { health } = info
+  const { hourly, daily } = health.outputs
 
   let ageLine = `Issued ${describeAge(info.ageHours)} (${info.freshness})`
-  if (info.observationAt !== undefined) {
-    const minutes = Math.max(
-      0,
-      Math.round(
-        (Date.parse(info.issuedAt) - Date.parse(info.observationAt)) / MILLISECONDS_PER_MINUTE,
-      ),
-    )
-    ageLine += ` · station observation ${minutes}m before issue`
-  }
   if (info.freshness === "expired") {
     ageLine += " — publisher may be down"
   }
@@ -100,16 +93,49 @@ function HealthCard({ info }: { info: ForecastInfoData }) {
     <Card title="Health">
       <Line amber={isDegraded}>
         {isDegraded
-          ? `Status: Degraded — ${info.statusReason ?? "no backtest evidence"}. Values come from fallback averages until the next promotion cycle.`
-          : "Status: Ready — serving from promoted, backtested methods."}
+          ? `Models: Degraded — ${info.statusReason ?? "no backtest evidence"}. Values come from fallback averages until the next promotion cycle.`
+          : "Models: Ready — serving from promoted, backtested methods."}
       </Line>
       <Line amber={!isFresh}>{ageLine}</Line>
+      <Line amber={health.observation.status !== "fresh"}>{observationHealthMessage(health)}</Line>
+      <Line amber={health.outputs.status !== "complete"}>
+        Forecast values available: {hourly.available_values} of {hourly.expected_values} hourly
+        {" and "}
+        {daily.available_values} of {daily.expected_values} daily.
+        {!hourly.rows && " Hourly forecast unavailable."}
+        {!daily.rows && " Daily forecast unavailable."}
+      </Line>
+      {Object.entries(hourly.missing_by_variable).map(([variable, count]) => (
+        <Line amber key={variable}>
+          {count} hourly {VALUE_LABELS[variable] ?? variable} values unavailable.
+        </Line>
+      ))}
+      {Object.entries(daily.missing_by_variable).map(([variable, count]) => (
+        <Line amber key={variable}>
+          {count} daily {VALUE_LABELS[variable] ?? variable} values unavailable.
+        </Line>
+      ))}
       <Note>
-        Healthy means Ready and issued within the last 3 hours. A new document is published every
-        hour.
+        Model approval, observation availability, and output completeness are checked separately. A
+        new document is published every hour; an observation must be less than 30 minutes old at
+        issue time to count as recent.
       </Note>
     </Card>
   )
+}
+
+const VALUE_LABELS: Record<string, string> = {
+  temp_f: "temperature",
+  temp_max_f: "high temperature",
+  temp_min_f: "low temperature",
+  humidity_pct: "humidity",
+  dew_point_f: "dew point",
+  wind_speed_mph: "wind speed",
+  wind_gust_mph: "wind gust",
+  pressure_sea_inhg: "pressure",
+  precip_in: "rain amount",
+  precip_sum_in: "rain amount",
+  pop: "rain probability",
 }
 
 function EvidenceCard({ info }: { info: ForecastInfoData }) {

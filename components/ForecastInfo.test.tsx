@@ -28,7 +28,7 @@ describe("ForecastInfo", () => {
   it("summarizes a healthy document", () => {
     const markup = render(ok())
     expect(markup).toContain("Forecast Model")
-    expect(markup).toContain("Status: Ready")
+    expect(markup).toContain("Models: Ready")
     expect(markup).toContain("Release: c22474d379549f29")
     // The fixture backs 1 of 8 hourly and 1 of 4 daily value slots.
     expect(markup).toContain("13% of hourly values and 25% of daily")
@@ -51,7 +51,7 @@ describe("ForecastInfo", () => {
 
   it("names the degraded reason in amber", () => {
     const markup = render(ok({ status: "degraded", status_reason: "no live evidence" }))
-    expect(markup).toContain("Status: Degraded — no live evidence")
+    expect(markup).toContain("Models: Degraded — no live evidence")
     expect(markup).toContain("text-amber-600")
   })
 
@@ -123,7 +123,19 @@ describe("ForecastInfo", () => {
     expect(markup).toContain("https://www.youtube.com/watch?v=sqhd5yF8Tfg")
     expect(markup).toContain("See how it works")
     expect(markup).toContain('rel="noopener noreferrer"')
-    expect(markup.indexOf("See how it works")).toBeLessThan(markup.indexOf("Status: Ready"))
+    expect(markup.indexOf("See how it works")).toBeLessThan(markup.indexOf("Models: Ready"))
+  })
+
+  it("warns about missing observations and omitted values even with ready models", () => {
+    const markup = render(
+      ok({ observation_at: null, hourly: [makeHourlyRow({ values: { temp_f: 70 } })] }),
+    )
+    expect(markup).toContain("Models: Ready")
+    expect(markup).toContain("No recent station observation")
+    expect(markup).toContain("1 of 8 hourly")
+    expect(markup).toContain("hourly pressure values unavailable")
+    expect(markup).toContain("hourly dew point values unavailable")
+    expect(markup).not.toContain("Healthy means Ready")
   })
 
   // A publisher outage is when the explainer is most wanted, so it must not be

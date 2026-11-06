@@ -662,6 +662,43 @@ class ReleaseCohortTest(unittest.TestCase):
     def test_missing_observation_time_remains_null(self) -> None:
         self.assertIsNone(self._transform(observation_at=None)["observation_at"])
 
+    def test_ready_model_status_does_not_hide_missing_observations_or_outputs(
+        self,
+    ) -> None:
+        published = self._transform(observation_at=None)
+        self.assertEqual(published["status"], "ready")
+        self.assertEqual(published["health"]["status"], "attention")
+        self.assertEqual(published["health"]["observation"]["status"], "missing")
+        self.assertEqual(published["health"]["outputs"]["status"], "missing")
+
+    def test_observation_health_cutoff_and_future_clock(self) -> None:
+        for observation_at, status in (
+            ("2026-08-08T11:30:01+00:00", "fresh"),
+            ("2026-08-08T11:30:00+00:00", "stale"),
+            ("2026-08-08T12:00:01+00:00", "invalid"),
+        ):
+            with self.subTest(observation_at=observation_at):
+                health = self._transform(observation_at=observation_at)["health"]
+                self.assertEqual(health["observation"]["status"], status)
+
+    def test_health_counts_absent_and_null_values_but_keeps_zero(self) -> None:
+        published = self._transform(
+            hourly=[
+                {
+                    "valid_time": "2026-08-08T13:00:00+00:00",
+                    "lead_hours": 1,
+                    "lead_bucket": "1-3h",
+                    "values": {"temp_c": 0, "dew_point_c": None, "pop": 0},
+                }
+            ]
+        )
+        hourly = published["health"]["outputs"]["hourly"]
+        self.assertEqual(hourly["expected_values"], 8)
+        self.assertEqual(hourly["available_values"], 2)
+        self.assertEqual(hourly["missing_by_variable"]["dew_point_f"], 1)
+        self.assertEqual(hourly["missing_by_variable"]["pressure_sea_inhg"], 1)
+        self.assertNotIn("pop", hourly["missing_by_variable"])
+
     def test_malformed_observation_time_is_refused(self) -> None:
         with self.assertRaisesRegex(RefusedError, "observation_at is not a string"):
             self._transform(observation_at=123)
@@ -674,7 +711,7 @@ class ReleaseCohortTest(unittest.TestCase):
             self._transform(release_ids="2a2b510af0e95621")
 
     def test_the_publisher_version_names_this_contract(self) -> None:
-        self.assertEqual(self._transform()["publisher_version"], "2.3.0")
+        self.assertEqual(self._transform()["publisher_version"], "2.4.0")
 
     def test_schema_six_preserves_hourly_values_and_release_attribution(self) -> None:
         row = LeadBucketTest._row("0-1h")
