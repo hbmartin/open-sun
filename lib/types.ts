@@ -1,4 +1,4 @@
-import type { ForecastHealth } from "@/lib/forecast-health"
+import type { ForecastHealth, OutputHealth } from "@/lib/forecast-health"
 import type { QuantileBand } from "@/lib/quantiles"
 import type { TimesData } from "@/lib/suncalc"
 
@@ -204,14 +204,10 @@ export interface ForecastInfoData {
   issuedAt: string
   ageHours: number
   freshness: ForecastFreshness
-  /** Station observation the run anchored on; undefined when none was fresh. */
-  observationAt?: string
   /** Promoted release cohort; empty on documents from publishers before 1.3.0. */
   releaseIds: string[]
   /** Fraction [0,1] of served variable slots backed by a release id. */
   evidenceCoverage: { hourly: number; daily: number }
-  hourlyRows: number
-  dailyRows: number
   /** Serving-method mix across all variable slots, descending by count. */
   methodCounts: ForecastCount[]
   /** Plain-English selection rationales, descending; empty on old documents. */
@@ -238,6 +234,8 @@ export interface ForecastData {
    * it so two days can be compared by eye instead of each rescaling to itself.
    */
   hourRanges: ForecastRanges
+  /** Completeness of selectable metrics in the final rendered rows. */
+  displayedOutputHealth: OutputHealth
   info: ForecastInfoData
 }
 

@@ -1,39 +1,34 @@
 import type { ForecastDocument } from "@/lib/forecast-schemas"
+import type { ForecastHourData } from "@/lib/types"
+import { FORECAST_DAILY_VARIABLES, FORECAST_HOURLY_VARIABLES } from "@/lib/forecast-schemas"
+import { ForecastMetric } from "@/lib/types"
+import { describeDuration } from "@/lib/utils"
 // oxlint-disable unicorn/no-null -- Match the public JSON contract for unavailable observation ages.
 
 export interface ProductHealth {
   rows: number
-  expected_values: number
-  available_values: number
-  missing_by_variable: Record<string, number>
+  expectedValues: number
+  availableValues: number
+  missingByVariable: Record<string, number>
+}
+
+export interface OutputHealth {
+  status: "complete" | "partial" | "missing"
+  hourly: ProductHealth
+  daily: ProductHealth
 }
 
 export interface ForecastHealth {
   status: "ok" | "attention"
   observation: {
     status: "fresh" | "stale" | "missing" | "invalid"
-    age_seconds: number | null
-    max_age_seconds: number
+    ageSeconds: number | null
+    maxAgeSeconds: number
   }
-  outputs: {
-    status: "complete" | "partial" | "missing"
-    hourly: ProductHealth
-    daily: ProductHealth
-  }
+  outputs: OutputHealth
 }
 
-const HOURLY_VARIABLES = [
-  "temp_f",
-  "humidity_pct",
-  "dew_point_f",
-  "wind_speed_mph",
-  "wind_gust_mph",
-  "pressure_sea_inhg",
-  "precip_in",
-  "pop",
-]
-const DAILY_VARIABLES = ["temp_max_f", "temp_min_f", "pop", "precip_sum_in"]
-const OBSERVATION_MAX_AGE_SECONDS = 1800
+export const OBSERVATION_MAX_AGE_SECONDS = 1800
 
 function productHealth(
   rows: { values: Record<string, number | null | undefined> }[],
@@ -47,45 +42,81 @@ function productHealth(
   const expected = rows.length * variables.length
   return {
     rows: rows.length,
-    expected_values: expected,
-    available_values: expected - Object.values(missing).reduce((sum, value) => sum + value, 0),
-    missing_by_variable: missing,
+    expectedValues: expected,
+    availableValues: expected - Object.values(missing).reduce((sum, value) => sum + value, 0),
+    missingByVariable: missing,
   }
+}
+
+/** Date.parse alone discards fractions below a millisecond; Python supports six digits. */
+function timestampMicroseconds(timestamp: string): bigint | null {
+  const wholeMilliseconds = Date.parse(timestamp.replace(/\.\d+/u, ""))
+  if (!Number.isFinite(wholeMilliseconds)) return null
+  const fraction = (timestamp.match(/\.(\d+)/u)?.[1] ?? "").padEnd(6, "0").slice(0, 6)
+  return BigInt(wholeMilliseconds) * 1000n + BigInt(fraction)
 }
 
 function observationHealth(document: ForecastDocument): ForecastHealth["observation"] {
-  const age =
-    document.observation_at === null
-      ? null
-      : (Date.parse(document.issued_at) - Date.parse(document.observation_at)) / 1000
+  const issued = timestampMicroseconds(document.issued_at)
+  const observed =
+    document.observation_at === null ? null : timestampMicroseconds(document.observation_at)
+  const age = issued === null || observed === null ? null : Number(issued - observed) / 1_000_000
   let status: ForecastHealth["observation"]["status"] = "fresh"
-  if (age === null) status = "missing"
-  else if (!Number.isFinite(age) || age < 0) status = "invalid"
+  if (document.observation_at === null) status = "missing"
+  else if (age === null || age < 0) status = "invalid"
   else if (age >= OBSERVATION_MAX_AGE_SECONDS) status = "stale"
   return {
     status,
-    age_seconds: age !== null && Number.isFinite(age) ? age : null,
-    max_age_seconds: OBSERVATION_MAX_AGE_SECONDS,
+    ageSeconds: age,
+    maxAgeSeconds: OBSERVATION_MAX_AGE_SECONDS,
   }
 }
 
-/** Derive from values, including old publishers without health metadata. Ages are at issue time. */
+function outputHealth(hourly: ProductHealth, daily: ProductHealth): OutputHealth {
+  let status: OutputHealth["status"] = "complete"
+  if (!hourly.availableValues || !daily.availableValues) status = "missing"
+  else if (
+    hourly.availableValues < hourly.expectedValues ||
+    daily.availableValues < daily.expectedValues
+  )
+    status = "partial"
+  return { status, hourly, daily }
+}
+
+/** Derive all published fields, including old publishers. Ages are fixed at issue time. */
 export function forecastHealth(document: ForecastDocument): ForecastHealth {
   const observation = observationHealth(document)
-  const hourly = productHealth(document.hourly, HOURLY_VARIABLES)
-  const daily = productHealth(document.daily, DAILY_VARIABLES)
-  let outputStatus: ForecastHealth["outputs"]["status"] = "complete"
-  if (!hourly.available_values || !daily.available_values) outputStatus = "missing"
-  else if (
-    hourly.available_values < hourly.expected_values ||
-    daily.available_values < daily.expected_values
+  const outputs = outputHealth(
+    productHealth(document.hourly, FORECAST_HOURLY_VARIABLES),
+    productHealth(document.daily, FORECAST_DAILY_VARIABLES),
   )
-    outputStatus = "partial"
   return {
-    status: observation.status === "fresh" && outputStatus === "complete" ? "ok" : "attention",
+    status: observation.status === "fresh" && outputs.status === "complete" ? "ok" : "attention",
     observation,
-    outputs: { status: outputStatus, hourly, daily },
+    outputs,
   }
+}
+
+/** Only surviving display slots and the five selectable metrics affect Forecast warnings. */
+export function displayedOutputHealth(
+  hours: ForecastHourData[],
+  daily: ForecastDocument["daily"],
+): OutputHealth {
+  return outputHealth(
+    productHealth(
+      hours.map((hour) => ({
+        values: {
+          temp: hour.temp,
+          humidity: hour.humidity,
+          wind: hour.wind,
+          precip: hour.precip,
+          pop: hour.pop,
+        },
+      })),
+      Object.values(ForecastMetric),
+    ),
+    productHealth(daily, FORECAST_DAILY_VARIABLES),
+  )
 }
 
 export function observationHealthMessage(health: ForecastHealth): string {
@@ -96,11 +127,9 @@ export function observationHealthMessage(health: ForecastHealth): string {
     case "invalid": {
       return "The station observation timestamp is invalid for this forecast."
     }
-    case "stale": {
-      return `The station observation was ${Math.round((health.observation.age_seconds ?? 0) / 60)} minutes old when this forecast was issued.`
-    }
+    case "stale":
     case "fresh": {
-      return "A recent station observation was available when this forecast was issued."
+      return `The station observation was ${describeDuration(health.observation.ageSeconds ?? 0)} old when this forecast was issued.`
     }
   }
 }

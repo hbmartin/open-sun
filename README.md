@@ -12,20 +12,34 @@ A personal weather-station dashboard built with Next.js. It shows current condit
 - The rendered page is cached by Next.js. A Vercel cron job (see `vercel.json`) hits `GET /api/revalidate?secret=...` hourly, which calls `revalidatePath("/", "layout")` to refresh the cached page.
 - The forecast is fetched from the same page render (`fetchForecastData`), validated against `lib/forecast-schemas.ts`, and mapped by `lib/forecast-mappers.ts`. It never throws: if the publisher is down, stale, or emitting an unrecognised shape, the Forecast tab explains why and the rest of the dashboard is unaffected.
 
-Forecast health is separate from model approval. Publisher 2.4.0 adds a `health`
+Forecast health is separate from model approval. Publisher 2.4.1 emits a `health`
 object to `forecast.json`: observation status (`fresh`, `stale`, `missing`, or
 `invalid`), age in seconds at forecast issue time, and hourly/daily output
 coverage. A station observation is fresh only when it is less than 30 minutes
 old at issue time; a future observation is invalid. A null timestamp means no
 recent observation was available, not proof of a particular receiver fault.
+Source timestamps retain Python's supported microsecond precision. The frontend
+uses the same precision for observation ages, including timezone offsets, so
+fractional timestamps cannot cross the 30-minute cutoff through truncation.
+`published_at` retains whole-second precision.
 Output coverage counts all eight hourly and four daily fields in every emitted
 row, including omitted or null values as missing and zero rain as available.
 An empty or wholly unavailable product has `missing` output status. Counts do
 not imply the advertised horizon has every timestamp; they describe emitted rows.
-The UI derives the same health from the document, including older publishers,
-and shows warnings in both Forecast and Info. `status: ready` continues to mean
-model approval and does not suppress these warnings. Observation age at issue
-time remains fixed while the separate document-freshness clock advances.
+The UI derives document health from validated values, including older publishers;
+emitted health metadata is advisory. Info labels completeness and row totals as
+covering the entire published document. Evidence and method summaries instead
+cover accepted display rows. Forecast's completeness warning uses its five
+selectable metrics (temperature, humidity, wind speed, rain amount and rain
+probability) in the final hourly slots after horizon filtering and replacement,
+plus all four daily fields. Missing dew point, gust, pressure, or discarded rows
+therefore appears in Info without making Forecast amber. The warning stays the
+same when switching metric tabs. An empty or wholly unavailable displayed
+product still triggers a warning; counts do not infer missing timestamps.
+`status: ready` continues to mean model approval and does not suppress observation
+or displayed-output warnings. Observation age at issue time remains fixed while
+the separate document-freshness clock advances. Health reporting does not change
+the existing six-hour hold policy.
 
 ## The data pipeline
 

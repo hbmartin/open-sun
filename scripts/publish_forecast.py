@@ -55,7 +55,8 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
-PUBLISHER_VERSION = "2.4.0"
+PUBLISHER_VERSION = "2.4.1"
+OBSERVATION_MAX_AGE_SECONDS = 1800
 SUPPORTED_TOWN_CARD_API_VERSION = 4
 CONTRACT_VERSION = 2
 SOURCE_SCHEMA_VERSION = 6
@@ -614,11 +615,11 @@ def _convert_quantiles(source: Any, table: dict[str, Conversion], product: str) 
 
 
 def _normalise_timestamp(value: Any, field: str) -> str:
-    """Re-emit an ISO timestamp at whole-second precision with an explicit offset.
+    """Re-emit an ISO timestamp with its supported precision and an explicit offset.
 
     The consumer requires an offset (an offset-less timestamp is the genuinely
-    dangerous case: it would be read as local time). Normalising here also strips
-    the microseconds the pipeline puts on observation_at.
+    dangerous case: it would be read as local time). Preserve microseconds so
+    observation health compares the same instants as the source document.
     """
     if not isinstance(value, str):
         msg = f"{field} is not a string"
@@ -633,7 +634,7 @@ def _normalise_timestamp(value: Any, field: str) -> str:
         raise RefusedError(msg)
     if parsed.utcoffset().total_seconds() % 60:
         raise RefusedError(f"{field}: UTC offset must use whole minutes")
-    return parsed.replace(microsecond=0).isoformat()
+    return parsed.isoformat()
 
 
 def _normalise_optional_timestamp(value: Any, field: str) -> str | None:
@@ -798,7 +799,7 @@ def forecast_health(document: dict[str, Any]) -> dict[str, Any]:
         observation_status = "missing"
     elif age < 0:
         observation_status = "invalid"
-    elif age >= 1800:
+    elif age >= OBSERVATION_MAX_AGE_SECONDS:
         observation_status = "stale"
     hourly = _output_health(document["hourly"], HOURLY_VARIABLES)
     daily = _output_health(document["daily"], DAILY_VARIABLES)
@@ -814,7 +815,7 @@ def forecast_health(document: dict[str, Any]) -> dict[str, Any]:
         "observation": {
             "status": observation_status,
             "age_seconds": age,
-            "max_age_seconds": 1800,
+            "max_age_seconds": OBSERVATION_MAX_AGE_SECONDS,
         },
         "outputs": {"status": output_status, "hourly": hourly, "daily": daily},
     }

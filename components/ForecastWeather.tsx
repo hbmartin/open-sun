@@ -12,20 +12,23 @@ import { formatMetricValue, formatStationDateTime } from "@/lib/utils"
 
 function ProvenanceLine({ forecast }: { forecast: ForecastData }): React.JSX.Element {
   const health = forecast.info.health
+  const outputs = forecast.displayedOutputHealth
   const isSuspect =
     forecast.status === "degraded" ||
     forecast.freshness !== "fresh" ||
-    health.status === "attention"
+    health.observation.status !== "fresh" ||
+    outputs.status !== "complete"
   // Keep the publication timestamp absolute while the shared clock updates
   // the freshness warning independently of the cached forecast document.
   const parts = [`Last updated: ${formatStationDateTime(new Date(forecast.issuedAt))}`]
   if (forecast.status === "degraded") {
     parts.push(`degraded: ${forecast.statusReason ?? "no backtest evidence"}`)
-  } else if (forecast.freshness === "expired") {
+  }
+  if (forecast.freshness === "expired") {
     parts.push("publisher may be down")
   }
   if (health.observation.status !== "fresh") parts.push(observationHealthMessage(health))
-  if (health.outputs.status !== "complete") parts.push("Some forecast values are unavailable.")
+  if (outputs.status !== "complete") parts.push("Some displayed forecast values are unavailable.")
 
   return (
     <p

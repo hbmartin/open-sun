@@ -2,7 +2,7 @@ import type { ForecastFetchResult, ForecastInfoData } from "@/lib/types"
 import type React from "react"
 import { ChevronRight, CirclePlay } from "lucide-react"
 import { observationHealthMessage } from "@/lib/forecast-health"
-import { describeAge } from "@/lib/utils"
+import { describeAge, describeDuration } from "@/lib/utils"
 
 /**
  * Model-state summary for the Info view, written for a junior technician:
@@ -99,26 +99,31 @@ function HealthCard({ info }: { info: ForecastInfoData }) {
       <Line amber={!isFresh}>{ageLine}</Line>
       <Line amber={health.observation.status !== "fresh"}>{observationHealthMessage(health)}</Line>
       <Line amber={health.outputs.status !== "complete"}>
-        Forecast values available: {hourly.available_values} of {hourly.expected_values} hourly
+        Published document values available: {hourly.availableValues} of {hourly.expectedValues}{" "}
+        hourly
         {" and "}
-        {daily.available_values} of {daily.expected_values} daily.
+        {daily.availableValues} of {daily.expectedValues} daily.
         {!hourly.rows && " Hourly forecast unavailable."}
         {!daily.rows && " Daily forecast unavailable."}
       </Line>
-      {Object.entries(hourly.missing_by_variable).map(([variable, count]) => (
+      {Object.entries(hourly.missingByVariable).map(([variable, count]) => (
         <Line amber key={variable}>
-          {count} hourly {VALUE_LABELS[variable] ?? variable} values unavailable.
+          {count} hourly {VALUE_LABELS[variable] ?? variable} {count === 1 ? "value" : "values"}{" "}
+          unavailable.
         </Line>
       ))}
-      {Object.entries(daily.missing_by_variable).map(([variable, count]) => (
+      {Object.entries(daily.missingByVariable).map(([variable, count]) => (
         <Line amber key={variable}>
-          {count} daily {VALUE_LABELS[variable] ?? variable} values unavailable.
+          {count} daily {VALUE_LABELS[variable] ?? variable} {count === 1 ? "value" : "values"}{" "}
+          unavailable.
         </Line>
       ))}
       <Note>
         Model approval, observation availability, and output completeness are checked separately. A
-        new document is published every hour; an observation must be less than 30 minutes old at
-        issue time to count as recent.
+        new document is published every hour; an observation must be less than{" "}
+        {describeDuration(health.observation.maxAgeSeconds)} old at issue time to count as recent.
+        Output counts cover all published rows and fields, including values not displayed in
+        Forecast.
       </Note>
     </Card>
   )
@@ -154,8 +159,8 @@ function EvidenceCard({ info }: { info: ForecastInfoData }) {
         values.
       </Line>
       <Note>
-        Values without a release id came from fallbacks; their day labels show grayed in the
-        forecast.
+        Evidence and method summaries cover accepted display rows. Values without a release id came
+        from fallbacks; their day labels show grayed in the forecast.
       </Note>
     </Card>
   )
@@ -195,7 +200,8 @@ function ProvenanceCard({ info }: { info: ForecastInfoData }) {
         {info.sources.length} providers: {info.sources.join(", ")}
       </Line>
       <Line>
-        {info.hourlyRows} hourly rows · {info.dailyRows} daily rows · times in {info.timezone}
+        Published document: {info.health.outputs.hourly.rows} hourly rows ·{" "}
+        {info.health.outputs.daily.rows} daily rows · times in {info.timezone}
       </Line>
       <Line>
         Data fingerprint {info.datasetFingerprint} · publisher {info.publisherVersion} · contract v

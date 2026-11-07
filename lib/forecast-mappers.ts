@@ -8,7 +8,7 @@ import type {
   ForecastHourData,
   ForecastRanges,
 } from "@/lib/types"
-import { forecastHealth } from "@/lib/forecast-health"
+import { displayedOutputHealth, forecastHealth } from "@/lib/forecast-health"
 import { getAbbreviatedDay } from "@/lib/mappers"
 import { likelyBand, quantileBands } from "@/lib/quantiles"
 import { ForecastMetric } from "@/lib/types"
@@ -276,8 +276,9 @@ export function mapForecastDocument(document: ForecastDocument, now: Date): Fore
   }
 
   const days = document.daily.map((row) => mapDailyRow(row, hoursByDate))
-  // The Info aggregates describe what the app can render, so hourly rows
-  // dropped above as outside the daily horizon stay out of them too.
+  const displayedHours = days.flatMap((day) => day.hours).filter((hour) => hour !== undefined)
+  // Evidence and method aggregates cover accepted display rows. Document health
+  // and published row counts deliberately cover the entire publication.
   const allRows = [...acceptedHourly, ...document.daily]
 
   return withForecastFreshness(
@@ -290,20 +291,18 @@ export function mapForecastDocument(document: ForecastDocument, now: Date): Fore
       days,
       ranges: calculateForecastRanges(days),
       // One scale for every expanded day, so their hour bubbles are comparable.
-      hourRanges: hourRangesFor(days.flatMap((day) => day.hours)),
+      hourRanges: hourRangesFor(displayedHours),
+      displayedOutputHealth: displayedOutputHealth(displayedHours, document.daily),
       info: {
         health: forecastHealth(document),
         status: document.status,
         statusReason: document.status_reason ?? undefined,
         issuedAt: document.issued_at,
-        observationAt: document.observation_at ?? undefined,
         releaseIds: document.release_ids,
         evidenceCoverage: {
           hourly: coverageOf(acceptedHourly),
           daily: coverageOf(document.daily),
         },
-        hourlyRows: document.hourly.length,
-        dailyRows: document.daily.length,
         methodCounts: countsOf(allRows.map((row) => row.methods)),
         reasonCounts: countsOf(allRows.map((row) => row.selection_reasons)),
         sources: document.sources,

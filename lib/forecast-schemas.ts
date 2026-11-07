@@ -58,6 +58,9 @@ const ForecastDailyValuesSchema = z.object({
   precip_sum_in: z.number().min(0).nullable().optional(),
 })
 
+export const FORECAST_HOURLY_VARIABLES = Object.keys(ForecastHourlyValuesSchema.shape)
+export const FORECAST_DAILY_VARIABLES = Object.keys(ForecastDailyValuesSchema.shape)
+
 // Grids vary in length by serving method, so this stays an open record and the
 // consumer interpolates. See lib/quantiles.ts.
 const QuantileMapSchema = z.record(z.string(), z.number())
