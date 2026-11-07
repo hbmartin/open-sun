@@ -56,13 +56,17 @@ describe("ForecastInfo", () => {
   })
 
   it("turns the age line amber when stale", () => {
-    const markup = render(ok({ issued_at: "2026-08-05T10:00:00+00:00" }))
+    const markup = render(
+      ok({ issued_at: "2026-08-05T10:00:00+00:00", observation_at: "2026-08-05T09:59:00Z" }),
+    )
     expect(markup).toContain("Issued 6h ago (stale)")
     expect(markup).toContain("text-amber-600")
   })
 
   it("marks an expired document as a possible publisher outage", () => {
-    const markup = render(ok({ issued_at: "2026-08-04T10:00:00+00:00" }))
+    const markup = render(
+      ok({ issued_at: "2026-08-04T10:00:00+00:00", observation_at: "2026-08-04T09:59:00Z" }),
+    )
     expect(markup).toContain("publisher may be down")
   })
 
@@ -133,9 +137,56 @@ describe("ForecastInfo", () => {
     expect(markup).toContain("Models: Ready")
     expect(markup).toContain("No recent station observation")
     expect(markup).toContain("1 of 8 hourly")
-    expect(markup).toContain("hourly pressure values unavailable")
-    expect(markup).toContain("hourly dew point values unavailable")
+    expect(markup).toContain("1 hourly pressure value unavailable")
+    expect(markup).toContain("1 hourly dew point value unavailable")
     expect(markup).not.toContain("Healthy means Ready")
+  })
+
+  it("reports numeric age for fresh observations", () => {
+    expect(render(ok())).toContain(
+      "station observation was 39 seconds old when this forecast was issued",
+    )
+  })
+
+  it.each([
+    ["2026-08-05T15:35:59.999999Z", "less than 1 second"],
+    ["2026-08-05T15:06:00.000001Z", "29 minutes"],
+    ["2026-08-05T13:36:00Z", "2 hours"],
+    ["2026-08-03T15:36:00Z", "2 days"],
+  ])("describes observation %s by its age at issue time", (observation_at, age) => {
+    expect(render(ok({ observation_at }))).toContain(
+      `station observation was ${age} old when this forecast was issued`,
+    )
+  })
+
+  it("builds the freshness note from the effective observation threshold", () => {
+    const forecast = ok()
+    if (forecast.kind !== "ok") throw new Error("expected fixture forecast")
+    forecast.forecast.info.health.observation.maxAgeSeconds = 3600
+    expect(render(forecast)).toContain("less than 1 hour old at issue time")
+  })
+
+  it("labels document-wide counts and pluralizes both hourly and daily warnings", () => {
+    const markup = render(
+      ok({
+        hourly: [
+          makeHourlyRow(),
+          makeHourlyRow({ valid_time: "2026-09-01T15:00:00Z", values: {} }),
+        ],
+        daily: [
+          makeDailyRow({ values: {} }),
+          makeDailyRow({ date_local: "2026-08-06", values: {} }),
+        ],
+      }),
+    )
+    expect(markup).toContain("Published document values available: 8 of 16 hourly")
+    expect(markup).toContain("Published document: 2 hourly rows")
+    expect(markup).toContain("1 hourly pressure value unavailable")
+    expect(markup).toContain("2 daily high temperature values unavailable")
+    expect(markup).toContain("Evidence and method summaries cover accepted display rows")
+    expect(render(ok({ daily: [makeDailyRow({ values: {} })] }))).toContain(
+      "1 daily high temperature value unavailable",
+    )
   })
 
   // A publisher outage is when the explainer is most wanted, so it must not be

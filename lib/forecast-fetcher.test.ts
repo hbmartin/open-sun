@@ -90,7 +90,12 @@ describe("fetchForecastData", () => {
   })
 
   it("surfaces staleness instead of failing when the publisher has stopped", async () => {
-    stubOk(makeForecastDocument({ issued_at: "2026-08-04T10:00:00+00:00" }))
+    stubOk(
+      makeForecastDocument({
+        issued_at: "2026-08-04T10:00:00+00:00",
+        observation_at: "2026-08-04T09:59:00Z",
+      }),
+    )
     const result = await fetchForecastData(NOW)
 
     expect(result.kind).toBe("ok")

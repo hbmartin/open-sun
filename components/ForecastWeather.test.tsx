@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import type { ForecastFetchResult } from "@/lib/types"
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
@@ -17,6 +19,15 @@ function ok(overrides: Record<string, unknown> = {}): ForecastFetchResult {
     kind: "ok",
     forecast: mapForecastDocument(parsedForecastDocument(overrides), NOW),
   }
+}
+
+function provenance(markup: string) {
+  const container = document.createElement("div")
+  container.innerHTML = markup
+  const paragraph = container.querySelector("p")
+  expect(paragraph?.textContent).toContain("Last updated:")
+  if (!paragraph) throw new Error("missing provenance line")
+  return paragraph
 }
 
 describe("ForecastWeather", () => {
@@ -44,19 +55,111 @@ describe("ForecastWeather", () => {
   it("names the reason when the document is degraded", () => {
     const markup = render(ok({ status: "degraded", status_reason: "no live evidence" }))
     expect(markup).toContain("degraded: no live evidence")
-    expect(markup).toContain("text-amber-600")
+    expect(provenance(markup).classList.contains("text-amber-600")).toBe(true)
   })
 
   it("warns when the publisher has gone quiet", () => {
-    const markup = render(ok({ issued_at: "2026-08-04T10:00:00+00:00" }))
+    const markup = render(
+      ok({ issued_at: "2026-08-04T10:00:00+00:00", observation_at: "2026-08-04T09:59:00Z" }),
+    )
     expect(markup).toContain("publisher may be down")
   })
 
-  it("warns in the forecast view when ready models have no observation or complete output", () => {
-    const markup = render(ok({ observation_at: null, hourly: [makeHourlyRow({ values: {} })] }))
+  it("warns about a missing observation with complete displayed output", () => {
+    const markup = render(ok({ observation_at: null }))
     expect(markup).toContain("No recent station observation")
-    expect(markup).toContain("Some forecast values are unavailable")
-    expect(markup).toContain("text-amber-600")
+    expect(markup).not.toContain("Some displayed forecast values")
+    expect(provenance(markup).classList.contains("text-amber-600")).toBe(true)
+  })
+
+  it.each(["temp_f", "humidity_pct", "wind_speed_mph", "precip_in", "pop"])(
+    "warns about missing hourly %s with a fresh observation on every metric tab",
+    (variable) => {
+      const forecast = ok({
+        hourly: [makeHourlyRow({ values: { ...makeHourlyRow().values, [variable]: null } })],
+      })
+      for (const metric of Object.values(ForecastMetric)) {
+        const line = provenance(render(forecast, metric))
+        expect(line.textContent).toContain("Some displayed forecast values are unavailable")
+        expect(line.textContent).not.toContain("station observation")
+        expect(line.classList.contains("text-amber-600")).toBe(true)
+      }
+    },
+  )
+
+  it.each(["temp_max_f", "temp_min_f", "pop", "precip_sum_in"])(
+    "warns about missing daily %s with a fresh observation",
+    (variable) => {
+      const line = provenance(
+        render(
+          ok({ daily: [makeDailyRow({ values: { ...makeDailyRow().values, [variable]: null } })] }),
+        ),
+      )
+      expect(line.textContent).toContain("Some displayed forecast values are unavailable")
+      expect(line.classList.contains("text-amber-600")).toBe(true)
+    },
+  )
+
+  it.each(["dew_point_f", "wind_gust_mph", "pressure_sea_inhg"])(
+    "keeps Forecast neutral when only hidden %s is absent",
+    (variable) => {
+      const values = Object.fromEntries(
+        Object.entries(makeHourlyRow().values).filter(([key]) => key !== variable),
+      )
+      const forecast = ok({ hourly: [makeHourlyRow({ values })] })
+      expect(forecast.kind === "ok" && forecast.forecast.info.health.outputs.status).toBe("partial")
+      const line = provenance(render(forecast))
+      expect(line.textContent).not.toContain("unavailable")
+      expect(line.classList.contains("text-amber-600")).toBe(false)
+    },
+  )
+
+  it("keeps discarded and replaced rows out of Forecast warnings", () => {
+    const forecast = ok({
+      hourly: [
+        makeHourlyRow({ values: {} }),
+        makeHourlyRow(),
+        makeHourlyRow({ valid_time: "2026-09-01T15:00:00Z", values: {} }),
+      ],
+    })
+    expect(forecast.kind === "ok" && forecast.forecast.info.health.outputs.status).toBe("partial")
+    const line = provenance(render(forecast))
+    expect(line.textContent).not.toContain("unavailable")
+    expect(line.classList.contains("text-amber-600")).toBe(false)
+  })
+
+  it.each([{ hourly: [] }, { daily: [] }, { hourly: [makeHourlyRow({ values: {} })] }])(
+    "warns about an empty or wholly unavailable product: %o",
+    (overrides) => {
+      const line = provenance(render(ok(overrides)))
+      expect(line.textContent).toContain("Some displayed forecast values are unavailable")
+      expect(line.classList.contains("text-amber-600")).toBe(true)
+    },
+  )
+
+  it("treats zero rain and wind as available", () => {
+    const forecast = ok({
+      hourly: [makeHourlyRow({ values: { ...makeHourlyRow().values, wind_speed_mph: 0 } })],
+    })
+    const line = provenance(render(forecast))
+    expect(line.textContent).not.toContain("unavailable")
+    expect(line.classList.contains("text-amber-600")).toBe(false)
+  })
+
+  it("reports both degradation and publisher expiry", () => {
+    const line = provenance(
+      render(
+        ok({
+          status: "degraded",
+          status_reason: "no live evidence",
+          issued_at: "2026-08-04T10:00:00Z",
+          observation_at: "2026-08-04T09:59:00Z",
+        }),
+      ),
+    )
+    expect(line.textContent).toContain("degraded: no live evidence")
+    expect(line.textContent).toContain("publisher may be down")
+    expect(line.classList.contains("text-amber-600")).toBe(true)
   })
 
   it("marks an unevidenced day in the accessible label", () => {

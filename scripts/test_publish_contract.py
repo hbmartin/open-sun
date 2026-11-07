@@ -71,6 +71,12 @@ class SourceContractTests(unittest.TestCase):
                 self.assertEqual(result["accepted"], case["accepted"], result)
                 if not case["accepted"]:
                     self.assertIn(case["field"], result["error"])
+                elif "observation_health" in case:
+                    self.assertEqual(
+                        result["payload"]["health"]["observation"],
+                        case["observation_health"]
+                        | {"max_age_seconds": publisher.OBSERVATION_MAX_AGE_SECONDS},
+                    )
 
     def test_in_memory_metadata_must_be_finite_and_numeric(self):
         base = json.loads(FIXTURE.read_bytes())["source"]

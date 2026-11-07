@@ -61,7 +61,10 @@ describe("withForecastFreshness", () => {
     { now: "2026-08-06T01:00:00.001Z", ageHours: 12 + 1 / 3_600_000, freshness: "expired" },
     { now: "2026-08-05T12:59:00Z", ageHours: 0, freshness: "fresh" },
   ])("matches the mapper at $now ($freshness)", ({ now, ageHours, freshness }) => {
-    const document = parsedForecastDocument({ issued_at: "2026-08-05T13:00:00Z" })
+    const document = parsedForecastDocument({
+      issued_at: "2026-08-05T13:00:00Z",
+      observation_at: "2026-08-05T12:59:00Z",
+    })
     const initial = mapForecastDocument(document, new Date(document.issued_at))
     const updated = withForecastFreshness(initial, new Date(now))
 
@@ -343,6 +346,50 @@ describe("mapForecastDocument", () => {
     })
   })
 
+  describe("displayed output health", () => {
+    it("counts five hourly and four daily values and stays JSON serializable", () => {
+      const forecast = mapDocument()
+      expect(forecast.displayedOutputHealth).toEqual({
+        status: "complete",
+        hourly: { rows: 1, expectedValues: 5, availableValues: 5, missingByVariable: {} },
+        daily: { rows: 1, expectedValues: 4, availableValues: 4, missingByVariable: {} },
+      })
+      expect(() => JSON.stringify(forecast)).not.toThrow()
+    })
+
+    it("reports only the final occupant of an hourly display slot", () => {
+      const forecast = mapDocument({
+        hourly: [
+          makeHourlyRow(),
+          makeHourlyRow({ values: { ...makeHourlyRow().values, temp_f: null } }),
+        ],
+      })
+      expect(forecast.days[0].hours[8]?.temp).toBeUndefined()
+      expect(forecast.displayedOutputHealth.hourly).toEqual({
+        rows: 1,
+        expectedValues: 5,
+        availableValues: 4,
+        missingByVariable: { temp: 1 },
+      })
+      expect(forecast.displayedOutputHealth.status).toBe("partial")
+      expect(forecast.info.health.outputs.hourly.rows).toBe(2)
+    })
+
+    it("excludes discarded and replaced missing rows while retaining document health", () => {
+      const forecast = mapDocument({
+        hourly: [
+          makeHourlyRow({ values: {} }),
+          makeHourlyRow(),
+          makeHourlyRow({ valid_time: "2026-09-01T15:00:00Z", values: {} }),
+        ],
+      })
+      expect(forecast.displayedOutputHealth.status).toBe("complete")
+      expect(forecast.displayedOutputHealth.hourly.rows).toBe(1)
+      expect(forecast.info.health.outputs.hourly.rows).toBe(3)
+      expect(forecast.info.health.outputs.status).toBe("partial")
+    })
+  })
+
   describe("info", () => {
     it("carries the model-state fields onto the summary", () => {
       const info = mapDocument().info
@@ -350,19 +397,19 @@ describe("mapForecastDocument", () => {
       expect(info.statusReason).toBeUndefined()
       expect(info.issuedAt).toBe("2026-08-05T15:36:00+00:00")
       expect(info.freshness).toBe("fresh")
-      expect(info.observationAt).toBe("2026-08-05T15:35:21+00:00")
+      expect(info.health.observation.ageSeconds).toBe(39)
       expect(info.releaseIds).toEqual(["c22474d379549f29"])
       expect(info.sources).toEqual(["nbm", "nws", "open_meteo"])
       expect(info.datasetFingerprint).toBe("718e5bfa65100a5b")
       expect(info.publisherVersion).toBe("1.0.0")
       expect(info.schemaVersion).toBe(2)
       expect(info.timezone).toBe("America/Los_Angeles")
-      expect(info.hourlyRows).toBe(1)
-      expect(info.dailyRows).toBe(1)
+      expect(info.health.outputs.hourly.rows).toBe(1)
+      expect(info.health.outputs.daily.rows).toBe(1)
     })
 
-    it("maps a null observation time to undefined", () => {
-      expect(mapDocument({ observation_at: null }).info.observationAt).toBeUndefined()
+    it("reports a null observation time as missing", () => {
+      expect(mapDocument({ observation_at: null }).info.health.observation.status).toBe("missing")
     })
 
     it("computes evidence coverage as backed slots over value slots", () => {

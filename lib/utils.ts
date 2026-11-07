@@ -123,6 +123,25 @@ export function describeAge(ageHours: number): string {
   return `${Math.round(ageHours / 24)}d ago`
 }
 
+/** An elapsed duration, without an "ago" suffix or rounding across a health cutoff. */
+export function describeDuration(seconds: number): string {
+  if (seconds > 0 && seconds < 1) return "less than 1 second"
+  let divisor = 1
+  let unit = "second"
+  if (seconds >= 86_400) {
+    divisor = 86_400
+    unit = "day"
+  } else if (seconds >= 3600) {
+    divisor = 3600
+    unit = "hour"
+  } else if (seconds >= 60) {
+    divisor = 60
+    unit = "minute"
+  }
+  const count = Math.floor(seconds / divisor)
+  return `${count} ${unit}${count === 1 ? "" : "s"}`
+}
+
 export function formatMetricValue(value: number, precision: number): string {
   // toFixed(0) renders small negatives as "-0"; rounding sidesteps that.
   if (precision === 0) {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   cn,
+  describeDuration,
   formatCalendarDate,
   formatDate,
   formatHour,
@@ -8,6 +9,26 @@ import {
   getRangePosition,
   getSunTimes,
 } from "@/lib/utils"
+
+describe("describeDuration", () => {
+  it.each([
+    [0, "0 seconds"],
+    [0.000001, "less than 1 second"],
+    [1, "1 second"],
+    [39, "39 seconds"],
+    [59.999999, "59 seconds"],
+    [60, "1 minute"],
+    [1799.999999, "29 minutes"],
+    [1800, "30 minutes"],
+    [3599.999999, "59 minutes"],
+    [3600, "1 hour"],
+    [86399, "23 hours"],
+    [86400, "1 day"],
+    [172800, "2 days"],
+  ])("formats %s seconds as %s without rounding into the next unit", (seconds, expected) => {
+    expect(describeDuration(seconds)).toBe(expected)
+  })
+})
 
 describe("cn", () => {
   it("joins class names and drops falsy values", () => {
